@@ -149,6 +149,10 @@ body { position: fixed; inset: 0; }
 .screen > :first-child { margin-top: auto; }
 .screen > :last-child { margin-bottom: auto; }
 
+/* jamais d'écrasement : si ça dépasse, l'écran DÉFILE (les espaceurs de
+   l'accueil, déclarés plus bas, gardent leur droit de rétrécir) */
+.screen > * { flex-shrink: 0; }
+
 .screen p { font-size: 16px; color: var(--muted); }
 
 button {
