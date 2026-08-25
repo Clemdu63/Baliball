@@ -21,6 +21,12 @@ fichier audio.
   à la casse).
 - Le **score** grimpe avec des multiplicateurs de combo quand un même tir
   brise plusieurs pierres.
+- Aux très gros scores, le lagon se déchaîne : **pierres larges** (2 colonnes)
+  dès 10 000 pts, **pierres rondes** à rebonds courbes à 30 000, **Grande
+  marée** à 50 000 (descente double toutes les 5 manches), **pierres
+  ardentes** à 100 000 (tout durcit, blindées plus fréquentes) — chaque
+  palier est annoncé d'une bannière. En Tournoi et Défi du jour, ces paliers
+  arrivent à la manche pour préserver l'identité des grilles.
 - À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
   la partie est perdue quand une pierre atteint la plage.
 - Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.

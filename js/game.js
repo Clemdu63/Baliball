@@ -82,6 +82,39 @@ let tutoActive = false;        // aides de la première partie
 
 const TIDE_DURATION = 90;
 
+/* Échelle de fin de partie : le jeu se corse à mesure que le score grimpe.
+   En Tournoi et Défi du jour (parties à graine partagée), les paliers se
+   déclenchent à la manche pour que tous les joueurs gardent la même grille. */
+const LATE_TIERS = [
+  { at: 10000, round: 15, name: '🪨 Pierres larges !' },
+  { at: 30000, round: 22, name: '⚪ Pierres rondes !' },
+  { at: 50000, round: 28, name: '🌊 Grande marée !' },
+  { at: 100000, round: 35, name: '🔥 Pierres ardentes !' },
+];
+let nextTier = 0;
+
+const isSeeded = () => mode === 'tournament' || mode === 'daily';
+
+function tierUnlocked(i) {
+  const t = LATE_TIERS[i];
+  if (!t) return false;
+  return isSeeded() ? round >= t.round : score >= t.at;
+}
+
+function unlockCount() {
+  let n = 0;
+  while (n < LATE_TIERS.length && tierUnlocked(n)) n += 1;
+  return n;
+}
+
+function announceTiers() {
+  while (nextTier < LATE_TIERS.length && tierUnlocked(nextTier)) {
+    effects.push({ type: 'milestone', text: LATE_TIERS[nextTier].name, life: 1, color: '#7ef0d8' });
+    sfx.milestone();
+    nextTier += 1;
+  }
+}
+
 /* Mode chronométré : marée montante. */
 const isTimed = () => mode === 'tide';
 
@@ -177,6 +210,7 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   tideTime = TIDE_DURATION;
   puzzle = null;
   nextMilestone = 1000;
+  nextTier = 0;
 
   tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
 
@@ -266,11 +300,16 @@ export function drawLegendIcon(cv, kind) {
     } else if (kind === 'coconut-ball') {
       cell = size;
       drawCoconut(size / 2, cv.height / 2, size * 0.3, T);
+    } else if (kind === 'wide') {
+      cell = size * 0.48;
+      boardTop = cv.height / 2 - cell / 2;
+      c2.setTransform(1, 0, 0, 1, size / 2 - cell, 0);
+      drawStone({ col: 0, row: 0, hp: 12, flash: 0, seed: 0.42, type: 'wide', orient: 0, lastHitShot: -1 }, 0, T);
     } else {
       cell = size * 0.95;
       boardTop = cv.height / 2 - cell / 2;
       c2.setTransform(1, 0, 0, 1, size / 2 - cell / 2, 0);
-      const hp = kind === 'mystery' ? 3 : kind === 'armored' ? 2 : kind === 'tri' ? 2 : 7;
+      const hp = kind === 'mystery' ? 3 : kind === 'armored' ? 2 : kind === 'tri' ? 2 : kind === 'round' ? 8 : 7;
       drawStone({ col: 0, row: 0, hp, flash: 0, seed: 0.42, type: kind, orient: 1, lastHitShot: -1 }, 0, T);
     }
   } finally {
@@ -337,10 +376,11 @@ export function debugState() {
 // ---- grille ----
 function blockRect(b, yOffset) {
   const pad = cell * 0.055;
+  const span = b.type === 'wide' ? 2 : 1;
   return {
     x0: b.col * cell + pad,
     y0: boardTop + (b.row + yOffset) * cell + pad,
-    x1: (b.col + 1) * cell - pad,
+    x1: (b.col + span) * cell - pad,
     y1: boardTop + (b.row + 1 + yOffset) * cell - pad,
   };
 }
@@ -383,21 +423,39 @@ function loadLevel(def) {
 }
 
 function spawnRow() {
-  const cols = [0, 1, 2, 3, 4, 5, 6];
+  const lvl = unlockCount();
+  const hpMult = lvl >= 4 ? 1.3 : 1; // pierres ardentes : tout durcit
+  const used = new Set();
+
+  // palier 1 : pierre large sur deux colonnes
+  if (lvl >= 1 && rng() < 0.22) {
+    const c = Math.floor(rng() * (COLS - 1));
+    blocks.push({
+      col: c, row: 0,
+      hp: Math.max(2, Math.round(round * 1.5 * hpMult)),
+      flash: 0, seed: Math.random(), type: 'wide', orient: 0, lastHitShot: -1,
+    });
+    used.add(c);
+    used.add(c + 1);
+  }
+
+  const cols = [0, 1, 2, 3, 4, 5, 6].filter((c) => !used.has(c));
   for (let i = cols.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  const n = 2 + Math.floor(rng() * 4);
+  const n = Math.min(cols.length - 1, 2 + Math.floor(rng() * 4));
+  const armoredChance = lvl >= 4 ? 0.2 : 0.10; // pierres ardentes : blindées plus fréquentes
   for (let i = 0; i < n; i++) {
     const roll = rng();
     let type = 'stone';
-    if (roll < 0.10 && round >= 4) type = 'armored';
-    else if (roll < 0.24 && round >= 2) type = 'tri';
-    else if (roll < 0.30 && round >= 3) type = 'mystery';
+    if (roll < armoredChance && round >= 4) type = 'armored';
+    else if (roll < armoredChance + 0.14 && round >= 2) type = 'tri';
+    else if (roll < armoredChance + 0.20 && round >= 3) type = 'mystery';
+    else if (lvl >= 2 && roll < armoredChance + 0.42) type = 'round'; // palier 2
     const hp = type === 'armored'
       ? Math.max(1, Math.ceil(round / 3))
-      : (rng() < 0.18 ? round * 2 : round);
+      : Math.max(1, Math.round((rng() < 0.18 ? round * 2 : round) * hpMult));
     blocks.push({
       col: cols[i], row: 0, hp, flash: 0, seed: Math.random(), type,
       orient: type === 'tri' ? Math.floor(rng() * 4) : 0,
@@ -405,11 +463,11 @@ function spawnRow() {
     });
   }
   let free = n;
-  if (free < COLS) {
+  if (free < cols.length) {
     powerups.push({ col: cols[free], row: 0, kind: 'ball' });
     free += 1;
   }
-  if (free < COLS && rng() < 0.4) {
+  if (free < cols.length && rng() < 0.4) {
     const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
     powerups.push({ col: cols[free], row: 0, kind });
   }
@@ -443,45 +501,53 @@ function endTurn() {
     return;
   }
 
-  for (const b of blocks) b.row += 1;
-  for (const p of powerups) p.row += 1;
-  powerups = powerups.filter((p) => {
-    if (p.row >= deathRow) {
-      // arrivés sur la plage : les +1 noix sont ramassés, le reste est perdu
-      if (p.kind === 'ball') {
-        ballCount += 1;
-        const c = powerupCenter(p, 0);
-        floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
-      }
-      return false;
-    }
-    return true;
-  });
-  shiftAnim = 0;
-
-  const reached = blocks.filter((b) => b.row >= deathRow);
-  if (reached.length > 0) {
-    if (mode === 'classic' || mode === 'daily' || mode === 'tournament') {
-      gameOver('line');
-      return;
-    }
-    // zen et marée montante : la marée emporte les pierres du bas
-    blocks = blocks.filter((b) => b.row < deathRow);
-    for (const b of reached) {
-      const rc = blockRect(b, 0);
-      const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
-      for (let p = 0; p < 6; p++) {
-        particles.push({
-          x: cx, y: cy,
-          vx: (Math.random() - 0.5) * cell * 2,
-          vy: -Math.random() * cell,
-          life: 1, color: 'rgba(255,255,255,0.8)',
-        });
-      }
-    }
-    if (reached.length) sfx.wall();
+  // palier 3 (Grande marée) : toutes les 5 manches, tout descend de DEUX crans
+  const bigTide = tierUnlocked(2) && (round + 1) % 5 === 0;
+  const shifts = bigTide ? 2 : 1;
+  if (bigTide) {
+    effects.push({ type: 'milestone', text: '🌊 Grande marée !', life: 1, color: '#7ef0d8' });
   }
+  for (let s = 0; s < shifts; s++) {
+    for (const b of blocks) b.row += 1;
+    for (const p of powerups) p.row += 1;
+    powerups = powerups.filter((p) => {
+      if (p.row >= deathRow) {
+        // arrivés sur la plage : les +1 noix sont ramassés, le reste est perdu
+        if (p.kind === 'ball') {
+          ballCount += 1;
+          const c = powerupCenter(p, 0);
+          floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
+        }
+        return false;
+      }
+      return true;
+    });
+    const reached = blocks.filter((b) => b.row >= deathRow);
+    if (reached.length > 0) {
+      if (mode === 'classic' || mode === 'daily' || mode === 'tournament') {
+        gameOver('line');
+        return;
+      }
+      // zen et marée montante : la marée emporte les pierres du bas
+      blocks = blocks.filter((b) => b.row < deathRow);
+      for (const b of reached) {
+        const rc = blockRect(b, 0);
+        const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
+        for (let p = 0; p < 6 && particles.length < MAX_PARTICLES; p++) {
+          particles.push({
+            x: cx, y: cy,
+            vx: (Math.random() - 0.5) * cell * 2,
+            vy: -Math.random() * cell,
+            life: 1, color: 'rgba(255,255,255,0.8)',
+          });
+        }
+      }
+      if (reached.length) sfx.wall();
+    }
+  }
+  shiftAnim = 0;
   round += 1;
+  if (isSeeded()) announceTiers();
   sfx.newRow();
   spawnRow();
   state = 'aim';
@@ -612,6 +678,7 @@ function addPoints(n) {
     celebrate(Math.floor(score / 1000) * 1000);
     nextMilestone = Math.floor(score / 1000) * 1000 + 1000;
   }
+  if (!isSeeded()) announceTiers();
 }
 
 /* Palier franchi : bannière, confettis et gong. */
@@ -765,6 +832,8 @@ function loadGame(m) {
     score = s.score || 0;
     pearls = s.pearls || 0;
     nextMilestone = (Math.floor(score / 1000) + 1) * 1000;
+    nextTier = 0;
+    while (nextTier < LATE_TIERS.length && score >= LATE_TIERS[nextTier].at) nextTier += 1;
     launchX = Math.min(Math.max((s.launchFrac || 0.5) * W, RADIUS() + 2), W - RADIUS() - 2);
     blocks = s.blocks.map(([col, row, hp, type, orient]) => ({
       col, row, hp,
@@ -825,6 +894,8 @@ function collideBlocks(ball, r) {
 
     if (b.type === 'tri') {
       if (!collideTriangle(ball, r, b, rc)) continue;
+    } else if (b.type === 'round') {
+      if (!collideRound(ball, r, rc)) continue;
     } else {
       collideAABB(ball, r, rc);
     }
@@ -904,6 +975,27 @@ function collideTriangle(ball, r, b, rc) {
   }
   ball.x = g.a.x + g.n.x * (r + 0.5) + Math.max(0, Math.min(1, tt)) * abx;
   ball.y = g.a.y + g.n.y * (r + 0.5) + Math.max(0, Math.min(1, tt)) * aby;
+  return true;
+}
+
+/* Pierre ronde : rebond courbe sur la sphère. */
+function collideRound(ball, r, rc) {
+  const cx = (rc.x0 + rc.x1) / 2;
+  const cy = (rc.y0 + rc.y1) / 2;
+  const R = (rc.x1 - rc.x0) / 2;
+  const dx = ball.x - cx;
+  const dy = ball.y - cy;
+  const d = Math.hypot(dx, dy);
+  if (d >= r + R) return false;
+  const nx = d > 0 ? dx / d : 0;
+  const ny = d > 0 ? dy / d : -1;
+  const dot = ball.vx * nx + ball.vy * ny;
+  if (dot < 0) {
+    ball.vx -= 2 * dot * nx;
+    ball.vy -= 2 * dot * ny;
+  }
+  ball.x = cx + nx * (r + R + 0.5);
+  ball.y = cy + ny * (r + R + 0.5);
   return true;
 }
 
@@ -1233,6 +1325,9 @@ function stonePath(b, rc, grow) {
     ctx.lineTo(g.bpt.x, g.bpt.y);
     ctx.lineTo(g.corner.x, g.corner.y);
     ctx.closePath();
+  } else if (b.type === 'round') {
+    ctx.beginPath();
+    ctx.arc((x + x1) / 2, (y + y1) / 2, (x1 - x) / 2, 0, Math.PI * 2);
   } else {
     roundRect(x, y, x1 - x, y1 - y, rad);
   }
@@ -1256,7 +1351,20 @@ function drawStone(b, yOff, T) {
   const x = rc.x0 - grow, y = rc.y0 - grow;
   const ww = w + grow * 2, hh = h + grow * 2;
 
-  if (b.type !== 'tri') {
+  if (b.type === 'round') {
+    // sphère sculptée : anneau intérieur et reflet
+    const rcx = x + ww / 2, rcy = y + hh / 2, rr = ww / 2;
+    ctx.strokeStyle = style.groove;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(rcx, rcy, rr * 0.62, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(rcx, rcy, rr * 0.82, -2.3, -0.9);
+    ctx.stroke();
+  } else if (b.type !== 'tri') {
     // arête claire en haut, ombre en bas
     ctx.strokeStyle = 'rgba(255,255,255,0.28)';
     ctx.lineWidth = 1.5;
@@ -1297,7 +1405,7 @@ function drawStone(b, yOff, T) {
       ctx.arc(x + ww * fx, y + hh * fy, rr, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (b.type !== 'tri') {
+  } else if (b.type !== 'tri' && b.type !== 'round') {
     if (style.moss) {
       ctx.fillStyle = style.moss;
       ctx.globalAlpha = 0.8;
@@ -1627,7 +1735,7 @@ function drawEffects(T) {
       ctx.lineWidth = 6;
       ctx.strokeStyle = 'rgba(0,40,40,0.55)';
       ctx.strokeText(e.text, 0, 0);
-      ctx.fillStyle = '#ffd34d';
+      ctx.fillStyle = e.color || '#ffd34d';
       ctx.fillText(e.text, 0, 0);
       ctx.restore();
       ctx.globalAlpha = 1;

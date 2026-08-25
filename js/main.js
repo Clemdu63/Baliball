@@ -7,6 +7,8 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
+const APP_VERSION = '2.2.0';
+
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
   'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
@@ -662,6 +664,8 @@ const LEGEND_STONES = [
   ['tri', 'Toit de temple', 'Demi-pierre : l\'hypoténuse renvoie la noix en diagonale.'],
   ['armored', 'Pierre volcanique', 'Blindée : elle n\'encaisse qu\'1 dégât par seconde environ, même sous une pluie de noix.'],
   ['mystery', 'Pierre mystère', 'Révèle une surprise en se brisant : noix, perles, explosion ou points.'],
+  ['wide', 'Pierre large', 'Deux colonnes d\'un bloc, très solide — apparaît à partir de 10 000 pts.'],
+  ['round', 'Pierre ronde', 'Rebonds courbes imprévisibles — apparaît à partir de 30 000 pts.'],
 ];
 
 function legendRow([kind, name, desc]) {
@@ -1009,6 +1013,8 @@ $('btn-settings-back').addEventListener('click', () => {
 });
 
 // ---- démarrage ----
+document.querySelector('.version').textContent = 'v' + APP_VERSION;
+$('settings-version').textContent = 'Baliball v' + APP_VERSION;
 refreshHome();
 show('screen-home');
 
