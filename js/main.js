@@ -4,7 +4,7 @@ import { settings, persistSettings, KEYS, loadJSON, store } from './storage.js';
 import { setThemeMode, DECORS } from './theme.js';
 import { initAudio, syncAmbience, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
-import { netPublish, netSubscribe, myUid } from './net.js';
+import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,6 +26,7 @@ function showGame() {
   for (const s of SCREENS) $(s).classList.add('hidden');
   $('btn-home').classList.remove('hidden');
   $('btn-restart').classList.remove('hidden');
+  if (typeof syncEmojiButton === 'function') syncEmojiButton();
 }
 
 /* Derniers paramètres de partie : sert à REJOUER et à RECOMMENCER
@@ -72,9 +73,19 @@ $('btn-resume').addEventListener('click', () => {
 $('btn-settings').addEventListener('click', () => show('screen-settings'));
 
 // ---- choix du mode ----
-$('btn-mode-classic').addEventListener('click', () => startGame('classic'));
+function startOrResume(m) {
+  initAudio();
+  if (game.savedMode() === m && game.resumeGame(m)) {
+    lastStart = { mode: m, level: 0, seed: null };
+    showGame();
+    return;
+  }
+  startGame(m);
+}
+
+$('btn-mode-classic').addEventListener('click', () => startOrResume('classic'));
 $('btn-mode-tide').addEventListener('click', () => startGame('tide'));
-$('btn-mode-zen').addEventListener('click', () => startGame('zen'));
+$('btn-mode-zen').addEventListener('click', () => startOrResume('zen'));
 $('btn-mode-puzzle').addEventListener('click', () => {
   renderLevels();
   show('screen-levels');
@@ -116,8 +127,13 @@ function validCode(code) {
   return code.length === 4 && ![...code].some((c) => !CODE_ALPHABET.includes(c));
 }
 
-function startCountdown(seed) {
+let counting = false;
+
+function startCountdown(seed, opts) {
+  if (counting) return;
+  counting = true;
   initAudio();
+  game.setTournamentOptions(opts || { fast: settings.fast, target: null });
   show('screen-countdown');
   let n = 3;
   $('countdown-num').textContent = String(n);
@@ -129,9 +145,13 @@ function startCountdown(seed) {
       sfx.newRow();
     } else {
       clearInterval(timer);
+      counting = false;
       sfx.bonus();
       startGame('tournament', 0, seed);
-      if (net) tickerRefresh();
+      if (net) {
+        tickerRefresh();
+        syncEmojiButton();
+      }
     }
   }, 1000);
 }
@@ -167,15 +187,40 @@ $('btn-join-go').addEventListener('click', () => {
 });
 
 // -- en ligne : salon ntfy.sh, pseudos, scores en direct --
-let net = null;          // {code, name, stop, game, roster:Map, lastPub, lastAnnounce}
+let net = null;          // {code, name, stop, game, roster:Map, lastPub, lastAnnounce, raceWinner}
 let lastLeaderUid = null;
+let lobbyOpts = { target: null, fast: false };
+let lastEmojiSent = 0;
 
-function teardownNet() {
+function teardownNet(announce) {
+  if (net && announce) {
+    netPublish(net.code, { t: 'leave', uid: myUid, name: net.name });
+  }
   if (net && net.stop) net.stop();
   net = null;
   lastLeaderUid = null;
   $('live-ticker').classList.add('hidden');
   $('live-toasts').innerHTML = '';
+  syncEmojiButton();
+}
+
+/* Réactions émojis en direct pendant la partie. */
+const EMOJIS = ['😂', '🔥', '🥥', '💀', '👏'];
+
+function syncEmojiButton() {
+  const on = !!(net && net.game && game.getMode() === 'tournament' && game.isPlaying());
+  $('btn-emoji').classList.toggle('hidden', !on);
+  if (!on) $('emoji-bar').classList.add('hidden');
+}
+
+function spawnEmojiFloat(name, emoji) {
+  const div = document.createElement('div');
+  div.className = 'emoji-float';
+  div.style.left = (15 + Math.random() * 60) + '%';
+  div.innerHTML = '<span class="emoji-big">' + emoji + '</span><span class="emoji-who">'
+    + name + '</span>';
+  $('emoji-floats').appendChild(div);
+  setTimeout(() => div.remove(), 2600);
 }
 
 function toast(text) {
@@ -204,8 +249,10 @@ function tickerRefresh() {
   const sorted = rosterSorted();
   if (!sorted.length) return;
   const [uid, lead] = sorted[0];
+  const playing = [...net.roster.values()].filter((p) => !p.over).length;
   const ticker = $('live-ticker');
-  ticker.textContent = '🥇 ' + (uid === myUid ? 'Toi' : lead.name) + ' · ' + lead.score;
+  ticker.textContent = '🥇 ' + (uid === myUid ? 'Toi' : lead.name) + ' · ' + lead.score
+    + '   ·   ' + playing + ' 🎮';
   if (game.getMode() === 'tournament' && game.isPlaying()) ticker.classList.remove('hidden');
   if (uid !== lastLeaderUid && lastLeaderUid !== null && lead.score > 0) {
     toast(uid === myUid ? 'Tu passes en tête !' : '« ' + lead.name + ' » est en tête !');
@@ -236,11 +283,19 @@ function renderStandings() {
   if (mine) {
     $('standings-me').textContent = 'Ton score : ' + mine.score + ' pts — manche ' + mine.round;
   }
+  const banner = $('standings-banner');
+  if (net.raceWinner) {
+    banner.textContent = '🏆 ' + (net.raceWinner === 'Toi' ? 'Tu remportes' : '« ' + net.raceWinner + ' » remporte') + ' la course !';
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
 }
 
 function onNetMsg(d, age) {
   if (!net || !d || !d.t) return;
   if (d.t === 'join') {
+    if (age > 300) return; // vieux message rejoué : joueur sûrement parti
     upsert(d.uid, { name: d.name });
     renderLobby();
     // se ré-annoncer pour que les arrivants voient tout le monde
@@ -248,14 +303,27 @@ function onNetMsg(d, age) {
       net.lastAnnounce = Date.now();
       netPublish(net.code, { t: 'join', uid: myUid, name: net.name });
     }
+  } else if (d.t === 'leave') {
+    if (d.uid === myUid) return;
+    if (net.roster.delete(d.uid)) {
+      renderLobby();
+      if (age < 20) toast('« ' + d.name + ' » a quitté le salon');
+      tickerRefresh();
+    }
+  } else if (d.t === 'emoji') {
+    if (d.uid !== myUid && age < 15 && EMOJIS.includes(d.e)) {
+      spawnEmojiFloat(d.name, d.e);
+      sfx.pearl();
+    }
   } else if (d.t === 'start') {
-    if (age < 20 && !(game.getMode() === 'tournament' && game.isPlaying())) {
+    if (age < 20 && !counting && !(game.getMode() === 'tournament' && game.isPlaying())) {
       net.game = d.game;
+      net.raceWinner = null;
       for (const p of net.roster.values()) {
         p.score = 0; p.round = 0; p.over = false;
       }
       lastLeaderUid = null;
-      startCountdown(d.seed);
+      startCountdown(d.seed, d.opts);
     }
   } else if (d.t === 'score') {
     if (d.game !== net.game) return;
@@ -264,8 +332,19 @@ function onNetMsg(d, age) {
   } else if (d.t === 'over') {
     if (d.game !== net.game) return;
     upsert(d.uid, { name: d.name, score: d.score, round: d.round, over: true });
-    if (d.uid !== myUid && age < 20) {
+    if (d.won && !net.raceWinner) {
+      net.raceWinner = d.uid === myUid ? 'Toi' : d.name;
+      if (age < 30) {
+        toast('🏆 « ' + d.name + ' » remporte la course !');
+        sfx.milestone();
+      }
+      // la course est finie : tout le monde s'arrête
+      if (d.uid !== myUid && game.getMode() === 'tournament' && game.isPlaying()) {
+        game.forceGameOver('caught');
+      }
+    } else if (d.uid !== myUid && age < 20) {
       toast('« ' + d.name + ' » a terminé : ' + d.score + ' pts');
+      sfx.wall();
     }
     tickerRefresh();
   }
@@ -275,7 +354,7 @@ function enterLobby(code, name) {
   teardownNet();
   net = {
     code, name, roster: new Map(), game: null,
-    lastPub: 0, lastAnnounce: Date.now(), stop: null,
+    lastPub: 0, lastAnnounce: Date.now(), stop: null, raceWinner: null,
   };
   upsert(myUid, { name });
   $('lobby-code').textContent = code;
@@ -299,7 +378,7 @@ $('btn-tournoi-online').addEventListener('click', () => {
   show('screen-online-setup');
 });
 $('btn-online-back').addEventListener('click', () => {
-  teardownNet();
+  teardownNet(true);
   show('screen-tournoi');
 });
 
@@ -329,17 +408,57 @@ $('btn-online-join').addEventListener('click', () => {
   enterLobby(code, name);
 });
 
+function bindLobbyOpt(containerId, key, parse) {
+  const box = $(containerId);
+  const sync = () => {
+    for (const btn of box.querySelectorAll('button')) {
+      btn.classList.toggle('active', btn.dataset.value === String(lobbyOpts[key]));
+    }
+  };
+  box.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    lobbyOpts[key] = parse(btn.dataset.value);
+    sync();
+  });
+  sync();
+}
+
+bindLobbyOpt('seg-goal', 'target', (v) => (v === 'null' ? null : parseInt(v, 10)));
+bindLobbyOpt('seg-tspeed', 'fast', (v) => v === 'true');
+
 $('btn-lobby-start').addEventListener('click', () => {
   if (!net) return;
   netPublish(net.code, {
     t: 'start', uid: myUid,
     seed: Math.floor(Math.random() * 2 ** 31),
     game: Math.random().toString(36).slice(2, 8),
+    opts: { fast: lobbyOpts.fast, target: lobbyOpts.target },
   });
   $('lobby-status').textContent = 'Lancement…';
 });
+
+// ---- réactions émojis ----
+$('btn-emoji').addEventListener('click', () => {
+  $('emoji-bar').classList.toggle('hidden');
+});
+$('emoji-bar').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || !net || !net.game) return;
+  $('emoji-bar').classList.add('hidden');
+  if (Date.now() - lastEmojiSent < 2500) return;
+  lastEmojiSent = Date.now();
+  const emoji = btn.dataset.e;
+  spawnEmojiFloat('Toi', emoji);
+  netPublish(net.code, { t: 'emoji', uid: myUid, name: net.name, e: emoji });
+});
+
+// quitter la page en plein salon : on prévient les autres
+window.addEventListener('pagehide', () => {
+  if (net) netBeacon(net.code, { t: 'leave', uid: myUid, name: net.name });
+});
 $('btn-lobby-back').addEventListener('click', () => {
-  teardownNet();
+  teardownNet(true);
   show('screen-tournoi');
 });
 
@@ -350,7 +469,7 @@ $('btn-standings-lobby').addEventListener('click', () => {
   show('screen-lobby');
 });
 $('btn-standings-home').addEventListener('click', () => {
-  teardownNet();
+  teardownNet(true);
   refreshHome();
   show('screen-home');
 });
@@ -643,10 +762,12 @@ game.initGame($('game'), {
       if (net && net.game) {
         // en ligne : publication du résultat + classement en direct
         upsert(myUid, { score: s.score, round: s.round, over: true });
+        if (s.reason === 'race' && !net.raceWinner) net.raceWinner = 'Toi';
         netPublish(net.code, {
           t: 'over', uid: myUid, name: net.name, game: net.game,
-          score: s.score, round: s.round,
+          score: s.score, round: s.round, won: s.reason === 'race',
         });
+        syncEmojiButton();
         $('live-ticker').classList.add('hidden');
         renderStandings();
         show('screen-standings');
@@ -842,6 +963,7 @@ show('screen-home');
 
 // accès de debug pour les tests automatisés
 window.baliball = game;
+window.baliballNet = () => (net ? { code: net.code, game: net.game, raceWinner: net.raceWinner } : null);
 
 // audio iOS : ne peut démarrer qu'après un geste
 document.addEventListener('pointerdown', initAudio, { capture: true });

@@ -45,10 +45,15 @@ fichier audio.
 - **📡 Tournoi entre amis** — chacun sur son téléphone, la même partie
   classique (infinie) pour tout le monde, en deux variantes :
   - **En ligne** : salon avec pseudos et **suivi en direct** — bandeau
-    « 🥇 Angel · 1 240 », toasts « Marvin a terminé : 890 pts » /
-    « Angel passe en tête ! », classement en direct après sa défaite.
-    S'appuie sur le service public gratuit [ntfy.sh](https://ntfy.sh)
-    (aucun compte) ; Internet requis pendant la partie.
+    « 🥇 Angel · 1 240 · 3 🎮 », toasts « Marvin a terminé : 890 pts » /
+    « Angel passe en tête ! » / arrivées et départs du salon, **réactions
+    émojis** qui flottent sur l'écran des autres, **réglages de salon**
+    (course au premier à 2 000 ou 5 000 pts — la partie s'arrête pour tout
+    le monde dès qu'un joueur gagne — ou survie ; vitesse commune), podium
+    et bannière de victoire, classement en direct après sa défaite, retour
+    au salon pour la revanche. S'appuie sur le service public gratuit
+    [ntfy.sh](https://ntfy.sh) (aucun compte) ; Internet requis pendant la
+    partie.
   - **Hors ligne** : un code de 4 lettres = la même partie pour tous,
     et on compare les scores à la fin. Zéro connexion.
 

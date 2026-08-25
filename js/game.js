@@ -83,6 +83,22 @@ const TIDE_DURATION = 90;
 /* Mode chronométré : marée montante. */
 const isTimed = () => mode === 'tide';
 
+/* Options du tournoi : vitesse commune et objectif de course éventuel. */
+let tourOpts = { fast: false, target: null };
+
+export function setTournamentOptions(o) {
+  tourOpts = Object.assign({ fast: false, target: null }, o);
+}
+
+/* Fin imposée de l'extérieur (course gagnée par un autre joueur). */
+export function forceGameOver(reason) {
+  if (state === 'aim' || state === 'flight') {
+    balls = [];
+    toLaunch = 0;
+    gameOver(reason);
+  }
+}
+
 /* Cosmétiques équipés (boutique) : peau de balle et décor. */
 let cosmetics = { ball: 'coco', decor: 'lagoon' };
 
@@ -98,7 +114,7 @@ function themed() {
   return Object.assign({}, T, d.overrides);
 }
 
-const SPEED = () => cell * 9 * (settings.fast ? 1.4 : 1);
+const SPEED = () => cell * 9 * ((mode === 'tournament' ? tourOpts.fast : settings.fast) ? 1.4 : 1);
 const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
@@ -359,6 +375,10 @@ function endTurn() {
   ballCount += collectedThisTurn;
   collectedThisTurn = 0;
   chiliActive = false;
+  if (mode === 'tournament' && tourOpts.target && score >= tourOpts.target) {
+    gameOver('race');
+    return;
+  }
   if (nextLaunchX !== null) launchX = nextLaunchX;
   nextLaunchX = null;
   timeScale = 1;
@@ -543,9 +563,9 @@ const CONFETTI = ['#ffd34d', '#52d332', '#3b96f5', '#f75f92', '#ff9d3c'];
 
 function addPoints(n) {
   score += n;
-  while (score >= nextMilestone) {
-    celebrate(nextMilestone);
-    nextMilestone += 1000;
+  if (score >= nextMilestone) {
+    celebrate(Math.floor(score / 1000) * 1000);
+    nextMilestone = Math.floor(score / 1000) * 1000 + 1000;
   }
 }
 

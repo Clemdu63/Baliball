@@ -38,6 +38,15 @@
 
   <div id="live-ticker" class="hidden"></div>
   <div id="live-toasts"></div>
+  <div id="emoji-floats"></div>
+  <button id="btn-emoji" class="hidden" aria-label="Réactions">😀</button>
+  <div id="emoji-bar" class="hidden">
+    <button data-e="😂">😂</button>
+    <button data-e="🔥">🔥</button>
+    <button data-e="🥥">🥥</button>
+    <button data-e="💀">💀</button>
+    <button data-e="👏">👏</button>
+  </div>
 
   <div id="screen-home" class="screen">
     <div class="scene" aria-hidden="true">
@@ -101,7 +110,7 @@
       </svg>
     </div>
 
-    <div class="version">v1.3</div>
+    <div class="version">v2.0</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -208,12 +217,28 @@
     <div class="tournoi-code" id="lobby-code">BALI</div>
     <p id="lobby-status">Connexion au salon…</p>
     <div class="stats" id="lobby-players"></div>
+    <div class="setting">
+      <div class="label">OBJECTIF (APPLIQUÉ PAR CELUI QUI LANCE)</div>
+      <div class="segmented" id="seg-goal">
+        <button data-value="null">Survie</button>
+        <button data-value="2000">2 000 pts</button>
+        <button data-value="5000">5 000 pts</button>
+      </div>
+    </div>
+    <div class="setting">
+      <div class="label">VITESSE DES NOIX</div>
+      <div class="segmented" id="seg-tspeed">
+        <button data-value="false">Normale</button>
+        <button data-value="true">Rapide</button>
+      </div>
+    </div>
     <button id="btn-lobby-start" style="margin-top:8px">LANCER LA PARTIE POUR TOUS</button>
     <button id="btn-lobby-back" class="secondary">QUITTER LE SALON</button>
   </div>
 
   <div id="screen-standings" class="screen hidden">
     <div class="settings-title">CLASSEMENT EN DIRECT</div>
+    <div id="standings-banner" class="standings-banner hidden">🏆</div>
     <p id="standings-me"></p>
     <div class="stats" id="standings-list"></div>
     <button id="btn-standings-lobby" style="margin-top:8px">RETOUR AU SALON</button>

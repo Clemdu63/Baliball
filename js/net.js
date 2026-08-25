@@ -12,6 +12,13 @@ function topicFor(code) {
 /* Identifiant de session : distingue deux joueurs portant le même pseudo. */
 export const myUid = Math.random().toString(36).slice(2, 8);
 
+/* Envoi fiable pendant la fermeture de la page (sendBeacon). */
+export function netBeacon(code, data) {
+  try {
+    navigator.sendBeacon(BASE() + topicFor(code), JSON.stringify(data));
+  } catch (e) { /* tant pis */ }
+}
+
 export function netPublish(code, data) {
   return fetch(BASE() + topicFor(code), {
     method: 'POST',

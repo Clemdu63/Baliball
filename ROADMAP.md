@@ -124,6 +124,17 @@ local : le 2-appareils hors ligne n'est pas possible en web — voir Notes) :
 
 ---
 
+## v2.0 (livrée ✅)
+
+Audit profond et corrections (reprise des sauvegardes depuis les cartes de
+mode, écrans défilables, célébration unique par gain, fantômes de salon),
+et tournoi en ligne complet : réglages de salon (course à l'objectif ou
+survie, vitesse commune), réactions émojis en direct, annonces d'arrivée
+et de départ, podium animé avec bannière de victoire, fin de course
+synchronisée pour tous les joueurs.
+
+---
+
 ## Notes techniques
 
 - Pas de framework ni de build : HTML/CSS/JS natifs, modules ES.
