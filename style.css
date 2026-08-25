@@ -670,6 +670,64 @@ button:focus-visible {
   .countdown-num { animation: none; }
 }
 
+/* ---- tournoi en ligne : bandeau et toasts ---- */
+.name-input {
+  font-size: 22px;
+  letter-spacing: 1px;
+  text-transform: none;
+}
+
+#live-ticker {
+  position: fixed;
+  top: calc(52px + var(--sat));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 999px;
+  padding: 4px 14px;
+  white-space: nowrap;
+}
+
+#live-ticker.hidden { display: none; }
+
+#live-toasts {
+  position: fixed;
+  top: calc(84px + var(--sat));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-toast {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 60, 55, 0.75);
+  border-radius: 12px;
+  padding: 6px 14px;
+  animation: toast-in 0.25s ease;
+  white-space: nowrap;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.standing-row-me b { color: var(--accent); }
+
 /* ---- légende ---- */
 .legend-item {
   display: flex;

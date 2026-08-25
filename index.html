@@ -36,6 +36,9 @@
   <button id="btn-home" class="hidden" aria-label="Menu">⌂</button>
   <button id="btn-restart" class="hidden" aria-label="Recommencer">⟲</button>
 
+  <div id="live-ticker" class="hidden"></div>
+  <div id="live-toasts"></div>
+
   <div id="screen-home" class="screen">
     <div class="scene" aria-hidden="true">
       <svg viewBox="0 0 400 870" preserveAspectRatio="xMidYMax slice">
@@ -98,7 +101,7 @@
       </svg>
     </div>
 
-    <div class="version">v1.2</div>
+    <div class="version">v1.3</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -142,7 +145,7 @@
     </button>
     <button class="mode-card" id="btn-mode-tournoi">
       <span class="mode-name">📡 Tournoi entre amis</span>
-      <span class="mode-desc">2 à 10 téléphones, un code à partager : mêmes pierres, 90 secondes, que le meilleur gagne.</span>
+      <span class="mode-desc">Chacun sur son téléphone, la même partie pour tous — en ligne avec suivi des scores en direct, ou hors ligne avec un simple code.</span>
     </button>
     <button id="btn-modes-back" class="secondary" style="margin-top:8px">RETOUR</button>
   </div>
@@ -171,23 +174,68 @@
 
   <div id="screen-tournoi" class="screen hidden">
     <div class="settings-title">📡 TOURNOI ENTRE AMIS</div>
-    <p>Chaque téléphone joue <strong>exactement la même partie de 90 secondes</strong>,
-       en même temps, grâce à un code partagé.<br><br>
-       Un joueur crée la partie et dicte son code aux autres ; quand tout le
-       monde est prêt, lancez le décompte ensemble — à la fin, comparez vos
-       scores. Aucune connexion nécessaire.</p>
-    <button id="btn-tournoi-host" style="margin-top:8px">CRÉER UNE PARTIE</button>
-    <button id="btn-tournoi-join" class="secondary">REJOINDRE AVEC UN CODE</button>
-    <button id="btn-tournoi-back" class="secondary">RETOUR</button>
+    <button class="mode-card" id="btn-tournoi-online">
+      <span class="mode-name">🌐 En ligne — suivi en direct</span>
+      <span class="mode-desc">Salon avec pseudos : « Angel est en tête », « Marvin a terminé »… Internet requis pendant la partie.</span>
+    </button>
+    <button class="mode-card" id="btn-tournoi-offline">
+      <span class="mode-name">📴 Hors ligne — code partagé</span>
+      <span class="mode-desc">Le même code = la même partie pour tous, et on compare les scores à la fin. Zéro connexion.</span>
+    </button>
+    <button id="btn-tournoi-back" class="secondary" style="margin-top:8px">RETOUR</button>
+  </div>
+
+  <div id="screen-online-setup" class="screen hidden">
+    <div class="settings-title">🌐 SALON EN LIGNE</div>
+    <div class="setting">
+      <div class="label">TON PSEUDO</div>
+      <input id="player-name" class="code-input name-input" maxlength="12" autocomplete="off"
+             spellcheck="false" placeholder="Angel">
+    </div>
+    <button id="btn-online-create" style="margin-top:6px">CRÉER UN SALON</button>
+    <div class="setting" style="margin-top:6px">
+      <div class="label">OU REJOINDRE AVEC UN CODE</div>
+      <input id="online-code" class="code-input" maxlength="4" autocomplete="off"
+             autocapitalize="characters" spellcheck="false" placeholder="ABCD">
+    </div>
+    <p id="online-error" class="join-error"></p>
+    <button id="btn-online-join" class="secondary">REJOINDRE</button>
+    <button id="btn-online-back" class="secondary">RETOUR</button>
+  </div>
+
+  <div id="screen-lobby" class="screen hidden">
+    <div class="settings-title">SALON</div>
+    <div class="tournoi-code" id="lobby-code">BALI</div>
+    <p id="lobby-status">Connexion au salon…</p>
+    <div class="stats" id="lobby-players"></div>
+    <button id="btn-lobby-start" style="margin-top:8px">LANCER LA PARTIE POUR TOUS</button>
+    <button id="btn-lobby-back" class="secondary">QUITTER LE SALON</button>
+  </div>
+
+  <div id="screen-standings" class="screen hidden">
+    <div class="settings-title">CLASSEMENT EN DIRECT</div>
+    <p id="standings-me"></p>
+    <div class="stats" id="standings-list"></div>
+    <button id="btn-standings-lobby" style="margin-top:8px">RETOUR AU SALON</button>
+    <button id="btn-standings-home" class="secondary">MENU</button>
+  </div>
+
+  <div id="screen-offline-menu" class="screen hidden">
+    <div class="settings-title">📴 HORS LIGNE</div>
+    <p>Un code = une partie : tout le monde joue la même, chacun sur son
+       téléphone, et on compare les scores à la fin.</p>
+    <button id="btn-offline-create" style="margin-top:8px">CRÉER UN CODE</button>
+    <button id="btn-offline-join" class="secondary">J'AI DÉJÀ UN CODE</button>
+    <button id="btn-offline-back" class="secondary">RETOUR</button>
   </div>
 
   <div id="screen-tournoi-host" class="screen hidden">
     <div class="settings-title">CODE DE LA PARTIE</div>
     <div class="tournoi-code" id="tournoi-code">BALI</div>
-    <p>Dicte ce code aux autres joueurs.<br>
-       Quand tout le monde a rejoint, lancez le décompte <strong>en même
-       temps</strong> (« 3, 2, 1… » à voix haute&nbsp;!).</p>
-    <button id="btn-host-go" style="margin-top:8px">LANCER LE DÉCOMPTE</button>
+    <p>Dicte ce code aux autres joueurs : le même code donne
+       <strong>exactement la même partie</strong>.<br>
+       Chacun joue jusqu'à sa défaite, puis on compare les scores.</p>
+    <button id="btn-host-go" style="margin-top:8px">JOUER</button>
     <button id="btn-host-back" class="secondary">RETOUR</button>
   </div>
 
@@ -197,7 +245,7 @@
     <input id="join-code" class="code-input" maxlength="4" autocomplete="off"
            autocapitalize="characters" spellcheck="false" placeholder="ABCD">
     <p id="join-error" class="join-error"></p>
-    <button id="btn-join-go" style="margin-top:8px">LANCER LE DÉCOMPTE</button>
+    <button id="btn-join-go" style="margin-top:8px">JOUER</button>
     <button id="btn-join-back" class="secondary">RETOUR</button>
   </div>
 
@@ -212,9 +260,9 @@
       <div id="legend-powerups" class="shop-list"></div>
       <div class="setting" style="margin-top:6px"><div class="label">PIERRES</div></div>
       <div id="legend-stones" class="shop-list"></div>
-      <p style="font-size:13px">La ligne d'écume marque la marée : en Classique et
-         au Défi du jour, une pierre qui l'atteint met fin à la partie.
-         En Plage et en Tournoi, la marée emporte les pierres du bas.</p>
+      <p style="font-size:13px">La ligne d'écume marque la marée : en Classique,
+         au Défi du jour et en Tournoi, une pierre qui l'atteint met fin à la
+         partie. En Plage et en Marée montante, la marée emporte les pierres du bas.</p>
     </div>
     <button id="btn-legend-back" class="secondary">RETOUR</button>
   </div>

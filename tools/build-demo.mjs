@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ORDER = ['storage', 'theme', 'audio', 'levels', 'game', 'main'];
+const ORDER = ['storage', 'theme', 'audio', 'net', 'levels', 'game', 'main'];
 const CUT_MARKER = '// service worker : hors ligne';
 
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -54,8 +54,9 @@ for (const name of ORDER) {
 }
 js += '\ndocument.getElementById(\'install-hint\').textContent = '
   + '\'Version démo en ligne — la version installable et jouable hors ligne est sur GitHub Pages.\';\n'
-  + '// le bac à sable de la démo ne permet ni partage ni téléchargement\n'
-  + 'document.getElementById(\'btn-share\').style.display = \'none\';\n';
+  + '// le bac à sable de la démo ne permet ni partage, ni téléchargement, ni réseau\n'
+  + 'document.getElementById(\'btn-share\').style.display = \'none\';\n'
+  + 'document.getElementById(\'btn-tournoi-online\').style.display = \'none\';\n';
 
 // ---- page ----
 const index = read('index.html');

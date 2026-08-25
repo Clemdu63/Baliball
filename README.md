@@ -42,11 +42,15 @@ fichier audio.
 - **🏖 Plage** — zen, sans défaite : idéal en avion.
 - **🌅 Défi du jour** — la même partie pour tout le monde, une nouvelle
   chaque jour (graine de la date, donc jouable hors ligne).
-- **📡 Tournoi entre amis** — 2 à 10 téléphones : un code de 4 lettres à
-  partager, tout le monde lance le décompte en même temps et joue
-  exactement la même partie de 90 secondes, puis on compare les scores.
-  Aucune connexion nécessaire (une PWA Safari n'a pas accès au
-  Bluetooth/réseau local, le code partagé remplace la synchronisation).
+- **📡 Tournoi entre amis** — chacun sur son téléphone, la même partie
+  classique (infinie) pour tout le monde, en deux variantes :
+  - **En ligne** : salon avec pseudos et **suivi en direct** — bandeau
+    « 🥇 Angel · 1 240 », toasts « Marvin a terminé : 890 pts » /
+    « Angel passe en tête ! », classement en direct après sa défaite.
+    S'appuie sur le service public gratuit [ntfy.sh](https://ntfy.sh)
+    (aucun compte) ; Internet requis pendant la partie.
+  - **Hors ligne** : un code de 4 lettres = la même partie pour tous,
+    et on compare les scores à la fin. Zéro connexion.
 
 ## Progression
 

@@ -4,13 +4,15 @@ import { settings, persistSettings, KEYS, loadJSON, store } from './storage.js';
 import { setThemeMode, DECORS } from './theme.js';
 import { initAudio, syncAmbience, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
+import { netPublish, netSubscribe, myUid } from './net.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
   'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
-  'screen-tournoi', 'screen-tournoi-host', 'screen-tournoi-join', 'screen-countdown',
-  'screen-confirm'];
+  'screen-tournoi', 'screen-online-setup', 'screen-lobby', 'screen-standings',
+  'screen-offline-menu', 'screen-tournoi-host', 'screen-tournoi-join',
+  'screen-countdown', 'screen-confirm'];
 
 setThemeMode(settings.theme);
 
@@ -90,7 +92,7 @@ function dailySeed() {
 
 $('btn-mode-daily').addEventListener('click', () => startGame('daily', 0, dailySeed()));
 
-// ---- tournoi entre amis (plusieurs téléphones, même code) ----
+// ---- tournoi entre amis : hors ligne (code) et en ligne (suivi direct) ----
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 function newTournoiCode() {
@@ -110,35 +112,11 @@ function codeSeed(code) {
   return h >>> 0;
 }
 
-let tournoiCode = null;
+function validCode(code) {
+  return code.length === 4 && ![...code].some((c) => !CODE_ALPHABET.includes(c));
+}
 
-$('btn-mode-tournoi').addEventListener('click', () => show('screen-tournoi'));
-$('btn-tournoi-back').addEventListener('click', () => show('screen-modes'));
-
-$('btn-tournoi-host').addEventListener('click', () => {
-  tournoiCode = newTournoiCode();
-  $('tournoi-code').textContent = tournoiCode;
-  show('screen-tournoi-host');
-});
-$('btn-host-back').addEventListener('click', () => show('screen-tournoi'));
-$('btn-host-go').addEventListener('click', () => startCountdown(tournoiCode));
-
-$('btn-tournoi-join').addEventListener('click', () => {
-  $('join-code').value = '';
-  $('join-error').textContent = '';
-  show('screen-tournoi-join');
-});
-$('btn-join-back').addEventListener('click', () => show('screen-tournoi'));
-$('btn-join-go').addEventListener('click', () => {
-  const code = $('join-code').value.trim().toUpperCase();
-  if (code.length !== 4 || [...code].some((c) => !CODE_ALPHABET.includes(c))) {
-    $('join-error').textContent = 'Code invalide : 4 lettres/chiffres (sans I, L, O, 0, 1).';
-    return;
-  }
-  startCountdown(code);
-});
-
-function startCountdown(code) {
+function startCountdown(seed) {
   initAudio();
   show('screen-countdown');
   let n = 3;
@@ -152,10 +130,230 @@ function startCountdown(code) {
     } else {
       clearInterval(timer);
       sfx.bonus();
-      startGame('tournament', 0, codeSeed(code));
+      startGame('tournament', 0, seed);
+      if (net) tickerRefresh();
     }
   }, 1000);
 }
+
+$('btn-mode-tournoi').addEventListener('click', () => show('screen-tournoi'));
+$('btn-tournoi-back').addEventListener('click', () => show('screen-modes'));
+
+// -- hors ligne : un code = la même partie, comparaison à la fin --
+let tournoiCode = null;
+
+$('btn-tournoi-offline').addEventListener('click', () => show('screen-offline-menu'));
+$('btn-offline-back').addEventListener('click', () => show('screen-tournoi'));
+$('btn-offline-create').addEventListener('click', () => {
+  tournoiCode = newTournoiCode();
+  $('tournoi-code').textContent = tournoiCode;
+  show('screen-tournoi-host');
+});
+$('btn-host-back').addEventListener('click', () => show('screen-offline-menu'));
+$('btn-host-go').addEventListener('click', () => startCountdown(codeSeed(tournoiCode)));
+$('btn-offline-join').addEventListener('click', () => {
+  $('join-code').value = '';
+  $('join-error').textContent = '';
+  show('screen-tournoi-join');
+});
+$('btn-join-back').addEventListener('click', () => show('screen-offline-menu'));
+$('btn-join-go').addEventListener('click', () => {
+  const code = $('join-code').value.trim().toUpperCase();
+  if (!validCode(code)) {
+    $('join-error').textContent = 'Code invalide : 4 lettres/chiffres (sans I, L, O, 0, 1).';
+    return;
+  }
+  startCountdown(codeSeed(code));
+});
+
+// -- en ligne : salon ntfy.sh, pseudos, scores en direct --
+let net = null;          // {code, name, stop, game, roster:Map, lastPub, lastAnnounce}
+let lastLeaderUid = null;
+
+function teardownNet() {
+  if (net && net.stop) net.stop();
+  net = null;
+  lastLeaderUid = null;
+  $('live-ticker').classList.add('hidden');
+  $('live-toasts').innerHTML = '';
+}
+
+function toast(text) {
+  const box = $('live-toasts');
+  while (box.children.length >= 3) box.removeChild(box.firstChild);
+  const div = document.createElement('div');
+  div.className = 'live-toast';
+  div.textContent = text;
+  box.appendChild(div);
+  setTimeout(() => div.remove(), 3500);
+}
+
+function upsert(uid, patch) {
+  const cur = net.roster.get(uid) || { name: '?', score: 0, round: 0, over: false };
+  Object.assign(cur, patch);
+  net.roster.set(uid, cur);
+  return cur;
+}
+
+function rosterSorted() {
+  return [...net.roster.entries()].sort((a, b) => b[1].score - a[1].score);
+}
+
+function tickerRefresh() {
+  if (!net || !net.game) return;
+  const sorted = rosterSorted();
+  if (!sorted.length) return;
+  const [uid, lead] = sorted[0];
+  const ticker = $('live-ticker');
+  ticker.textContent = '🥇 ' + (uid === myUid ? 'Toi' : lead.name) + ' · ' + lead.score;
+  if (game.getMode() === 'tournament' && game.isPlaying()) ticker.classList.remove('hidden');
+  if (uid !== lastLeaderUid && lastLeaderUid !== null && lead.score > 0) {
+    toast(uid === myUid ? 'Tu passes en tête !' : '« ' + lead.name + ' » est en tête !');
+  }
+  lastLeaderUid = uid;
+  if (!$('screen-standings').classList.contains('hidden')) renderStandings();
+}
+
+function renderLobby() {
+  if (!net) return;
+  $('lobby-players').innerHTML = [...net.roster.values()]
+    .map((p) => '<div class="row"><span>' + (p.name === net.name ? p.name + ' (toi)' : p.name)
+      + '</span><b>prêt</b></div>')
+    .join('');
+}
+
+function renderStandings() {
+  if (!net) return;
+  const sorted = rosterSorted();
+  const medals = ['🥇', '🥈', '🥉'];
+  $('standings-list').innerHTML = sorted.map(([uid, p], i) => {
+    const me = uid === myUid;
+    return '<div class="row' + (me ? ' standing-row-me' : '') + '"><span>'
+      + (medals[i] || (i + 1) + '.') + ' ' + p.name + (me ? ' (toi)' : '')
+      + '</span><b>' + p.score + ' pts · ' + (p.over ? 'terminé' : 'en jeu 🎮') + '</b></div>';
+  }).join('');
+  const mine = net.roster.get(myUid);
+  if (mine) {
+    $('standings-me').textContent = 'Ton score : ' + mine.score + ' pts — manche ' + mine.round;
+  }
+}
+
+function onNetMsg(d, age) {
+  if (!net || !d || !d.t) return;
+  if (d.t === 'join') {
+    upsert(d.uid, { name: d.name });
+    renderLobby();
+    // se ré-annoncer pour que les arrivants voient tout le monde
+    if (d.uid !== myUid && age < 10 && Date.now() - net.lastAnnounce > 15000) {
+      net.lastAnnounce = Date.now();
+      netPublish(net.code, { t: 'join', uid: myUid, name: net.name });
+    }
+  } else if (d.t === 'start') {
+    if (age < 20 && !(game.getMode() === 'tournament' && game.isPlaying())) {
+      net.game = d.game;
+      for (const p of net.roster.values()) {
+        p.score = 0; p.round = 0; p.over = false;
+      }
+      lastLeaderUid = null;
+      startCountdown(d.seed);
+    }
+  } else if (d.t === 'score') {
+    if (d.game !== net.game) return;
+    upsert(d.uid, { name: d.name, score: d.score, round: d.round });
+    tickerRefresh();
+  } else if (d.t === 'over') {
+    if (d.game !== net.game) return;
+    upsert(d.uid, { name: d.name, score: d.score, round: d.round, over: true });
+    if (d.uid !== myUid && age < 20) {
+      toast('« ' + d.name + ' » a terminé : ' + d.score + ' pts');
+    }
+    tickerRefresh();
+  }
+}
+
+function enterLobby(code, name) {
+  teardownNet();
+  net = {
+    code, name, roster: new Map(), game: null,
+    lastPub: 0, lastAnnounce: Date.now(), stop: null,
+  };
+  upsert(myUid, { name });
+  $('lobby-code').textContent = code;
+  $('lobby-status').textContent = 'Connexion au salon…';
+  renderLobby();
+  net.stop = netSubscribe(code, onNetMsg, (s) => {
+    if (!net) return;
+    if (!$('screen-lobby').classList.contains('hidden')) {
+      $('lobby-status').textContent = s === 'ok'
+        ? 'Connecté ! Dicte le code aux autres, puis lancez.'
+        : 'Connexion au salon instable…';
+    }
+  });
+  netPublish(code, { t: 'join', uid: myUid, name });
+  show('screen-lobby');
+}
+
+$('btn-tournoi-online').addEventListener('click', () => {
+  $('player-name').value = store.get(KEYS.NAME) || '';
+  $('online-error').textContent = '';
+  show('screen-online-setup');
+});
+$('btn-online-back').addEventListener('click', () => {
+  teardownNet();
+  show('screen-tournoi');
+});
+
+function readName() {
+  const name = $('player-name').value.trim().slice(0, 12);
+  if (!name) {
+    $('online-error').textContent = 'Choisis un pseudo !';
+    return null;
+  }
+  store.set(KEYS.NAME, name);
+  return name;
+}
+
+$('btn-online-create').addEventListener('click', () => {
+  const name = readName();
+  if (!name) return;
+  enterLobby(newTournoiCode(), name);
+});
+$('btn-online-join').addEventListener('click', () => {
+  const name = readName();
+  if (!name) return;
+  const code = $('online-code').value.trim().toUpperCase();
+  if (!validCode(code)) {
+    $('online-error').textContent = 'Code invalide : 4 lettres/chiffres (sans I, L, O, 0, 1).';
+    return;
+  }
+  enterLobby(code, name);
+});
+
+$('btn-lobby-start').addEventListener('click', () => {
+  if (!net) return;
+  netPublish(net.code, {
+    t: 'start', uid: myUid,
+    seed: Math.floor(Math.random() * 2 ** 31),
+    game: Math.random().toString(36).slice(2, 8),
+  });
+  $('lobby-status').textContent = 'Lancement…';
+});
+$('btn-lobby-back').addEventListener('click', () => {
+  teardownNet();
+  show('screen-tournoi');
+});
+
+$('btn-standings-lobby').addEventListener('click', () => {
+  if (!net) { show('screen-tournoi'); return; }
+  $('lobby-status').textContent = 'Prêts pour une revanche ?';
+  renderLobby();
+  show('screen-lobby');
+});
+$('btn-standings-home').addEventListener('click', () => {
+  teardownNet();
+  refreshHome();
+  show('screen-home');
+});
 
 // ---- niveaux du mode Temples ----
 function renderLevels() {
@@ -384,6 +582,14 @@ $('btn-progress-back').addEventListener('click', () => {
 
 // ---- boutons accueil / recommencer en jeu ----
 $('btn-home').addEventListener('click', () => {
+  if (net && net.game && game.getMode() === 'tournament' && game.isPlaying()) {
+    const st = game.debugState();
+    netPublish(net.code, {
+      t: 'over', uid: myUid, name: net.name, game: net.game,
+      score: st.score, round: st.round,
+    });
+  }
+  teardownNet();
   game.toMenu();
   refreshHome();
   show('screen-home');
@@ -414,6 +620,18 @@ let bestScoreAtStart = cumulativeBestScore();
 let lastOver = null;
 
 game.initGame($('game'), {
+  onTurnEnd(s) {
+    if (!net || !net.game || s.mode !== 'tournament') return;
+    upsert(myUid, { score: s.score, round: s.round });
+    tickerRefresh();
+    if (Date.now() - net.lastPub > 5000) {
+      net.lastPub = Date.now();
+      netPublish(net.code, {
+        t: 'score', uid: myUid, name: net.name, game: net.game,
+        score: s.score, round: s.round,
+      });
+    }
+  },
   onGameOver(s) {
     $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
@@ -422,8 +640,20 @@ game.initGame($('game'), {
       $('stat-round-label').textContent = 'Manches jouées';
       $('stat-round').textContent = String(s.round);
     } else if (s.mode === 'tournament') {
+      if (net && net.game) {
+        // en ligne : publication du résultat + classement en direct
+        upsert(myUid, { score: s.score, round: s.round, over: true });
+        netPublish(net.code, {
+          t: 'over', uid: myUid, name: net.name, game: net.game,
+          score: s.score, round: s.round,
+        });
+        $('live-ticker').classList.add('hidden');
+        renderStandings();
+        show('screen-standings');
+        return;
+      }
       $('over-best').textContent = '📡 Comparez vos scores !';
-      $('stat-round-label').textContent = 'Manches jouées';
+      $('stat-round-label').textContent = 'Manches atteintes';
       $('stat-round').textContent = String(s.round);
     } else if (s.mode === 'puzzle') {
       $('over-best').textContent = LEVELS[s.level] ? '« ' + LEVELS[s.level].name + ' »' : '';
@@ -466,7 +696,7 @@ game.initGame($('game'), {
 
 $('btn-retry').addEventListener('click', () => {
   if (lastStart.mode === 'tournament') {
-    show('screen-tournoi');
+    show(net ? 'screen-lobby' : 'screen-tournoi');
     return;
   }
   startGame(lastStart.mode, lastStart.level, lastStart.seed);

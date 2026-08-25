@@ -80,8 +80,8 @@ let tutoActive = false;        // aides de la première partie
 
 const TIDE_DURATION = 90;
 
-/* Modes chronométrés : marée montante et tournoi entre amis. */
-const isTimed = () => mode === 'tide' || mode === 'tournament';
+/* Mode chronométré : marée montante. */
+const isTimed = () => mode === 'tide';
 
 /* Cosmétiques équipés (boutique) : peau de balle et décor. */
 let cosmetics = { ball: 'coco', decor: 'lagoon' };
@@ -397,7 +397,7 @@ function endTurn() {
 
   const reached = blocks.filter((b) => b.row >= deathRow);
   if (reached.length > 0) {
-    if (mode === 'classic' || mode === 'daily') {
+    if (mode === 'classic' || mode === 'daily' || mode === 'tournament') {
       gameOver('line');
       return;
     }
@@ -422,6 +422,7 @@ function endTurn() {
   spawnRow();
   state = 'aim';
   saveGame();
+  if (hooks.onTurnEnd) hooks.onTurnEnd({ mode, score, round });
 }
 
 function bankPearls() {

@@ -13,6 +13,7 @@ export const KEYS = {
   STATS: 'baliball.stats.v1',
   DAILY: 'baliball.daily.v1',
   TUTO: 'baliball.tuto.v1',
+  NAME: 'baliball.name.v1',
   SETTINGS: 'baliball.settings.v1',
 };
 
