@@ -53,7 +53,9 @@ for (const name of ORDER) {
   }
 }
 js += '\ndocument.getElementById(\'install-hint\').textContent = '
-  + '\'Version démo en ligne — la version installable et jouable hors ligne est sur GitHub Pages.\';\n';
+  + '\'Version démo en ligne — la version installable et jouable hors ligne est sur GitHub Pages.\';\n'
+  + '// le bac à sable de la démo ne permet ni partage ni téléchargement\n'
+  + 'document.getElementById(\'btn-share\').style.display = \'none\';\n';
 
 // ---- page ----
 const index = read('index.html');
