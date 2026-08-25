@@ -12,6 +12,7 @@ export const KEYS = {
   SHOP: 'baliball.shop.v1',
   STATS: 'baliball.stats.v1',
   DAILY: 'baliball.daily.v1',
+  WEEKLY: 'baliball.weekly.v1',
   TUTO: 'baliball.tuto.v1',
   NAME: 'baliball.name.v1',
   UID: 'baliball.uid.v1',

@@ -15,7 +15,15 @@ fichier audio.
 - D'autres bonus flottent dans le lagon : l'**espadon** nettoie sa ligne, le
   **durian** explose les pierres voisines, le **piment** double les dégâts du
   tir, la **perle** se collectionne, la **fleur de frangipanier** renvoie la
-  noix tout droit vers le haut.
+  noix tout droit vers le haut, le **gecko** dédouble la noix qui le touche,
+  les **portails jumeaux** téléportent les noix de l'un à l'autre, et le
+  **lotus-bouclier** sauve la partie une fois quand une pierre atteint la
+  plage.
+- Les combos remplissent la **jauge Gamelan** : pleine, le prochain tir est
+  une **fièvre** à dégâts doublés, traînée de braises comprise.
+- Toutes les 10 manches, le **Barong** apparaît : un masque géant sur deux
+  rangées qui **rugit** toutes les 3 manches en appelant des pierres
+  blindées. Le vaincre rapporte 1 000 pts et 15 perles.
 - Pierres spéciales : **toit de temple** (triangle, rebond en diagonale),
   **volcanique blindée** (1 dégât par seconde max), **mystère « ? »** (surprise
   à la casse).
@@ -48,6 +56,9 @@ fichier audio.
 - **🏖 Plage** — zen, sans défaite : idéal en avion.
 - **🌅 Défi du jour** — la même partie pour tout le monde, une nouvelle
   chaque jour (graine de la date, donc jouable hors ligne).
+- **🌀 Défi de la semaine** — la même partie sept jours durant, avec un
+  **mutateur** qui change les règles : brouillard sur le haut du lagon,
+  tir miroir, pluie de bonus, pierres durcies ou noix rapides.
 - **📡 Tournoi entre amis** — chacun sur son téléphone, la même partie
   classique (infinie) pour tout le monde, en deux variantes :
   - **En ligne** : salon avec pseudos et **suivi en direct** — bandeau

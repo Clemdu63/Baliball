@@ -75,10 +75,14 @@ let gameClock = 0;             // temps de jeu écoulé (accélération comprise
 let lastProgress = 0;          // dernier dégât ou bonus du tir en cours
 let fishes = [];
 let fishTimer = 2;
-let mode = 'classic';          // classic | tide | zen | puzzle | daily | tournament
+let mode = 'classic';          // classic | tide | zen | puzzle | daily | weekly | tournament
 let tideTime = 0;              // secondes restantes (marée montante)
 let puzzle = null;             // {idx, def, shotsLeft}
 let tutoActive = false;        // aides de la première partie
+let fever = 0;                 // jauge Gamelan (0..1), remplie par les combos
+let feverActive = false;       // tir « fièvre » en cours : dégâts x2
+let shieldCharges = 0;         // lotus : sauve la partie quand une pierre touche la plage
+let weeklyMut = null;          // mutateur du défi de la semaine
 
 const TIDE_DURATION = 90;
 
@@ -93,7 +97,35 @@ const LATE_TIERS = [
 ];
 let nextTier = 0;
 
-const isSeeded = () => mode === 'tournament' || mode === 'daily';
+const isSeeded = () => mode === 'tournament' || mode === 'daily' || mode === 'weekly';
+
+/* Défi de la semaine : la graine vient du numéro de semaine ISO, et elle
+   choisit un mutateur qui change les règles pour sept jours. */
+export const MUTATORS = [
+  { id: 'fog', name: '🌫 Brouillard', desc: 'Le haut du lagon est voilé' },
+  { id: 'mirror', name: '🪞 Tir miroir', desc: 'La noix part à l\'opposé de la visée' },
+  { id: 'rain', name: '🎁 Pluie de bonus', desc: 'Un bonus de plus par rangée' },
+  { id: 'hard', name: '🗿 Pierres dures', desc: 'Pierres +50 % de solidité' },
+  { id: 'speed', name: '💨 Noix rapides', desc: 'Vitesse +25 %' },
+];
+
+function isoWeekSeed() {
+  const d = new Date();
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = (t.getUTCDay() + 6) % 7;
+  t.setUTCDate(t.getUTCDate() - day + 3); // jeudi de la semaine courante
+  const firstThu = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  const fday = (firstThu.getUTCDay() + 6) % 7;
+  firstThu.setUTCDate(firstThu.getUTCDate() - fday + 3);
+  const week = 1 + Math.round((t - firstThu) / (7 * 24 * 3600 * 1000));
+  return t.getUTCFullYear() * 100 + week;
+}
+
+export function weeklyInfo() {
+  const seed = isoWeekSeed();
+  const m = MUTATORS[seed % MUTATORS.length];
+  return { seed, id: m.id, name: m.name, desc: m.desc };
+}
 
 function tierUnlocked(i) {
   const t = LATE_TIERS[i];
@@ -149,12 +181,13 @@ function themed() {
   return Object.assign({}, T, d.overrides);
 }
 
-const SPEED = () => cell * 9 * ((mode === 'tournament' ? tourOpts.fast : settings.fast) ? 1.4 : 1);
+const SPEED = () => cell * 9 * ((mode === 'tournament' ? tourOpts.fast : settings.fast) ? 1.4 : 1)
+  * (mode === 'weekly' && weeklyMut === 'speed' ? 1.25 : 1);
 const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
 
-const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower'];
+const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower', 'gecko', 'lotus'];
 
 /* Générateur aléatoire à graine : en duel, les deux joueurs reçoivent
    exactement la même séquence de pierres et de bonus. */
@@ -191,7 +224,11 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
     // la « map » du jour est la même pour toutes les parties de la journée
     const d = new Date();
     seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  } else if (m === 'weekly') {
+    // même partie toute la semaine, mutateur compris
+    seed = isoWeekSeed();
   }
+  weeklyMut = m === 'weekly' ? MUTATORS[seed % MUTATORS.length].id : null;
   currentSeed = seed;
   rng = seed !== null ? mulberry32(seed) : Math.random;
   round = 1;
@@ -216,6 +253,9 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   puzzle = null;
   nextMilestone = 1000;
   nextTier = 0;
+  fever = 0;
+  feverActive = false;
+  shieldCharges = 0;
 
   tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
 
@@ -232,6 +272,10 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
     spawnRow();
   } else {
     spawnRow();
+  }
+  if (mode === 'weekly') {
+    const m2 = MUTATORS.find((x) => x.id === weeklyMut);
+    if (m2) effects.push({ type: 'milestone', text: m2.name, life: 1, color: '#7ef0d8' });
   }
   state = 'aim';
   saveGame();
@@ -298,11 +342,19 @@ export function drawLegendIcon(cv, kind) {
   c2.setTransform(1, 0, 0, 1, 0, 0);
   c2.clearRect(0, 0, cv.width, cv.height);
   try {
-    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower'].includes(kind)) {
+    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower', 'gecko', 'portal', 'lotus'].includes(kind)) {
       cell = size * 1.35;
       boardTop = cv.height / 2 - cell / 2;
       c2.setTransform(1, 0, 0, 1, size / 2 - cell / 2, 0);
       drawPowerup({ col: 0, row: 0, kind }, 0, T, 1.2);
+    } else if (kind === 'boss') {
+      cell = size * 0.31;
+      boardTop = cv.height / 2 - cell;
+      c2.setTransform(1, 0, 0, 1, size / 2 - cell * 1.5, 0);
+      drawStone({
+        col: 0, row: 0, hp: 88, maxHp: 88, roarIn: 3,
+        flash: 0, seed: 0.42, type: 'boss', orient: 0, lastHitShot: -1,
+      }, 0, T);
     } else if (kind === 'coconut-ball') {
       cell = size;
       drawCoconut(size / 2, cv.height / 2, size * 0.3, T);
@@ -370,11 +422,14 @@ export function drawBoardSnapshot(cv, snap) {
 
 /* État minimal exposé pour les tests automatisés. */
 export function debugState() {
+  const b = blocks.find((x) => x.type === 'boss');
   return {
     state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
     timeScale, accelBtn: accelBtnRect(), spawnLog,
+    fever, shield: shieldCharges, weeklyMut,
+    boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
-    blocks: blocks.map((b) => ({ col: b.col, row: b.row, hp: b.hp, type: b.type })),
+    blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
     geometry: { W, boardTop, floorY, cell, deathRow },
   };
 }
@@ -382,13 +437,19 @@ export function debugState() {
 // ---- grille ----
 function blockRect(b, yOffset) {
   const pad = cell * 0.055;
-  const span = b.type === 'wide' ? 2 : 1;
+  const span = b.type === 'wide' ? 2 : b.type === 'boss' ? 3 : 1;
+  const vspan = b.type === 'boss' ? 2 : 1;
   return {
     x0: b.col * cell + pad,
     y0: boardTop + (b.row + yOffset) * cell + pad,
     x1: (b.col + span) * cell - pad,
-    y1: boardTop + (b.row + 1 + yOffset) * cell - pad,
+    y1: boardTop + (b.row + vspan + yOffset) * cell - pad,
   };
+}
+
+/* Rangée du bas d'une pierre (le Barong occupe deux rangées). */
+function bottomRow(b) {
+  return b.row + (b.type === 'boss' ? 1 : 0);
 }
 
 function powerupCenter(p, yOffset) {
@@ -428,9 +489,26 @@ function loadLevel(def) {
   });
 }
 
+/* Le Barong apparaît toutes les 10 manches dans les modes sans fin.
+   La décision ne dépend que de la manche : en tournoi, tous les joueurs
+   le voient au même moment et le flux aléatoire principal reste intact. */
+function bossRound(r) {
+  return r >= 10 && r % 10 === 0 && mode !== 'puzzle' && !isTimed();
+}
+
 function spawnRow() {
+  if (bossRound(round)) {
+    const hp = Math.max(20, Math.round(round * 8 * (unlockCount() >= 4 ? 1.3 : 1)));
+    blocks.push({
+      col: 2, row: 0, hp, maxHp: hp, roarIn: 3,
+      flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
+    });
+    if (!replaying) spawnLog.push(round + ':BOSS' + hp);
+    return;
+  }
   const lvl = unlockCount();
-  const hpMult = lvl >= 4 ? 1.3 : 1; // pierres ardentes : tout durcit
+  let hpMult = lvl >= 4 ? 1.3 : 1; // pierres ardentes : tout durcit
+  if (mode === 'weekly' && weeklyMut === 'hard') hpMult *= 1.5;
   const used = new Set();
 
   // palier 1 : pierre large sur deux colonnes
@@ -476,6 +554,18 @@ function spawnRow() {
   if (free < cols.length && rng() < 0.4) {
     const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
     powerups.push({ col: cols[free], row: 0, kind });
+    free += 1;
+  }
+  if (mode === 'weekly' && weeklyMut === 'rain' && free < cols.length) {
+    const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
+    powerups.push({ col: cols[free], row: 0, kind });
+    free += 1;
+  }
+  // portails jumeaux : la noix qui entre dans l'un ressort de l'autre
+  if (round >= 5 && free + 1 < cols.length && rng() < 0.12) {
+    powerups.push({ col: cols[free], row: 0, kind: 'portal', pair: round });
+    powerups.push({ col: cols[free + 1], row: 0, kind: 'portal', pair: round });
+    free += 2;
   }
   if (!replaying) {
     spawnLog.push(round + ':'
@@ -488,6 +578,7 @@ function endTurn() {
   ballCount += collectedThisTurn;
   collectedThisTurn = 0;
   chiliActive = false;
+  feverActive = false;
   if (mode === 'tournament' && tourOpts.target && score >= tourOpts.target) {
     gameOver('race');
     return;
@@ -533,14 +624,21 @@ function endTurn() {
       }
       return true;
     });
-    const reached = blocks.filter((b) => b.row >= deathRow);
+    const reached = blocks.filter((b) => bottomRow(b) >= deathRow);
     if (reached.length > 0) {
-      if (mode === 'classic' || mode === 'daily' || mode === 'tournament') {
-        gameOver('line');
-        return;
+      if (mode === 'classic' || mode === 'daily' || mode === 'weekly' || mode === 'tournament') {
+        if (shieldCharges > 0) {
+          // le lotus s'ouvre : la marée engloutit les pierres au lieu de perdre
+          shieldCharges -= 1;
+          effects.push({ type: 'milestone', text: '🪷 Le lotus te sauve !', life: 1, color: '#ffc7dd' });
+          sfx.milestone();
+        } else {
+          gameOver('line');
+          return;
+        }
       }
-      // zen et marée montante : la marée emporte les pierres du bas
-      blocks = blocks.filter((b) => b.row < deathRow);
+      // la marée emporte les pierres du bas (zen, marée… ou lotus ouvert)
+      blocks = blocks.filter((b) => bottomRow(b) < deathRow);
       for (const b of reached) {
         const rc = blockRect(b, 0);
         const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
@@ -556,14 +654,68 @@ function endTurn() {
       if (reached.length) sfx.wall();
     }
   }
+  // un portail dont le jumeau a été emporté par la marée devient inerte
+  const pairCount = {};
+  for (const p of powerups) {
+    if (p.kind === 'portal') pairCount[p.pair] = (pairCount[p.pair] || 0) + 1;
+  }
+  powerups = powerups.filter((p) => p.kind !== 'portal' || pairCount[p.pair] === 2);
+
   shiftAnim = 0;
   round += 1;
   if (isSeeded()) announceTiers();
   sfx.newRow();
   spawnRow();
+
+  // le Barong rugit s'il survit 3 tours : des pierres blindées surgissent
+  const boss = blocks.find((b) => b.type === 'boss');
+  if (boss) {
+    boss.roarIn = (boss.roarIn || 3) - 1;
+    if (boss.roarIn <= 0) {
+      boss.roarIn = 3;
+      bossRoar();
+    }
+  }
+
   state = 'aim';
   saveGame();
   if (hooks.onTurnEnd) hooks.onTurnEnd({ mode, score, round });
+}
+
+/* Renforts du Barong. Le flux aléatoire principal (rangées) ne doit pas
+   dépendre du joueur : on tire dans un flux dérivé de la graine et de la
+   manche, identique pour tous ceux dont le Barong est encore en vie. */
+function bossRoar() {
+  const side = currentSeed !== null
+    ? mulberry32((currentSeed ^ Math.imul(round, 2654435761)) >>> 0)
+    : Math.random;
+  const occupied = new Set();
+  for (const b of blocks) {
+    const span = b.type === 'wide' ? 2 : b.type === 'boss' ? 3 : 1;
+    const vspan = b.type === 'boss' ? 2 : 1;
+    for (let c = 0; c < span; c++) {
+      for (let r = 0; r < vspan; r++) occupied.add((b.col + c) + ':' + (b.row + r));
+    }
+  }
+  for (const p of powerups) occupied.add(p.col + ':' + p.row);
+  const free = [];
+  for (let r = 1; r <= 3; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!occupied.has(c + ':' + r)) free.push([c, r]);
+    }
+  }
+  effects.push({ type: 'milestone', text: '🎭 Le Barong rugit !', life: 1, color: '#ff8c3d' });
+  sfx.boom();
+  let n = Math.min(2, free.length);
+  while (n > 0 && free.length > 0) {
+    const i = Math.floor(side() * free.length);
+    const [c, r] = free.splice(i, 1)[0];
+    blocks.push({
+      col: c, row: r, hp: Math.max(1, Math.ceil(round / 3)),
+      flash: 1, seed: Math.random(), type: 'armored', orient: 0, lastHitShot: -1,
+    });
+    n -= 1;
+  }
 }
 
 function bankPearls() {
@@ -621,6 +773,14 @@ function gameOver(reason) {
       d.round = Math.max(d.round || 0, round);
       store.set(KEYS.DAILY, JSON.stringify(d));
     }
+  } else if (mode === 'weekly') {
+    const wk = isoWeekSeed();
+    const w = loadJSON(KEYS.WEEKLY, {});
+    if (w.week !== wk) { w.score = 0; w.round = 0; }
+    w.week = wk;
+    w.score = Math.max(w.score || 0, score);
+    w.round = Math.max(w.round || 0, round);
+    store.set(KEYS.WEEKLY, JSON.stringify(w));
   }
   if (mode === 'tournament') store.remove(KEYS.TOUR_SAVE);
   addHistory({ mode, score, round, reason });
@@ -629,6 +789,7 @@ function gameOver(reason) {
   sfx.over();
   if (hooks.onGameOver) {
     const daily = loadJSON(KEYS.DAILY, {});
+    const weekly = loadJSON(KEYS.WEEKLY, {});
     hooks.onGameOver({
       mode,
       reason,
@@ -638,6 +799,7 @@ function gameOver(reason) {
       bestScore,
       tideBest: parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0,
       dailyBest: daily.date === todayKey() ? daily.score || 0 : 0,
+      weeklyBest: weekly.week === isoWeekSeed() ? weekly.score || 0 : 0,
       level: puzzle ? puzzle.idx : 0,
       pearls,
       broken: stats.broken,
@@ -673,6 +835,15 @@ function puzzleWin() {
 }
 
 function fire(angle) {
+  // mutateur miroir : la noix part à l'opposé de la visée
+  if (mode === 'weekly' && weeklyMut === 'mirror') angle = Math.PI - angle;
+  // jauge Gamelan pleine : ce tir est une fièvre à dégâts doublés
+  if (fever >= 1) {
+    feverActive = true;
+    fever = 0;
+    effects.push({ type: 'milestone', text: '🔥 FIÈVRE GAMELAN !', life: 1, color: '#ff9d3c' });
+    sfx.chili();
+  }
   toLaunch = ballCount;
   launchTimer = 0;
   aim = { angle };
@@ -759,8 +930,27 @@ function breakBlock(b, style, cx, cy) {
   blocks.splice(idx, 1);
   stats.broken += 1;
   brokenThisShot += 1;
+  // les combos chauffent la jauge Gamelan (fièvre au prochain tir)
+  fever = Math.min(1, fever + 0.035 + brokenThisShot * 0.006);
   if (brokenThisShot > 1) {
     addPoints(25 * (brokenThisShot - 1)); // bonus de combo
+  }
+  if (b.type === 'boss') {
+    addPoints(1000);
+    pearls += 15;
+    effects.push({ type: 'milestone', text: '🎭 Barong vaincu ! +1000', life: 1, color: '#ffd34d' });
+    floaters.push({ x: cx, y: cy, life: 1, text: '+15 ◉' });
+    for (let p = 0; p < 22 && particles.length < MAX_PARTICLES; p++) {
+      const a = Math.random() * Math.PI * 2;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * cell * (1.5 + Math.random() * 2),
+        vy: Math.sin(a) * cell * (1.5 + Math.random() * 2),
+        life: 1.3,
+        color: p % 2 === 0 ? '#ffd34d' : '#a32b20',
+      });
+    }
+    sfx.milestone();
   }
   for (let p = 0; p < 9 && particles.length < MAX_PARTICLES; p++) {
     const a = (p / 9) * Math.PI * 2;
@@ -817,7 +1007,7 @@ function swordSweep(row, y) {
     if (b.row !== row) continue;
     const rc = blockRect(b, 0);
     const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
-    damageBlock(b, b.type === 'armored' ? 1 : b.hp, cx, cy);
+    damageBlock(b, b.type === 'armored' ? 1 : b.type === 'boss' ? 10 : b.hp, cx, cy);
   }
 }
 
@@ -836,8 +1026,10 @@ function saveGame() {
     round, ballCount, score, pearls,
     seed: currentSeed, ts: Date.now(),
     launchFrac: launchX / W,
-    blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient]),
-    powerups: powerups.map((p) => [p.col, p.row, p.kind]),
+    fever, shield: shieldCharges,
+    blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient,
+      b.type === 'boss' ? { m: b.maxHp, r: b.roarIn } : 0]),
+    powerups: powerups.map((p) => [p.col, p.row, p.kind, p.pair || 0]),
     stats,
   }));
 }
@@ -859,14 +1051,20 @@ function loadGame(m) {
     nextTier = 0;
     while (nextTier < LATE_TIERS.length && score >= LATE_TIERS[nextTier].at) nextTier += 1;
     launchX = Math.min(Math.max((s.launchFrac || 0.5) * W, RADIUS() + 2), W - RADIUS() - 2);
-    blocks = s.blocks.map(([col, row, hp, type, orient]) => ({
+    fever = s.fever || 0;
+    feverActive = false;
+    shieldCharges = s.shield || 0;
+    weeklyMut = null;
+    blocks = s.blocks.map(([col, row, hp, type, orient, extra]) => ({
       col, row, hp,
       type: type || 'stone',
       orient: orient || 0,
+      maxHp: extra && extra.m ? extra.m : hp,
+      roarIn: extra && extra.r ? extra.r : 3,
       flash: 0, seed: Math.random(), lastHitShot: -1,
     }));
     const oldBonuses = s.powerups || s.bonuses || [];
-    powerups = oldBonuses.map(([col, row, kind]) => ({ col, row, kind: kind || 'ball' }));
+    powerups = oldBonuses.map(([col, row, kind, pair]) => ({ col, row, kind: kind || 'ball', pair }));
     stats = s.stats && typeof s.stats.broken === 'number' ? s.stats : { broken: 0, shots: 0 };
     if (m === 'tournament') {
       // repositionner le générateur aléatoire exactement là où il était :
@@ -960,7 +1158,7 @@ function collideBlocks(ball, r) {
     }
 
     const wasArmoredTick = b.type === 'armored' && gameClock - (b.lastArmorHit || -9) < 1.2;
-    const broke = damageBlock(b, chiliActive ? 2 : 1,
+    const broke = damageBlock(b, (chiliActive ? 2 : 1) * (feverActive ? 2 : 1),
       (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2);
     if (!broke && !wasArmoredTick) sfx.hit();
     else if (!broke && wasArmoredTick) sfx.wall();
@@ -1047,6 +1245,20 @@ function collidePowerups(ball, r) {
     const p = powerups[i];
     const c = powerupCenter(p, 0);
     if (Math.hypot(ball.x - c.x, ball.y - c.y) >= r + BONUS_R()) continue;
+    if (p.kind === 'portal') {
+      // pas consommé : téléporte vers le portail jumeau (avec un délai
+      // anti-aller-retour par noix)
+      const partner = powerups.find((q) => q !== p && q.kind === 'portal' && q.pair === p.pair);
+      if (!partner || gameClock - (ball.lastPortal || -9) < 0.6) continue;
+      const dst = powerupCenter(partner, 0);
+      ball.x = dst.x;
+      ball.y = dst.y;
+      ball.lastPortal = gameClock;
+      lastProgress = gameClock;
+      floaters.push({ x: dst.x, y: dst.y, life: 1, text: '🌀' });
+      sfx.mystery();
+      continue;
+    }
     lastProgress = gameClock;
     powerups.splice(i, 1);
     switch (p.kind) {
@@ -1075,6 +1287,19 @@ function collidePowerups(ball, r) {
         ball.vx = 0;
         ball.vy = -SPEED();
         floaters.push({ x: c.x, y: c.y, life: 1, text: '↑' });
+        sfx.flower();
+        break;
+      case 'gecko':
+        // la noix se dédouble pour le reste du tir
+        if (balls.length < 60) {
+          balls.push({ x: ball.x, y: ball.y, vx: -ball.vx, vy: ball.vy, dead: false });
+        }
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '🦎 ×2' });
+        sfx.bonus();
+        break;
+      case 'lotus':
+        shieldCharges = Math.min(2, shieldCharges + 1);
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '🪷' });
         sfx.flower();
         break;
     }
@@ -1187,6 +1412,20 @@ function update(dt) {
       b.dead = true;
     }
     sfx.wall();
+  }
+
+  // traînée de braises pendant un tir de fièvre
+  if (feverActive && !reduceMotion.matches) {
+    for (const b of balls) {
+      if (particles.length < MAX_PARTICLES && Math.random() < 0.35) {
+        particles.push({
+          x: b.x, y: b.y,
+          vx: (Math.random() - 0.5) * 30, vy: 40,
+          life: 0.5,
+          color: Math.random() < 0.5 ? '#ffb648' : '#ff7847',
+        });
+      }
+    }
   }
 
   for (const ball of balls) {
@@ -1376,9 +1615,92 @@ function stonePath(b, rc, grow) {
   }
 }
 
+/* Le Barong : masque balinais géant (3 colonnes × 2 rangées). */
+function drawBoss(b, yOff, T) {
+  const rc = blockRect(b, yOff);
+  const grow = b.flash * cell * 0.04;
+  const x = rc.x0 - grow, y = rc.y0 - grow;
+  const w = rc.x1 - rc.x0 + grow * 2, h = rc.y1 - rc.y0 + grow * 2;
+
+  roundRect(x, y, w, h, cell * 0.16);
+  ctx.fillStyle = '#a32b20';
+  ctx.fill();
+  ctx.strokeStyle = '#ffd34d';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // couronne dorée
+  ctx.fillStyle = '#ffd34d';
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const cx = x + w * (0.14 + i * 0.18);
+    ctx.moveTo(cx - w * 0.05, y + h * 0.17);
+    ctx.lineTo(cx, y + h * 0.03);
+    ctx.lineTo(cx + w * 0.05, y + h * 0.17);
+  }
+  ctx.fill();
+
+  // yeux exorbités et sourcils d'or
+  const ey = y + h * 0.46, er = h * 0.14;
+  for (const ex of [x + w * 0.3, x + w * 0.7]) {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, er * 1.3, er, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#20140a';
+    ctx.beginPath();
+    ctx.arc(ex, ey, er * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffd34d';
+    ctx.lineWidth = Math.max(2, h * 0.045);
+    ctx.beginPath();
+    ctx.arc(ex, ey + er * 0.4, er * 1.6, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+  }
+
+  // gueule et crocs
+  ctx.fillStyle = '#5e120c';
+  roundRect(x + w * 0.22, y + h * 0.74, w * 0.56, h * 0.18, h * 0.08);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 5; i++) {
+    const fx = x + w * (0.28 + i * 0.11);
+    ctx.beginPath();
+    ctx.moveTo(fx - w * 0.025, y + h * 0.75);
+    ctx.lineTo(fx, y + h * 0.87);
+    ctx.lineTo(fx + w * 0.025, y + h * 0.75);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // barre de vie + points restants
+  const bw = w * 0.64, bx = x + w * 0.18, by = y + h * 0.235;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  roundRect(bx, by, bw, 6, 3);
+  ctx.fill();
+  const frac = Math.max(0, Math.min(1, b.hp / (b.maxHp || b.hp || 1)));
+  if (frac > 0) {
+    ctx.fillStyle = frac > 0.4 ? '#7ef0d8' : '#ff8c3d';
+    roundRect(bx, by, Math.max(4, bw * frac), 6, 3);
+    ctx.fill();
+  }
+  ctx.font = '800 ' + Math.round(cell * 0.22) + 'px ' + FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = T.blockTextHalo;
+  ctx.strokeText(String(b.hp), x + w / 2, y + h * 0.645);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(String(b.hp), x + w / 2, y + h * 0.645);
+}
+
 /* Pierre de temple : bloc taillé, biseau, rainures, mousse/éclats selon le
    palier ; variantes toit (triangle), blindée (volcanique) et mystère. */
 function drawStone(b, yOff, T) {
+  if (b.type === 'boss') {
+    drawBoss(b, yOff, T);
+    return;
+  }
   const rc = blockRect(b, yOff);
   const w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
   const grow = b.flash * cell * 0.03;
@@ -1523,6 +1845,7 @@ function drawPowerup(p, yOff, T, t) {
   const ringColors = {
     ball: T.aimDot, sword: '#9fd7e8', durian: '#c9e06a',
     chili: '#ff6b4a', pearl: '#f3e7ff', flower: '#ffc7dd',
+    gecko: '#8fd45f', portal: '#b48cff', lotus: '#ff9fcc',
   };
   ctx.strokeStyle = ringColors[p.kind] || T.aimDot;
   ctx.lineWidth = cell * 0.045;
@@ -1620,6 +1943,70 @@ function drawPowerup(p, yOff, T, t) {
       ctx.fillStyle = '#ffd34d';
       ctx.beginPath();
       ctx.arc(c.x, c.y, r * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'gecko': {
+      // petit gecko vert : queue, corps, tête, pattes
+      ctx.strokeStyle = '#4f9e3f';
+      ctx.lineWidth = r * 0.26;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(c.x - r * 0.95, c.y + r * 0.55);
+      ctx.quadraticCurveTo(c.x - r * 0.5, c.y + r * 0.05, c.x - r * 0.1, c.y + r * 0.05);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.fillStyle = '#5cb64a';
+      ctx.beginPath();
+      ctx.ellipse(c.x + r * 0.15, c.y, r * 0.55, r * 0.32, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(c.x + r * 0.62, c.y - r * 0.32, r * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4f9e3f';
+      for (const [fx, fy] of [[-0.15, 0.4], [0.45, 0.3], [-0.28, -0.3], [0.2, -0.38]]) {
+        ctx.beginPath();
+        ctx.arc(c.x + fx * r, c.y + fy * r, r * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#183012';
+      ctx.beginPath();
+      ctx.arc(c.x + r * 0.7, c.y - r * 0.36, r * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'portal': {
+      // spirale qui tourne
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(t * 2.2 + p.col);
+      for (const [colr, off] of [['#b48cff', 0], ['#7ef0d8', Math.PI]]) {
+        ctx.strokeStyle = colr;
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        for (let a = 0; a <= 2.2; a += 0.18) {
+          const rr = r * 0.18 + a * r * 0.32;
+          const px = Math.cos(a * 2.2 + off) * rr;
+          const py = Math.sin(a * 2.2 + off) * rr;
+          if (a === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'lotus': {
+      ctx.fillStyle = '#ff9fcc';
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.ellipse(c.x + i * r * 0.32, c.y + Math.abs(i) * r * 0.1,
+          r * 0.28, r * 0.55, i * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffd34d';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + r * 0.18, r * 0.2, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
@@ -1811,6 +2198,17 @@ function draw(t) {
   for (const b of blocks) drawStone(b, yOff, T);
   for (const p of powerups) drawPowerup(p, yOff, T, t);
 
+  // mutateur brouillard : le haut du lagon est voilé
+  if (mode === 'weekly' && weeklyMut === 'fog') {
+    const fh = boardTop + cell * 3;
+    const fg = ctx.createLinearGradient(0, boardTop, 0, fh + cell);
+    fg.addColorStop(0, 'rgba(216,236,238,0.95)');
+    fg.addColorStop(0.7, 'rgba(216,236,238,0.85)');
+    fg.addColorStop(1, 'rgba(216,236,238,0)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, boardTop - 6, W, fh - boardTop + cell + 6);
+  }
+
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
@@ -1837,6 +2235,14 @@ function draw(t) {
   drawBeach(t, T);
 
   for (const ball of balls) {
+    if (feverActive) {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#ff9d3c';
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, RADIUS() * 1.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     drawBall(ball.x, ball.y, RADIUS(), T);
   }
 
@@ -1878,6 +2284,23 @@ function draw(t) {
   ctx.textAlign = 'center';
   ctx.font = '800 ' + Math.round(cell * 0.3) + 'px ' + FONT;
   ctx.fillText(String(score), W / 2, boardTop - 26);
+
+  // jauge Gamelan : les combos la remplissent, pleine = tir de fièvre
+  if (mode !== 'puzzle') {
+    const gy = boardTop - 9;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    roundRect(14, gy, W - 28, 5, 2.5);
+    ctx.fill();
+    const frac = feverActive ? 1 : Math.min(1, fever);
+    if (frac > 0.02) {
+      const hot = feverActive || fever >= 1;
+      ctx.fillStyle = hot
+        ? (Math.sin(performance.now() / 120) > 0 ? '#ffb648' : '#ff7847')
+        : '#f5a24b';
+      roundRect(14, gy, (W - 28) * frac, 5, 2.5);
+      ctx.fill();
+    }
+  }
   ctx.fillStyle = T.hudSub;
   ctx.font = '700 ' + Math.round(cell * 0.22) + 'px ' + FONT;
   ctx.textAlign = 'right';
@@ -1909,6 +2332,13 @@ function draw(t) {
     ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
     ctx.textAlign = 'left';
     ctx.fillText('🌶 x2', 14, floorY + 44);
+  }
+  if (shieldCharges > 0 && (state === 'aim' || state === 'flight')) {
+    ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ff9fcc';
+    ctx.fillText('🪷' + (shieldCharges > 1 ? ' x' + shieldCharges : ''), W - 14, floorY + 44);
   }
 
   drawTutorial(T);

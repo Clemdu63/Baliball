@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -109,6 +109,14 @@ function dailySeed() {
 }
 
 $('btn-mode-daily').addEventListener('click', () => startGame('daily', 0, dailySeed()));
+
+// ---- défi de la semaine (mutateur affiché sur la carte du mode) ----
+$('btn-mode-weekly').addEventListener('click', () => startGame('weekly'));
+{
+  const wi = game.weeklyInfo();
+  $('weekly-desc').textContent = 'Cette semaine : ' + wi.name + ' — ' + wi.desc
+    + '. Même partie toute la semaine.';
+}
 
 // ---- tournoi entre amis : hors ligne (code) et en ligne (suivi direct) ----
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -698,6 +706,9 @@ const LEGEND_POWERUPS = [
   ['chili', 'Piment', 'Dégâts doublés jusqu\'à la fin du tir.'],
   ['pearl', 'Perle', 'Monnaie de la boutique (skins et décors).'],
   ['flower', 'Frangipanier', 'Renvoie la noix qui la touche tout droit vers le haut.'],
+  ['gecko', 'Gecko', 'Dédouble la noix qui le touche, pour le reste du tir.'],
+  ['portal', 'Portails jumeaux', 'La noix qui entre dans l\'un ressort de l\'autre. Ils descendent avec la marée.'],
+  ['lotus', 'Lotus-bouclier', 'Sauve la partie une fois : la pierre qui atteint la plage est engloutie (2 max).'],
 ];
 
 const LEGEND_STONES = [
@@ -707,6 +718,7 @@ const LEGEND_STONES = [
   ['mystery', 'Pierre mystère', 'Révèle une surprise en se brisant : noix, perles, explosion ou points.'],
   ['wide', 'Pierre large', 'Deux colonnes d\'un bloc, très solide — apparaît à partir de 10 000 pts.'],
   ['round', 'Pierre ronde', 'Rebonds courbes imprévisibles — apparaît à partir de 30 000 pts.'],
+  ['boss', 'Le Barong', 'Boss toutes les 10 manches : énorme, et s\'il survit 3 tours il rugit et appelle des pierres blindées. Le vaincre rapporte 1 000 pts et 15 perles.'],
 ];
 
 function legendRow([kind, name, desc]) {
@@ -760,11 +772,13 @@ const ACHIEVEMENTS = [
 ];
 
 const MODE_ICONS = {
-  classic: '🥥', tide: '🌊', puzzle: '🛕', zen: '🏖', daily: '🌅', tournament: '📡',
+  classic: '🥥', tide: '🌊', puzzle: '🛕', zen: '🏖', daily: '🌅',
+  weekly: '🌀', tournament: '📡',
 };
 const MODE_NAMES = {
   classic: 'Classique', tide: 'Marée montante', puzzle: 'Temples',
-  zen: 'Plage', daily: 'Défi du jour', tournament: 'Tournoi',
+  zen: 'Plage', daily: 'Défi du jour', weekly: 'Défi de la semaine',
+  tournament: 'Tournoi',
 };
 
 function timeAgo(ts) {
@@ -915,6 +929,11 @@ game.initGame($('game'), {
       $('over-best').textContent = '🌅 Défi du jour · meilleur aujourd\'hui : ' + s.dailyBest + ' pts';
       $('stat-round-label').textContent = 'Manche atteinte';
       $('stat-round').textContent = String(s.round);
+    } else if (s.mode === 'weekly') {
+      const wi = game.weeklyInfo();
+      $('over-best').textContent = '🌀 ' + wi.name + ' · meilleur cette semaine : ' + s.weeklyBest + ' pts';
+      $('stat-round-label').textContent = 'Manche atteinte';
+      $('stat-round').textContent = String(s.round);
     } else {
       $('over-best').textContent = 'Record : manche ' + s.best + ' · ' + s.bestScore + ' pts';
       $('stat-round-label').textContent = 'Manche atteinte';
@@ -975,7 +994,8 @@ $('btn-win-home').addEventListener('click', () => {
 // ---- partage du score (image générée hors ligne) ----
 const MODE_LABELS = {
   classic: 'Mode classique', tide: 'Marée montante', puzzle: 'Temples',
-  zen: 'Plage', daily: 'Défi du jour', tournament: 'Tournoi entre amis',
+  zen: 'Plage', daily: 'Défi du jour', weekly: 'Défi de la semaine',
+  tournament: 'Tournoi entre amis',
 };
 
 function shareCardBlob(s) {
