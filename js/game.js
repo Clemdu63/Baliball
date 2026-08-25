@@ -9,7 +9,7 @@
    fleur de frangipanier (renvoie la noix tout droit vers le haut). */
 
 import { store, KEYS, settings, loadJSON } from './storage.js';
-import { getTheme, stoneStyle } from './theme.js';
+import { getTheme, stoneStyle, DECORS } from './theme.js';
 import { initAudio, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 
@@ -72,11 +72,27 @@ let shotId = 0;                // pour le blindage « 1 dégât par tir »
 let brokenThisShot = 0;
 let fishes = [];
 let fishTimer = 2;
-let mode = 'classic';          // classic | tide | zen | puzzle
+let mode = 'classic';          // classic | tide | zen | puzzle | duel | daily
 let tideTime = 0;              // secondes restantes (marée montante)
 let puzzle = null;             // {idx, def, shotsLeft}
+let tutoActive = false;        // aides de la première partie
 
 const TIDE_DURATION = 90;
+
+/* Cosmétiques équipés (boutique) : peau de balle et décor. */
+let cosmetics = { ball: 'coco', decor: 'lagoon' };
+
+export function setCosmetics(c) {
+  cosmetics = Object.assign({ ball: 'coco', decor: 'lagoon' }, c);
+}
+
+/* Applique le décor équipé par-dessus le thème jour/nuit. */
+function themed() {
+  const T = getTheme();
+  const d = DECORS[cosmetics.decor];
+  if (!d || !d.overrides) return T;
+  return Object.assign({}, T, d.overrides);
+}
 
 const SPEED = () => cell * 16 * (settings.fast ? 1.35 : 1);
 const RADIUS = () => cell * 0.13;
@@ -134,6 +150,8 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   tideTime = TIDE_DURATION;
   puzzle = null;
 
+  tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
+
   if (mode === 'puzzle') {
     const def = LEVELS[levelIdx] || LEVELS[0];
     puzzle = { idx: levelIdx, def, shotsLeft: def.shots };
@@ -181,12 +199,13 @@ export function getBestScore() {
 
 export function toMenu() {
   // quitter en plein vol : on retrouvera le début du tour à la reprise
-  if (mode === 'zen' && pearls > 0) {
-    // le mode zen ne se termine jamais : on encaisse les perles en sortant
-    const wallet = parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
-    store.set(KEYS.PEARLS, String(wallet + pearls));
+  if (mode === 'zen' && (state === 'aim' || state === 'flight')) {
+    // le mode zen ne se termine jamais : on encaisse la session en sortant
+    bankPearls();
+    addCumulative();
     pearls = 0;
-    if (state === 'aim' || state === 'flight') saveGame();
+    stats = { broken: 0, shots: 0 };
+    saveGame();
   }
   state = 'menu';
   balls = [];
@@ -334,7 +353,7 @@ function endTurn() {
 
   const reached = blocks.filter((b) => b.row >= deathRow);
   if (reached.length > 0) {
-    if (mode === 'classic' || mode === 'duel') {
+    if (mode === 'classic' || mode === 'duel' || mode === 'daily') {
       gameOver('line');
       return;
     }
@@ -366,6 +385,24 @@ function bankPearls() {
   store.set(KEYS.PEARLS, String(wallet + pearls));
 }
 
+/* Statistiques cumulées (succès et écran Progrès). */
+function addCumulative() {
+  const c = loadJSON(KEYS.STATS, {});
+  c.gamesPlayed = (c.gamesPlayed || 0) + 1;
+  c.bricksBroken = (c.bricksBroken || 0) + stats.broken;
+  c.shotsFired = (c.shotsFired || 0) + stats.shots;
+  c.pearlsEarned = (c.pearlsEarned || 0) + pearls;
+  c.bestRound = Math.max(c.bestRound || 0, mode === 'puzzle' ? 0 : round);
+  c.bestScore = Math.max(c.bestScore || 0, score);
+  store.set(KEYS.STATS, JSON.stringify(c));
+}
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 function gameOver(reason) {
   state = 'over';
   if (mode === 'classic') {
@@ -381,10 +418,22 @@ function gameOver(reason) {
   } else if (mode === 'tide') {
     const tb = parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0;
     if (score > tb) store.set(KEYS.TIDE_BEST, String(score));
+  } else if (mode === 'daily') {
+    const today = todayKey();
+    const d = loadJSON(KEYS.DAILY, {});
+    if (d.date !== today || score > (d.score || 0)) {
+      if (d.date !== today) { d.score = 0; d.round = 0; }
+      d.date = today;
+      d.score = Math.max(d.score || 0, score);
+      d.round = Math.max(d.round || 0, round);
+      store.set(KEYS.DAILY, JSON.stringify(d));
+    }
   }
   bankPearls();
+  addCumulative();
   sfx.over();
   if (hooks.onGameOver) {
+    const daily = loadJSON(KEYS.DAILY, {});
     hooks.onGameOver({
       mode,
       reason,
@@ -393,6 +442,7 @@ function gameOver(reason) {
       score,
       bestScore,
       tideBest: parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0,
+      dailyBest: daily.date === todayKey() ? daily.score || 0 : 0,
       level: puzzle ? puzzle.idx : 0,
       pearls,
       broken: stats.broken,
@@ -412,6 +462,7 @@ function puzzleWin() {
   prog.unlocked = Math.max(prog.unlocked || 1, puzzle.idx + 2);
   store.set(KEYS.PUZZLE, JSON.stringify(prog));
   bankPearls();
+  addCumulative();
   sfx.bonus();
   if (hooks.onPuzzleWin) {
     hooks.onPuzzleWin({
@@ -868,6 +919,89 @@ function drawCoconut(x, y, r, T) {
   }
 }
 
+/* Balle selon la peau équipée (boutique). */
+function drawBall(x, y, r, T) {
+  switch (cosmetics.ball) {
+    case 'beachball': {
+      ctx.fillStyle = '#f6f2ea';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      const seg = ['#e2493c', '#f5b93c', '#2f8fd6'];
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = seg[i];
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, r, (i * 2 * Math.PI) / 3 + 0.5, (i * 2 * Math.PI) / 3 + Math.PI / 3 + 0.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'flower': {
+      ctx.fillStyle = '#fff4f8';
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.ellipse(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5,
+          r * 0.5, r * 0.3, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffd34d';
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'lantern': {
+      ctx.fillStyle = '#ff9d3c';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#d97b1e';
+      ctx.lineWidth = Math.max(1, r * 0.12);
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.98, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      for (const k of [-0.5, 0, 0.5]) {
+        ctx.beginPath();
+        ctx.ellipse(x + k * r * 0.8, y, r * Math.sqrt(1 - k * k) * 0.6, r * 0.95, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,240,180,0.8)';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'durian': {
+      ctx.fillStyle = '#a8b83e';
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8ba02c';
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a) * r * 1.05, y + Math.sin(a) * r * 1.05);
+        ctx.lineTo(x + Math.cos(a + 0.35) * r * 0.55, y + Math.sin(a + 0.35) * r * 0.55);
+        ctx.lineTo(x + Math.cos(a - 0.35) * r * 0.55, y + Math.sin(a - 0.35) * r * 0.55);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    }
+    default:
+      drawCoconut(x, y, r, T);
+  }
+}
+
 function stonePath(b, rc, grow) {
   const rad = cell * 0.07;
   const x = rc.x0 - grow, y = rc.y0 - grow;
@@ -1250,7 +1384,7 @@ function drawEffects(T) {
 }
 
 function draw(t) {
-  const T = getTheme();
+  const T = themed();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   ctx.fillStyle = T.page;
@@ -1290,14 +1424,14 @@ function draw(t) {
   drawBeach(t, T);
 
   for (const ball of balls) {
-    drawCoconut(ball.x, ball.y, RADIUS(), T);
+    drawBall(ball.x, ball.y, RADIUS(), T);
   }
 
   if (state === 'aim' || state === 'flight') {
     const r = RADIUS();
     const remaining = state === 'flight' ? toLaunch : ballCount;
     if (remaining > 0) {
-      drawCoconut(launchX, floorY - r, r * 1.15, T);
+      drawBall(launchX, floorY - r, r * 1.15, T);
       ctx.fillStyle = T.sandText;
       ctx.font = '800 ' + Math.round(cell * 0.26) + 'px -apple-system, sans-serif';
       ctx.textAlign = 'right';
@@ -1359,6 +1493,34 @@ function draw(t) {
     ctx.textAlign = 'left';
     ctx.fillText('🌶 x2', 14, floorY + 44);
   }
+
+  drawTutorial(T);
+}
+
+/* Aides de la première partie (mode classique uniquement). */
+function drawTutorial(T) {
+  if (!tutoActive) return;
+  if (round >= 3) {
+    tutoActive = false;
+    store.set(KEYS.TUTO, '1');
+    return;
+  }
+  if (state !== 'aim') return;
+  const lines = round === 1
+    ? ['Glisse ton doigt dans la direction du tir,', 'puis relâche pour lancer la noix de coco !']
+    : ['Ramasse les bonus qui flottent :', '○ = une noix de plus à chaque tir !'];
+  const cy = boardTop + (floorY - boardTop) * 0.58;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 ' + Math.round(cell * 0.24) + 'px -apple-system, sans-serif';
+  lines.forEach((line, i) => {
+    const y = cy + i * cell * 0.42;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,40,40,0.5)';
+    ctx.strokeText(line, W / 2, y);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(line, W / 2, y);
+  });
 }
 
 function drawAimLine(angle, T) {

@@ -1,14 +1,15 @@
 /* Écrans, modes de jeu, réglages et démarrage. */
 
 import { settings, persistSettings, KEYS, loadJSON, store } from './storage.js';
-import { setThemeMode } from './theme.js';
+import { setThemeMode, DECORS } from './theme.js';
 import { initAudio, syncAmbience } from './audio.js';
 import { LEVELS } from './levels.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
-  'screen-over', 'screen-win', 'screen-duel-intro', 'screen-handoff', 'screen-duel-result'];
+  'screen-over', 'screen-win', 'screen-duel-intro', 'screen-handoff', 'screen-duel-result',
+  'screen-shop', 'screen-progress'];
 
 setThemeMode(settings.theme);
 
@@ -125,6 +126,149 @@ function endDuelGame(s) {
   show('screen-home');
 }
 
+// ---- défi du jour ----
+$('btn-mode-daily').addEventListener('click', () => {
+  initAudio();
+  const d = new Date();
+  const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  game.newGame('daily', 0, seed);
+  showGame();
+});
+
+// ---- boutique ----
+const BALL_SKINS = {
+  coco: { name: 'Noix de coco', emoji: '🥥', price: 0 },
+  beachball: { name: 'Ballon de plage', emoji: '🏐', price: 50 },
+  flower: { name: 'Frangipanier', emoji: '🌸', price: 80 },
+  lantern: { name: 'Lampion', emoji: '🏮', price: 100 },
+  durian: { name: 'Durian', emoji: '🍈', price: 120 },
+};
+
+let shop = loadJSON(KEYS.SHOP, { owned: ['coco', 'lagoon'], ball: 'coco', decor: 'lagoon' });
+game.setCosmetics(shop);
+
+function wallet() {
+  return parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
+}
+
+function persistShop() {
+  store.set(KEYS.SHOP, JSON.stringify(shop));
+  game.setCosmetics(shop);
+}
+
+function shopItem(id, def, kind) {
+  const owned = shop.owned.includes(id);
+  const equipped = shop[kind] === id;
+  const div = document.createElement('div');
+  div.className = 'shop-item';
+  const sub = equipped ? 'Équipé' : owned ? 'Possédé' : '◉ ' + def.price;
+  div.innerHTML = '<span class="shop-emoji">' + def.emoji + '</span>'
+    + '<span class="shop-info"><span class="shop-name">' + def.name + '</span>'
+    + '<span class="shop-sub">' + sub + '</span></span>';
+  const btn = document.createElement('button');
+  if (equipped) {
+    btn.textContent = '✓ ÉQUIPÉ';
+    btn.className = 'equipped';
+    btn.disabled = true;
+  } else if (owned) {
+    btn.textContent = 'CHOISIR';
+    btn.className = 'owned';
+    btn.addEventListener('click', () => {
+      shop[kind] = id;
+      persistShop();
+      renderShop();
+    });
+  } else {
+    btn.textContent = 'ACHETER';
+    btn.disabled = wallet() < def.price;
+    btn.addEventListener('click', () => {
+      if (wallet() < def.price) return;
+      store.set(KEYS.PEARLS, String(wallet() - def.price));
+      shop.owned.push(id);
+      shop[kind] = id;
+      persistShop();
+      renderShop();
+    });
+  }
+  div.appendChild(btn);
+  return div;
+}
+
+function renderShop() {
+  $('shop-wallet').textContent = '◉ ' + wallet() + ' perle' + (wallet() > 1 ? 's' : '')
+    + ' — gagne des perles en jouant';
+  const balls = $('shop-balls');
+  balls.innerHTML = '';
+  for (const [id, def] of Object.entries(BALL_SKINS)) {
+    balls.appendChild(shopItem(id, def, 'ball'));
+  }
+  const decors = $('shop-decors');
+  decors.innerHTML = '';
+  for (const [id, def] of Object.entries(DECORS)) {
+    decors.appendChild(shopItem(id, def, 'decor'));
+  }
+}
+
+$('btn-shop').addEventListener('click', () => {
+  renderShop();
+  show('screen-shop');
+});
+$('btn-shop-back').addEventListener('click', () => {
+  refreshHome();
+  show('screen-home');
+});
+
+// ---- progrès & succès ----
+const ACHIEVEMENTS = [
+  { name: 'Casseur de cailloux', desc: 'Briser 100 pierres', test: (c) => (c.bricksBroken || 0) >= 100 },
+  { name: 'Démolisseur de temple', desc: 'Briser 1 000 pierres', test: (c) => (c.bricksBroken || 0) >= 1000 },
+  { name: 'Légende du lagon', desc: 'Briser 5 000 pierres', test: (c) => (c.bricksBroken || 0) >= 5000 },
+  { name: 'Marée haute', desc: 'Atteindre la manche 10', test: (c) => (c.bestRound || 0) >= 10 },
+  { name: 'Gardien du récif', desc: 'Atteindre la manche 20', test: (c) => (c.bestRound || 0) >= 20 },
+  { name: 'Esprit de Bali', desc: 'Atteindre la manche 30', test: (c) => (c.bestRound || 0) >= 30 },
+  { name: 'Grand marqueur', desc: '5 000 points en une partie', test: (c) => (c.bestScore || 0) >= 5000 },
+  { name: 'Collier de perles', desc: 'Gagner 50 perles en tout', test: (c) => (c.pearlsEarned || 0) >= 50 },
+  { name: 'Trésor de la baie', desc: 'Gagner 200 perles en tout', test: (c) => (c.pearlsEarned || 0) >= 200 },
+  { name: 'Pèlerin des temples', desc: '12 ★ au mode Temples', test: (c, x) => x.stars >= 12 },
+  { name: 'Libérateur des temples', desc: 'Toutes les étoiles des Temples', test: (c, x) => x.stars >= LEVELS.length * 3 },
+  { name: 'Habitué de la plage', desc: 'Jouer 25 parties', test: (c) => (c.gamesPlayed || 0) >= 25 },
+];
+
+function renderProgress() {
+  const c = loadJSON(KEYS.STATS, {});
+  const prog = loadJSON(KEYS.PUZZLE, { stars: {} });
+  const stars = Object.values(prog.stars || {}).reduce((a, b) => a + b, 0);
+  const rows = [
+    ['Parties jouées', c.gamesPlayed || 0],
+    ['Pierres brisées', c.bricksBroken || 0],
+    ['Tirs', c.shotsFired || 0],
+    ['Perles gagnées ◉', c.pearlsEarned || 0],
+    ['Meilleure manche', c.bestRound || 0],
+    ['Meilleur score', c.bestScore || 0],
+    ['Étoiles des Temples ★', stars + ' / ' + LEVELS.length * 3],
+  ];
+  $('prog-stats').innerHTML = rows
+    .map(([k, v]) => '<div class="row"><span>' + k + '</span><b>' + v + '</b></div>')
+    .join('');
+  const extra = { stars };
+  $('ach-list').innerHTML = ACHIEVEMENTS.map((a) => {
+    const done = a.test(c, extra);
+    return '<div class="ach-item' + (done ? ' done' : '') + '">'
+      + '<span class="ach-check">' + (done ? '🏆' : '·') + '</span>'
+      + '<span class="ach-info"><div class="ach-name">' + a.name + '</div>'
+      + '<div class="ach-desc">' + a.desc + '</div></span></div>';
+  }).join('');
+}
+
+$('btn-progress').addEventListener('click', () => {
+  renderProgress();
+  show('screen-progress');
+});
+$('btn-progress-back').addEventListener('click', () => {
+  refreshHome();
+  show('screen-home');
+});
+
 // ---- niveaux du mode Temples ----
 function renderLevels() {
   const prog = loadJSON(KEYS.PUZZLE, { unlocked: 1, stars: {} });
@@ -186,6 +330,10 @@ game.initGame($('game'), {
       $('over-best').textContent = LEVELS[s.level] ? '« ' + LEVELS[s.level].name + ' »' : '';
       $('stat-round-label').textContent = 'Niveau';
       $('stat-round').textContent = String(s.level + 1);
+    } else if (s.mode === 'daily') {
+      $('over-best').textContent = '🌅 Défi du jour · meilleur aujourd\'hui : ' + s.dailyBest + ' pts';
+      $('stat-round-label').textContent = 'Manche atteinte';
+      $('stat-round').textContent = String(s.round);
     } else {
       $('over-best').textContent = 'Record : manche ' + s.best + ' · ' + s.bestScore + ' pts';
       $('stat-round-label').textContent = 'Manche atteinte';

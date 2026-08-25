@@ -9,6 +9,10 @@ export const KEYS = {
   TIDE_BEST: 'baliball.tidebest.v1',
   PUZZLE: 'baliball.puzzle.v1',
   PEARLS: 'baliball.pearls.v1',
+  SHOP: 'baliball.shop.v1',
+  STATS: 'baliball.stats.v1',
+  DAILY: 'baliball.daily.v1',
+  TUTO: 'baliball.tuto.v1',
   SETTINGS: 'baliball.settings.v1',
 };
 

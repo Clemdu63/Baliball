@@ -86,7 +86,7 @@
       </svg>
     </div>
 
-    <div class="version">v0.6</div>
+    <div class="version">v0.7</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -94,7 +94,11 @@
     <p id="home-best"></p>
     <button id="btn-resume" style="display:none">REPRENDRE</button>
     <button id="btn-play">JOUER</button>
-    <button id="btn-settings" class="secondary">RÉGLAGES</button>
+    <div class="home-row">
+      <button id="btn-shop" class="secondary">BOUTIQUE</button>
+      <button id="btn-progress" class="secondary">PROGRÈS</button>
+      <button id="btn-settings" class="secondary">RÉGLAGES</button>
+    </div>
     <p>Glisse le doigt pour viser, relâche pour tirer.<br>
        Les pierres descendent à chaque tour : ne les laisse pas atteindre la plage&nbsp;!</p>
     <span id="offline-badge"></span>
@@ -119,11 +123,37 @@
       <span class="mode-name">🏖 Plage</span>
       <span class="mode-desc">Sans fin ni défaite : la marée emporte les pierres du bas.</span>
     </button>
+    <button class="mode-card" id="btn-mode-daily">
+      <span class="mode-name">🌅 Défi du jour</span>
+      <span class="mode-desc">La même partie pour tout le monde — une nouvelle chaque jour.</span>
+    </button>
     <button class="mode-card" id="btn-mode-duel">
       <span class="mode-name">🤝 Duel de plage</span>
       <span class="mode-desc">2 joueurs, un seul téléphone, les mêmes pierres : qui tiendra le plus longtemps ?</span>
     </button>
     <button id="btn-modes-back" class="secondary" style="margin-top:8px">RETOUR</button>
+  </div>
+
+  <div id="screen-shop" class="screen hidden">
+    <div class="settings-title">BOUTIQUE</div>
+    <p id="shop-wallet">◉ 0 perles</p>
+    <div class="shop-scroll">
+      <div class="setting"><div class="label">NOIX & BALLES</div></div>
+      <div id="shop-balls" class="shop-list"></div>
+      <div class="setting"><div class="label">DÉCORS DU LAGON</div></div>
+      <div id="shop-decors" class="shop-list"></div>
+    </div>
+    <button id="btn-shop-back" class="secondary">RETOUR</button>
+  </div>
+
+  <div id="screen-progress" class="screen hidden">
+    <div class="settings-title">PROGRÈS</div>
+    <div class="shop-scroll">
+      <div class="stats" id="prog-stats"></div>
+      <div class="setting" style="margin-top:10px"><div class="label">SUCCÈS</div></div>
+      <div id="ach-list" class="shop-list"></div>
+    </div>
+    <button id="btn-progress-back" class="secondary">RETOUR</button>
   </div>
 
   <div id="screen-duel-intro" class="screen hidden">

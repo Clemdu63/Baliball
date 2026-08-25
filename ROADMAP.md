@@ -99,7 +99,7 @@ local : le 2-appareils hors ligne n'est pas possible en web — voir Notes) :
   temps de visée limité ; casser une grosse brique envoie une rangée
   chez l'adversaire.
 
-## Lot 5 — Progression & boutique (v0.7) 🐚
+## Lot 5 — Progression & boutique (v0.7) 🐚 (livré ✅)
 
 - **Défi du jour** : partie générée par la graine du jour (déterministe,
   donc jouable hors ligne), même défi pour tout le monde.

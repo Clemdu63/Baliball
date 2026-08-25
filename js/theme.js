@@ -67,6 +67,36 @@ export const THEMES = {
   },
 };
 
+/* Décors achetables : chacun surcharge quelques couleurs du lagon. */
+export const DECORS = {
+  lagoon: { name: 'Lagon', emoji: '🌊', price: 0, overrides: null },
+  rizieres: {
+    name: 'Rizières', emoji: '🌾', price: 150,
+    overrides: {
+      waterTop: '#5f9e4a', waterBottom: '#c3e296',
+      sand: '#caa96f', sandDark: '#b8945a', sandText: '#6b5230',
+      fish: 'rgba(40,70,30,0.18)', caustic: 'rgba(255,255,255,0.10)',
+    },
+  },
+  volcan: {
+    name: 'Volcan', emoji: '🌋', price: 200,
+    overrides: {
+      waterTop: '#3a3f4a', waterBottom: '#78818f',
+      sand: '#454247', sandDark: '#39363b', sandText: '#d8cfc2',
+      foam: 'rgba(255,255,255,0.5)', sparkle: 'rgba(255,150,60,0.85)',
+      fish: 'rgba(230,240,250,0.14)',
+    },
+  },
+  uluwatu: {
+    name: 'Uluwatu', emoji: '🌅', price: 250,
+    overrides: {
+      waterTop: '#274a7c', waterBottom: '#8fc0d4',
+      waterGlow: 'rgba(255,138,92,0.28)',
+      sand: '#e8c98e', sandDark: '#d5b273', sandText: '#7c5f36',
+    },
+  },
+};
+
 let themeMode = 'auto';
 let current = THEMES.day;
 const mq = window.matchMedia('(prefers-color-scheme: dark)');

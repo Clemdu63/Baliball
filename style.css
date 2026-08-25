@@ -451,6 +451,100 @@ button.secondary {
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
+/* ---- accueil : rangée de boutons secondaires ---- */
+.home-row {
+  display: flex;
+  gap: 8px;
+}
+
+.home-row button {
+  font-size: 13px;
+  padding: 10px 16px;
+  letter-spacing: 0.5px;
+}
+
+/* ---- boutique & progrès ---- */
+.shop-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(330px, 86vw);
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--chip);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.shop-item .shop-emoji { font-size: 24px; }
+
+.shop-item .shop-info {
+  flex: 1;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.shop-item .shop-name { font-weight: 700; font-size: 15px; }
+.shop-item .shop-sub { font-size: 12px; color: var(--muted); }
+
+.shop-item button {
+  font-size: 13px;
+  padding: 8px 14px;
+  letter-spacing: 0.5px;
+  min-width: 86px;
+}
+
+.shop-item button.owned {
+  background: transparent;
+  border: 2px solid var(--line);
+  color: var(--muted);
+}
+
+.shop-item button.equipped {
+  background: transparent;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+}
+
+.shop-item button:disabled { opacity: 0.45; }
+
+.ach-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--chip);
+  border-radius: 14px;
+  padding: 10px 12px;
+  opacity: 0.55;
+}
+
+.ach-item.done { opacity: 1; }
+
+.ach-item .ach-check { font-size: 20px; width: 26px; }
+
+.ach-item .ach-info {
+  flex: 1;
+  text-align: left;
+}
+
+.ach-item .ach-name { font-weight: 700; font-size: 14px; }
+.ach-item .ach-desc { font-size: 12px; color: var(--muted); }
+
 /* ---- bouton accueil en jeu ---- */
 #btn-home {
   position: fixed;
