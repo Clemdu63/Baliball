@@ -1503,7 +1503,7 @@ function update(dt) {
 
   // poissons du décor (immobiles si l'utilisateur préfère moins d'animations)
   fishTimer -= dt;
-  if (fishTimer <= 0 && fishes.length < 3 && !reduceMotion.matches) {
+  if (fishTimer <= 0 && fishes.length < 3 && !calmMode()) {
     const dir = Math.random() < 0.5 ? 1 : -1;
     const span = boardTop + 30;
     fishes.push({
@@ -1598,7 +1598,7 @@ function update(dt) {
 
   // traînée de braises pendant un tir de fièvre, sillage cosmétique sinon
   const trail = feverActive ? TRAILS.embers : TRAILS[cosmetics.trail];
-  if (trail && !reduceMotion.matches) {
+  if (trail && !calmMode()) {
     for (const b of balls) {
       if (particles.length < MAX_PARTICLES && Math.random() < (feverActive ? 0.35 : 0.22)) {
         particles.push({
@@ -2199,10 +2199,12 @@ function drawPowerup(p, yOff, T, t) {
 /* Les dégradés d'eau sont recréés seulement quand le thème/décor change. */
 const bgCache = { key: '', grad: null, glow: null };
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+/* Animations réduites : réglage système OU choix dans les Réglages. */
+const calmMode = () => reduceMotion.matches || settings.calm;
 
 /* Décor du lagon : eau, reflets, poissons, palmes, plage. */
 function drawLagoon(rawT, T) {
-  const t = reduceMotion.matches ? 0 : rawT;
+  const t = calmMode() ? 0 : rawT;
   const key = T.waterTop + T.waterBottom + (T.waterGlow || '') + W + 'x' + boardTop + ':' + floorY;
   if (bgCache.key !== key) {
     bgCache.key = key;
@@ -2289,7 +2291,7 @@ function palmFrond(x0, y0, dir, t) {
 }
 
 function drawBeach(rawT, T) {
-  const t = reduceMotion.matches ? 0 : rawT;
+  const t = calmMode() ? 0 : rawT;
   ctx.fillStyle = T.sand;
   ctx.fillRect(0, floorY, W, H - floorY);
   ctx.fillStyle = T.sandDark;

@@ -43,6 +43,8 @@ const DEFAULTS = {
   sound: true,
   ambience: true,  // ressac en fond
   fast: false,     // vitesse des balles
+  lefty: false,    // boutons en jeu à gauche
+  calm: false,     // réduire les animations (en plus du réglage système)
 };
 
 function loadSettings() {

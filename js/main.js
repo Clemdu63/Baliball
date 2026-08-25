@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -925,8 +925,41 @@ function renderHistory() {
     }).join('');
 }
 
+/* Courbe des 20 derniers scores (barres, du plus ancien au plus récent). */
+function renderChart() {
+  const entries = loadJSON(KEYS.HISTORY, []).slice(0, 20).reverse();
+  const cv = $('prog-chart');
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, cv.width, cv.height);
+  cv.style.display = entries.length >= 2 ? '' : 'none';
+  if (entries.length < 2) return;
+  const max = Math.max(1, ...entries.map((e) => e.score || 0));
+  const pad = 14;
+  const innerW = cv.width - pad * 2;
+  const innerH = cv.height - pad * 2 - 16;
+  const bw = Math.min(38, innerW / entries.length - 6);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#12a086';
+  entries.forEach((e, i) => {
+    const x = pad + (i + 0.5) * (innerW / entries.length) - bw / 2;
+    const h = Math.max(3, ((e.score || 0) / max) * innerH);
+    c.fillStyle = i === entries.length - 1 ? '#ffd34d' : accent;
+    c.globalAlpha = 0.55 + 0.45 * ((e.score || 0) / max);
+    c.beginPath();
+    if (c.roundRect) c.roundRect(x, pad + 16 + innerH - h, bw, h, 4);
+    else c.rect(x, pad + 16 + innerH - h, bw, h);
+    c.fill();
+  });
+  c.globalAlpha = 1;
+  c.fillStyle = getComputedStyle(document.body).color;
+  c.font = '700 20px ' + getComputedStyle(document.body).fontFamily;
+  c.textAlign = 'left';
+  c.textBaseline = 'top';
+  c.fillText('max ' + max.toLocaleString('fr-FR') + ' pts', pad, 6);
+}
+
 function renderProgress() {
   renderMissions();
+  renderChart();
   renderHistory();
   const c = loadJSON(KEYS.STATS, {});
   const prog = loadJSON(KEYS.PUZZLE, { stars: {} });
@@ -1226,10 +1259,104 @@ function bindSegmented(containerId, key, apply) {
   sync();
 }
 
+function applyAccessibility() {
+  document.body.classList.toggle('lefty', !!settings.lefty);
+  document.body.classList.toggle('calm', !!settings.calm);
+}
+
 bindSegmented('seg-theme', 'theme', () => setThemeMode(settings.theme));
 bindSegmented('seg-sound', 'sound', syncAmbience);
 bindSegmented('seg-ambience', 'ambience', syncAmbience);
 bindSegmented('seg-speed', 'fast');
+bindSegmented('seg-lefty', 'lefty', applyAccessibility);
+bindSegmented('seg-calm', 'calm', applyAccessibility);
+applyAccessibility();
+
+// ---- sauvegarde & transfert : un code compact à copier sur l'autre tél ----
+const EXPORT_KEYS = [KEYS.PEARLS, KEYS.SHOP, KEYS.STATS, KEYS.PUZZLE, KEYS.BEST,
+  KEYS.BEST_SCORE, KEYS.TIDE_BEST, KEYS.NAME, KEYS.SETTINGS, KEYS.DAILY,
+  KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY];
+
+function checksum(s) {
+  let sum = 0;
+  for (let i = 0; i < s.length; i++) sum = (sum * 31 + s.charCodeAt(i)) >>> 0;
+  return sum.toString(36);
+}
+
+function exportCode() {
+  const data = {};
+  for (const k of EXPORT_KEYS) {
+    const v = store.get(k);
+    if (v !== null) data[k] = v;
+  }
+  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  return 'BB1.' + checksum(b64) + '.' + b64;
+}
+
+function importCode(code) {
+  try {
+    const m = code.trim().match(/^BB1\.([a-z0-9]+)\.([A-Za-z0-9+/=]+)$/);
+    if (!m) return 'format inconnu';
+    if (checksum(m[2]) !== m[1]) return 'code abîmé (copie incomplète ?)';
+    const data = JSON.parse(decodeURIComponent(escape(atob(m[2]))));
+    const valid = Object.values(KEYS);
+    for (const [k, v] of Object.entries(data)) {
+      if (valid.includes(k) && typeof v === 'string') store.set(k, v);
+    }
+    return 'ok';
+  } catch (e) {
+    return 'code illisible';
+  }
+}
+
+$('btn-export').addEventListener('click', () => {
+  $('transfer-code').value = exportCode();
+  $('transfer-status').textContent =
+    'Code généré ! Copie-le, envoie-le à ton autre téléphone, puis importe-le là-bas.';
+});
+
+$('btn-copy-code').addEventListener('click', async () => {
+  if (!$('transfer-code').value.trim()) $('transfer-code').value = exportCode();
+  const code = $('transfer-code').value.trim();
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'Baliball — ma progression', text: code });
+      $('transfer-status').textContent = 'Partagé !';
+    } else {
+      await navigator.clipboard.writeText(code);
+      $('transfer-status').textContent = 'Copié dans le presse-papiers !';
+    }
+  } catch (e) {
+    try {
+      await navigator.clipboard.writeText(code);
+      $('transfer-status').textContent = 'Copié dans le presse-papiers !';
+    } catch (e2) {
+      $('transfer-status').textContent = 'Sélectionne le code et copie-le à la main.';
+    }
+  }
+});
+
+let importArmedAt = 0;
+$('btn-import').addEventListener('click', () => {
+  const code = $('transfer-code').value.trim();
+  if (!code) {
+    $('transfer-status').textContent = 'Colle d\'abord un code dans la zone ci-dessus.';
+    return;
+  }
+  if (Date.now() - importArmedAt > 6000) {
+    importArmedAt = Date.now();
+    $('transfer-status').textContent =
+      '⚠️ Ceci écrase ta progression actuelle — appuie encore une fois pour confirmer.';
+    return;
+  }
+  const r = importCode(code);
+  if (r === 'ok') {
+    $('transfer-status').textContent = 'Progression importée ! Rechargement…';
+    setTimeout(() => location.reload(), 800);
+  } else {
+    $('transfer-status').textContent = 'Import impossible : ' + r + '.';
+  }
+});
 
 $('btn-settings-back').addEventListener('click', () => {
   refreshHome();

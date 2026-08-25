@@ -110,7 +110,7 @@
       </svg>
     </div>
 
-    <div class="version">v2.6.0</div>
+    <div class="version">v2.7.0</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -186,6 +186,8 @@
       <div id="missions-list" class="shop-list"></div>
       <div class="setting" style="margin-top:10px"><div class="label">MES PARTIES RÉCENTES</div></div>
       <div id="history-list" class="shop-list"></div>
+      <div class="setting" style="margin-top:10px"><div class="label">COURBE DES SCORES</div></div>
+      <canvas id="prog-chart" width="640" height="180"></canvas>
       <div class="setting" style="margin-top:10px"><div class="label">STATISTIQUES</div></div>
       <div class="stats" id="prog-stats"></div>
       <div class="setting" style="margin-top:10px"><div class="label">SUCCÈS</div></div>
@@ -396,6 +398,32 @@
         <button data-value="false">Normale</button>
         <button data-value="true">Rapide</button>
       </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">MODE GAUCHER (BOUTONS EN JEU À GAUCHE)</div>
+      <div class="segmented" id="seg-lefty">
+        <button data-value="false">Non</button>
+        <button data-value="true">Oui</button>
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">RÉDUIRE LES ANIMATIONS</div>
+      <div class="segmented" id="seg-calm">
+        <button data-value="false">Auto</button>
+        <button data-value="true">Oui</button>
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">SAUVEGARDE &amp; TRANSFERT (VERS UN AUTRE TÉLÉPHONE)</div>
+      <button id="btn-export" class="secondary">EXPORTER MA PROGRESSION</button>
+      <textarea id="transfer-code" class="transfer-box" rows="3" spellcheck="false"
+                placeholder="Le code apparaît ici — ou colles-en un pour l'importer."></textarea>
+      <button id="btn-copy-code" class="secondary">COPIER / PARTAGER LE CODE</button>
+      <button id="btn-import" class="secondary">IMPORTER CE CODE</button>
+      <p id="transfer-status" style="font-size:13px;min-height:18px"></p>
     </div>
 
     <button id="btn-settings-back" style="margin-top:10px">RETOUR</button>

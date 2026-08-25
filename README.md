@@ -43,7 +43,10 @@ fichier audio.
 - La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
   (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
 - Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
-  vitesse des noix de coco.
+  vitesse des noix de coco, **mode gaucher** (boutons en jeu à gauche),
+  **réduction des animations**, et **sauvegarde & transfert** — un code
+  compact à copier/partager (AirDrop, iMessage…) pour retrouver toute sa
+  progression sur un autre téléphone, sans aucun serveur.
 
 ## Modes de jeu
 
@@ -103,8 +106,8 @@ décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant) et
 des **sillages** derrière les noix (pétales, braises, poussière
 d'étoiles).
 L'écran **Progrès** liste **Mes parties récentes** (les 20 dernières :
-mode, score, manche atteinte, il y a combien de temps) et suit les
-statistiques cumulées et 12 succès. Tous les
+mode, score, manche atteinte, il y a combien de temps), trace la
+**courbe des scores**, et suit les statistiques cumulées et 12 succès. Tous les
 1 000 points, une célébration marque le palier — et certains cosmétiques
 se **débloquent au score** (étoile de mer à 2 500, coquillage à 5 000,
 décor Bioluminescence à 8 000). Le score d'une partie se **partage en

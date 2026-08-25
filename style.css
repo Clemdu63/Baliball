@@ -872,6 +872,52 @@ button:focus-visible {
   border: 2px solid rgba(255, 211, 77, 0.7);
 }
 
+/* ---- accessibilité : mode gaucher & animations réduites ---- */
+body.lefty #btn-home { right: auto; left: 10px; }
+body.lefty #btn-restart { right: auto; left: 56px; }
+body.lefty #btn-emoji { left: auto; right: 12px; }
+body.lefty #emoji-bar { left: auto; right: 12px; }
+
+body.calm .logo .lt { animation: none; }
+body.calm .logo-ball { animation: none; display: none; }
+body.calm .screen { transition: none; }
+body.calm .countdown-num { animation: none; }
+body.calm .emoji-float { animation: none; opacity: 0.9; }
+body.calm button, body.calm button:active { transition: none; }
+
+/* ---- transfert de progression ---- */
+.transfer-box {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  width: 100%;
+  resize: none;
+  background: var(--chip);
+  color: var(--text);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  word-break: break-all;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.transfer-box:focus { border-color: var(--accent); }
+
+.setting > button.secondary {
+  font-size: 14px;
+  padding: 10px 18px;
+}
+
+/* ---- courbe des scores (Progrès) ---- */
+#prog-chart {
+  width: min(320px, 84vw);
+  height: auto;
+  border-radius: 12px;
+  background: var(--chip);
+}
+
 /* ---- légende ---- */
 .legend-item {
   display: flex;
