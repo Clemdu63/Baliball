@@ -96,6 +96,7 @@ const LATE_TIERS = [
   { at: 10000, round: 15, name: '🪨 Pierres larges !' },
   { at: 30000, round: 22, name: '⚪ Pierres rondes !' },
   { at: 50000, round: 28, name: '🌊 Grande marée !' },
+  { at: 80000, round: 32, name: '⚡ Tempête sur le lagon !' }, // rangées denses
   { at: 100000, round: 35, name: '🔥 Pierres ardentes !' },
 ];
 let nextTier = 0;
@@ -451,7 +452,7 @@ export function drawLegendIcon(cv, kind) {
       boardTop = cv.height / 2 - cell;
       c2.setTransform(1, 0, 0, 1, size / 2 - cell * 1.5, 0);
       drawStone({
-        col: 0, row: 0, hp: 88, maxHp: 88, roarIn: 3,
+        col: 0, row: 0, hp: 88, maxHp: 88, roarIn: 3, bossKind: 'barong',
         flash: 0, seed: 0.42, type: 'boss', orient: 0, lastHitShot: -1,
       }, 0, T);
     } else if (kind === 'coconut-ball') {
@@ -480,7 +481,8 @@ export function drawLegendIcon(cv, kind) {
 /* Instantané compact du plateau (mode spectateur du tournoi en ligne). */
 export function getBoardSnapshot() {
   return {
-    blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type === 'stone' ? 0 : b.type, b.orient || 0]),
+    blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type === 'stone' ? 0 : b.type,
+      b.type === 'boss' ? Math.max(0, BOSS_KINDS.indexOf(b.bossKind)) : (b.orient || 0)]),
     balls: ballCount,
   };
 }
@@ -509,6 +511,7 @@ export function drawBoardSnapshot(cv, snap) {
         col, row, hp,
         type: type === 0 ? 'stone' : type,
         orient: orient || 0,
+        maxHp: hp, bossKind: type === 'boss' ? BOSS_KINDS[orient || 0] : undefined,
         flash: 0, seed: ((col * 7 + row) % 10) / 10, lastHitShot: -1,
       }, 0, T);
     }
@@ -534,7 +537,7 @@ export function debugState() {
     fever, shield: shieldCharges, weeklyMut, fogUntil,
     ghostLen: ghost ? ghost.length : 0,
     guideShots, aimSteps: aimSteps(),
-    boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn } : null,
+    boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn, kind: b.bossKind } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
     geometry: { W, boardTop, floorY, cell, deathRow },
@@ -615,8 +618,8 @@ function tourEventFor(r) {
 
 /* Sabotage amical (option de salon du tournoi en ligne) : une vague
    adverse fait surgir une pierre blindée sur le plateau. */
-export function dropSurpriseStone() {
-  if (state !== 'aim' && state !== 'flight') return false;
+/* Cases libres des rangées 1 à 3 (renforts de boss, vagues adverses). */
+function freeCells() {
   const occupied = new Set();
   for (const b of blocks) {
     const span = b.type === 'wide' ? 2 : b.type === 'boss' ? 3 : 1;
@@ -632,12 +635,26 @@ export function dropSurpriseStone() {
       if (!occupied.has(c + ':' + r)) free.push([c, r]);
     }
   }
+  return free;
+}
+
+function placeStones(rand, free, n, type, hp) {
+  while (n > 0 && free.length > 0) {
+    const i = Math.floor(rand() * free.length);
+    const [c, r] = free.splice(i, 1)[0];
+    blocks.push({
+      col: c, row: r, hp,
+      flash: 1, seed: Math.random(), type, orient: 0, lastHitShot: -1,
+    });
+    n -= 1;
+  }
+}
+
+export function dropSurpriseStone() {
+  if (state !== 'aim' && state !== 'flight') return false;
+  const free = freeCells();
   if (!free.length) return false;
-  const [c, r] = free[Math.floor(Math.random() * free.length)];
-  blocks.push({
-    col: c, row: r, hp: Math.max(1, Math.ceil(round / 3)),
-    flash: 1, seed: Math.random(), type: 'armored', orient: 0, lastHitShot: -1,
-  });
+  placeStones(Math.random, free, 1, 'armored', Math.max(1, Math.ceil(round / 3)));
   effects.push({ type: 'milestone', text: '🌊 Vague adverse !', life: 1, color: '#7ef0d8' });
   sfx.boom();
   return true;
@@ -650,19 +667,31 @@ function bossRound(r) {
   return r >= 10 && r % 10 === 0 && mode !== 'puzzle' && !isTimed();
 }
 
+/* Trois boss se relaient : Barong (manche 10), Rangda (20), Naga (30)… */
+const BOSS_KINDS = ['barong', 'rangda', 'naga'];
+const BOSS_NAMES = { barong: '🎭 Le Barong', rangda: '👺 Rangda', naga: '🐉 Le Naga' };
+
 function spawnRow() {
   if (bossRound(round)) {
-    const hp = Math.max(20, Math.round(round * 8 * (unlockCount() >= 4 ? 1.3 : 1)));
+    const kind = BOSS_KINDS[(Math.floor(round / 10) - 1) % BOSS_KINDS.length];
+    const hp = Math.max(20, Math.round(round * 8 * (unlockCount() >= 5 ? 1.3 : 1)));
     blocks.push({
-      col: 2, row: 0, hp, maxHp: hp, roarIn: 3,
+      col: 2, row: 0, hp, maxHp: hp, roarIn: 3, bossKind: kind,
       flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
     });
-    if (!replaying) spawnLog.push(round + ':BOSS' + hp);
+    if (!replaying) {
+      spawnLog.push(round + ':BOSS-' + kind + hp);
+      effects.push({
+        type: 'milestone', text: BOSS_NAMES[kind] + ' apparaît !',
+        life: 1, color: '#ff8c3d',
+      });
+    }
     return;
   }
   const lvl = unlockCount();
   const ev = tourEventFor(round);
-  let hpMult = lvl >= 4 ? 1.3 : 1; // pierres ardentes : tout durcit
+  let hpMult = lvl >= 5 ? 1.3 : 1; // pierres ardentes : tout durcit
+  if (lvl >= 4) hpMult *= 1.15;    // tempête : pierres renforcées
   if (mode === 'weekly' && weeklyMut === 'hard') hpMult *= 1.5;
   if (ev && ev.id === 'wind') hpMult *= 1.25;
   const used = new Set();
@@ -684,8 +713,9 @@ function spawnRow() {
     const j = Math.floor(rng() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  const n = Math.min(cols.length - 1, 2 + Math.floor(rng() * 4));
-  const armoredChance = lvl >= 4 ? 0.2 : 0.10; // pierres ardentes : blindées plus fréquentes
+  // tempête (80 000) : une pierre de plus par rangée
+  const n = Math.min(cols.length - 1, 2 + Math.floor(rng() * 4) + (lvl >= 4 ? 1 : 0));
+  const armoredChance = lvl >= 5 ? 0.2 : 0.10; // pierres ardentes : blindées plus fréquentes
   for (let i = 0; i < n; i++) {
     const roll = rng();
     let type = 'stone';
@@ -845,13 +875,13 @@ function endTurn() {
   sfx.newRow();
   spawnRow();
 
-  // le Barong rugit s'il survit 3 tours : des pierres blindées surgissent
+  // le boss agit s'il survit 3 tours : chaque boss a son pouvoir
   const boss = blocks.find((b) => b.type === 'boss');
   if (boss) {
     boss.roarIn = (boss.roarIn || 3) - 1;
     if (boss.roarIn <= 0) {
       boss.roarIn = 3;
-      bossRoar();
+      bossRoar(boss);
     }
   }
 
@@ -861,39 +891,34 @@ function endTurn() {
   if (hooks.onTurnEnd) hooks.onTurnEnd({ mode, score, round, combo: brokenThisShot });
 }
 
-/* Renforts du Barong. Le flux aléatoire principal (rangées) ne doit pas
+/* Pouvoir du boss. Le flux aléatoire principal (rangées) ne doit pas
    dépendre du joueur : on tire dans un flux dérivé de la graine et de la
-   manche, identique pour tous ceux dont le Barong est encore en vie. */
-function bossRoar() {
+   manche, identique pour tous ceux dont le boss est encore en vie.
+   - Barong : rugit, 2 pierres blindées surgissent
+   - Rangda : jette un sort, se régénère et appelle 1 blindée
+   - Naga   : déferle, un mur de 3 pierres surgit */
+function bossRoar(boss) {
   const side = currentSeed !== null
     ? mulberry32((currentSeed ^ Math.imul(round, 2654435761)) >>> 0)
     : Math.random;
-  const occupied = new Set();
-  for (const b of blocks) {
-    const span = b.type === 'wide' ? 2 : b.type === 'boss' ? 3 : 1;
-    const vspan = b.type === 'boss' ? 2 : 1;
-    for (let c = 0; c < span; c++) {
-      for (let r = 0; r < vspan; r++) occupied.add((b.col + c) + ':' + (b.row + r));
-    }
-  }
-  for (const p of powerups) occupied.add(p.col + ':' + p.row);
-  const free = [];
-  for (let r = 1; r <= 3; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (!occupied.has(c + ':' + r)) free.push([c, r]);
-    }
-  }
-  effects.push({ type: 'milestone', text: '🎭 Le Barong rugit !', life: 1, color: '#ff8c3d' });
+  const free = freeCells();
+  const armorHp = Math.max(1, Math.ceil(round / 3));
   sfx.boom();
-  let n = Math.min(2, free.length);
-  while (n > 0 && free.length > 0) {
-    const i = Math.floor(side() * free.length);
-    const [c, r] = free.splice(i, 1)[0];
-    blocks.push({
-      col: c, row: r, hp: Math.max(1, Math.ceil(round / 3)),
-      flash: 1, seed: Math.random(), type: 'armored', orient: 0, lastHitShot: -1,
-    });
-    n -= 1;
+  if (boss.bossKind === 'rangda') {
+    const heal = Math.min(boss.maxHp - boss.hp, Math.max(4, Math.ceil(round / 2)));
+    boss.hp += heal;
+    effects.push({ type: 'milestone', text: '👺 Rangda jette un sort !', life: 1, color: '#ff8c3d' });
+    if (heal > 0) {
+      const rc = blockRect(boss, 0);
+      floaters.push({ x: (rc.x0 + rc.x1) / 2, y: rc.y0, life: 1, text: '+' + heal });
+    }
+    placeStones(side, free, 1, 'armored', armorHp);
+  } else if (boss.bossKind === 'naga') {
+    effects.push({ type: 'milestone', text: '🐉 Le Naga déferle !', life: 1, color: '#ff8c3d' });
+    placeStones(side, free, 3, 'stone', Math.max(2, round));
+  } else {
+    effects.push({ type: 'milestone', text: '🎭 Le Barong rugit !', life: 1, color: '#ff8c3d' });
+    placeStones(side, free, 2, 'armored', armorHp);
   }
 }
 
@@ -1226,7 +1251,7 @@ function saveGame() {
     launchFrac: launchX / W,
     fever, shield: shieldCharges, fogUntil, guide: guideShots,
     blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient,
-      b.type === 'boss' ? { m: b.maxHp, r: b.roarIn } : 0]),
+      b.type === 'boss' ? { m: b.maxHp, r: b.roarIn, k: b.bossKind } : 0]),
     powerups: powerups.map((p) => [p.col, p.row, p.kind, p.pair || 0]),
     stats,
   }));
@@ -1261,6 +1286,7 @@ function loadGame(m) {
       orient: orient || 0,
       maxHp: extra && extra.m ? extra.m : hp,
       roarIn: extra && extra.r ? extra.r : 3,
+      bossKind: extra && extra.k ? extra.k : 'barong',
       flash: 0, seed: Math.random(), lastHitShot: -1,
     }));
     const oldBonuses = s.powerups || s.bonuses || [];
@@ -1527,6 +1553,10 @@ function frame(t) {
 }
 
 function update(dt) {
+  // téléphone couché : le plateau n'a plus de sens en paysage, on met le
+  // jeu en pause plutôt que de laisser la marée « tuer » la partie avec
+  // une géométrie d'écran fausse
+  if (W > H) return;
   if (shiftAnim < 1) shiftAnim = Math.min(1, shiftAnim + dt * 5);
 
   // poissons du décor (immobiles si l'utilisateur préfère moins d'animations)
@@ -1826,22 +1856,29 @@ function stonePath(b, rc, grow) {
   }
 }
 
-/* Le Barong : masque balinais géant (3 colonnes × 2 rangées). */
+/* Masques de boss (3 colonnes × 2 rangées) : chacun sa palette. */
+const BOSS_STYLES = {
+  barong: { base: '#a32b20', accent: '#ffd34d', mouth: '#5e120c', eye: '#20140a' },
+  rangda: { base: '#ded5c2', accent: '#c0392b', mouth: '#6e1414', eye: '#7a1f1f' },
+  naga: { base: '#1f6e4d', accent: '#ffd34d', mouth: '#0e3d2a', eye: '#101c14' },
+};
+
 function drawBoss(b, yOff, T) {
+  const st = BOSS_STYLES[b.bossKind] || BOSS_STYLES.barong;
   const rc = blockRect(b, yOff);
   const grow = b.flash * cell * 0.04;
   const x = rc.x0 - grow, y = rc.y0 - grow;
   const w = rc.x1 - rc.x0 + grow * 2, h = rc.y1 - rc.y0 + grow * 2;
 
   roundRect(x, y, w, h, cell * 0.16);
-  ctx.fillStyle = '#a32b20';
+  ctx.fillStyle = st.base;
   ctx.fill();
-  ctx.strokeStyle = '#ffd34d';
+  ctx.strokeStyle = st.accent;
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // couronne dorée
-  ctx.fillStyle = '#ffd34d';
+  // couronne
+  ctx.fillStyle = st.accent;
   ctx.beginPath();
   for (let i = 0; i < 5; i++) {
     const cx = x + w * (0.14 + i * 0.18);
@@ -1851,18 +1888,18 @@ function drawBoss(b, yOff, T) {
   }
   ctx.fill();
 
-  // yeux exorbités et sourcils d'or
+  // yeux exorbités et sourcils
   const ey = y + h * 0.46, er = h * 0.14;
   for (const ex of [x + w * 0.3, x + w * 0.7]) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.ellipse(ex, ey, er * 1.3, er, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#20140a';
+    ctx.fillStyle = st.eye;
     ctx.beginPath();
     ctx.arc(ex, ey, er * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#ffd34d';
+    ctx.strokeStyle = st.accent;
     ctx.lineWidth = Math.max(2, h * 0.045);
     ctx.beginPath();
     ctx.arc(ex, ey + er * 0.4, er * 1.6, Math.PI * 1.15, Math.PI * 1.85);
@@ -1870,7 +1907,7 @@ function drawBoss(b, yOff, T) {
   }
 
   // gueule et crocs
-  ctx.fillStyle = '#5e120c';
+  ctx.fillStyle = st.mouth;
   roundRect(x + w * 0.22, y + h * 0.74, w * 0.56, h * 0.18, h * 0.08);
   ctx.fill();
   ctx.fillStyle = '#ffffff';
@@ -2432,6 +2469,22 @@ function draw(t) {
   ctx.fillStyle = T.page;
   ctx.fillRect(0, 0, W, H);
 
+  if (W > H) {
+    // paysage : partie en pause, invitation à remettre le téléphone droit
+    ctx.fillStyle = T.hud;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 ' + Math.round(H * 0.16) + 'px ' + FONT;
+    ctx.fillText('🔄', W / 2, H * 0.4);
+    ctx.font = '800 ' + Math.round(H * 0.07) + 'px ' + FONT;
+    ctx.fillText('Tourne ton téléphone', W / 2, H * 0.62);
+    if (isPlaying()) {
+      ctx.font = '700 ' + Math.round(H * 0.045) + 'px ' + FONT;
+      ctx.fillText('La partie est en pause, rien n\'est perdu !', W / 2, H * 0.74);
+    }
+    return;
+  }
+
   drawLagoon(t, T);
   if (mode !== 'puzzle') drawTideLine(t, T);
 
@@ -2701,6 +2754,7 @@ function wireInput() {
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     initAudio();
+    if (W > H) return; // paysage : jeu en pause
     if (state === 'flight') {
       const b = accelBtnRect();
       if (b && e.clientX >= b.x && e.clientX <= b.x + b.w
@@ -2739,9 +2793,8 @@ function wireInput() {
   });
 
   // bloque le rebond/défilement de la page pendant le jeu seulement :
-  // les écrans (boutique, progrès…) doivent pouvoir défiler au doigt
-  document.addEventListener('touchmove', (e) => {
-    if (e.target === canvas) e.preventDefault();
-  }, { passive: false });
+  // l'écouteur vit sur le canvas, les écrans (boutique, progrès…)
+  // défilent librement au doigt
+  canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 }

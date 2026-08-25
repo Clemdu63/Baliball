@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -829,7 +829,7 @@ const LEGEND_STONES = [
   ['mystery', 'Pierre mystère', 'Révèle une surprise en se brisant : noix, perles, explosion ou points.'],
   ['wide', 'Pierre large', 'Deux colonnes d\'un bloc, très solide — apparaît à partir de 10 000 pts.'],
   ['round', 'Pierre ronde', 'Rebonds courbes imprévisibles — apparaît à partir de 30 000 pts.'],
-  ['boss', 'Le Barong', 'Boss toutes les 10 manches : énorme, et s\'il survit 3 tours il rugit et appelle des pierres blindées. Le vaincre rapporte 1 000 pts et 15 perles.'],
+  ['boss', 'Les boss', 'Toutes les 10 manches, un boss se dresse : 🎭 Barong (appelle 2 blindées), 👺 Rangda (se régénère), 🐉 Naga (mur de pierres). Le vaincre : 1 000 pts et 15 perles.'],
 ];
 
 function legendRow([kind, name, desc]) {
@@ -1383,8 +1383,18 @@ document.addEventListener('pointerdown', initAudio, { capture: true });
 // service worker : hors ligne
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').then(() => {
+    navigator.serviceWorker.register('sw.js').then((reg) => {
       $('offline-badge').textContent = '✓ Disponible hors ligne';
+      // prévenir quand une nouvelle version vient d'être téléchargée
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'activated' && navigator.serviceWorker.controller) {
+            $('offline-badge').textContent = '🔄 Mise à jour prête — ferme et rouvre l\'app';
+          }
+        });
+      });
     }).catch(() => { /* http:// local : le jeu marche quand même */ });
   });
 }

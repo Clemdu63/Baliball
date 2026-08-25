@@ -23,9 +23,11 @@ fichier audio.
   trajectoire complète, rebonds sur les murs compris.
 - Les combos remplissent la **jauge Gamelan** : pleine, le prochain tir est
   une **fièvre** à dégâts doublés, traînée de braises comprise.
-- Toutes les 10 manches, le **Barong** apparaît : un masque géant sur deux
-  rangées qui **rugit** toutes les 3 manches en appelant des pierres
-  blindées. Le vaincre rapporte 1 000 pts et 15 perles.
+- Toutes les 10 manches, un **boss** se dresse — un masque géant sur deux
+  rangées, avec un pouvoir toutes les 3 manches s'il survit : 🎭 le
+  **Barong** (manche 10, 40…) appelle 2 pierres blindées, 👺 **Rangda**
+  (manche 20, 50…) se régénère, 🐉 le **Naga** (manche 30, 60…) fait
+  surgir un mur de pierres. Le vaincre rapporte 1 000 pts et 15 perles.
 - Pierres spéciales : **toit de temple** (triangle, rebond en diagonale),
   **volcanique blindée** (1 dégât par seconde max), **mystère « ? »** (surprise
   à la casse).
@@ -33,7 +35,8 @@ fichier audio.
   brise plusieurs pierres.
 - Aux très gros scores, le lagon se déchaîne : **pierres larges** (2 colonnes)
   dès 10 000 pts, **pierres rondes** à rebonds courbes à 30 000, **Grande
-  marée** à 50 000 (descente double toutes les 5 manches), **pierres
+  marée** à 50 000 (descente double toutes les 5 manches), **Tempête** à
+  80 000 (une pierre de plus par rangée, toutes renforcées), **pierres
   ardentes** à 100 000 (tout durcit, blindées plus fréquentes) — chaque
   palier est annoncé d'une bannière. En Tournoi et Défi du jour, ces paliers
   arrivent à la manche pour préserver l'identité des grilles.
