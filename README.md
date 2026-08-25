@@ -17,7 +17,7 @@ fichier audio.
   tir, la **perle** se collectionne, la **fleur de frangipanier** renvoie la
   noix tout droit vers le haut.
 - Pierres spéciales : **toit de temple** (triangle, rebond en diagonale),
-  **volcanique blindée** (1 dégât max par tir), **mystère « ? »** (surprise
+  **volcanique blindée** (1 dégât par seconde max), **mystère « ? »** (surprise
   à la casse).
 - Le **score** grimpe avec des multiplicateurs de combo quand un même tir
   brise plusieurs pierres.

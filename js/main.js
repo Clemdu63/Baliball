@@ -610,7 +610,7 @@ const LEGEND_POWERUPS = [
 const LEGEND_STONES = [
   ['stone', 'Pierre de temple', 'Perd 1 PV par impact ; son style change avec sa solidité (grès, mousse, volcanique, dorée).'],
   ['tri', 'Toit de temple', 'Demi-pierre : l\'hypoténuse renvoie la noix en diagonale.'],
-  ['armored', 'Pierre volcanique', 'Blindée : elle n\'encaisse qu\'1 dégât par tir, quelle que soit la pluie de noix.'],
+  ['armored', 'Pierre volcanique', 'Blindée : elle n\'encaisse qu\'1 dégât par seconde environ, même sous une pluie de noix.'],
   ['mystery', 'Pierre mystère', 'Révèle une surprise en se brisant : noix, perles, explosion ou points.'],
 ];
 

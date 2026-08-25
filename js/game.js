@@ -71,6 +71,8 @@ let pearls = 0;                // perles gagnées dans cette partie
 let chiliActive = false;       // dégâts x2 jusqu'à la fin du tir
 let shotId = 0;                // pour le blindage « 1 dégât par tir »
 let brokenThisShot = 0;
+let gameClock = 0;             // temps de jeu écoulé (accélération comprise)
+let lastProgress = 0;          // dernier dégât ou bonus du tir en cours
 let fishes = [];
 let fishTimer = 2;
 let mode = 'classic';          // classic | tide | zen | puzzle | daily | tournament
@@ -550,6 +552,7 @@ function fire(angle) {
   stats.shots += 1;
   shotId += 1;
   brokenThisShot = 0;
+  lastProgress = gameClock;
   if (puzzle) puzzle.shotsLeft -= 1;
   lastFiredAngle = angle;
   sfx.launch();
@@ -594,10 +597,12 @@ function addScore(damage) {
 // ---- dégâts ----
 function damageBlock(b, amount, cx, cy) {
   if (b.type === 'armored') {
-    if (b.lastHitShot === shotId) return false; // le blindage a déjà encaissé ce tir
-    b.lastHitShot = shotId;
+    // le blindage encaisse au plus 1 dégât par ~1,2 s de jeu
+    if (gameClock - (b.lastArmorHit || -9) < 1.2) return false;
+    b.lastArmorHit = gameClock;
     amount = 1;
   }
+  lastProgress = gameClock;
   const style = stoneStyle(b.hp);
   b.hp -= amount;
   b.flash = 1;
@@ -798,7 +803,7 @@ function collideBlocks(ball, r) {
       ball.vx *= k2; ball.vy *= k2;
     }
 
-    const wasArmoredTick = b.type === 'armored' && b.lastHitShot === shotId;
+    const wasArmoredTick = b.type === 'armored' && gameClock - (b.lastArmorHit || -9) < 1.2;
     const broke = damageBlock(b, chiliActive ? 2 : 1,
       (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2);
     if (!broke && !wasArmoredTick) sfx.hit();
@@ -865,6 +870,7 @@ function collidePowerups(ball, r) {
     const p = powerups[i];
     const c = powerupCenter(p, 0);
     if (Math.hypot(ball.x - c.x, ball.y - c.y) >= r + BONUS_R()) continue;
+    lastProgress = gameClock;
     powerups.splice(i, 1);
     switch (p.kind) {
       case 'ball':
@@ -976,6 +982,7 @@ function update(dt) {
   const autoFast = Math.min(3, 1 + Math.max(0, flightTime - 14) * 0.4);
   timeScale = Math.max(userFast ? 2.5 : tideBoost, autoFast);
   const sdt = dt * timeScale;
+  gameClock += sdt;
 
   if (toLaunch > 0) {
     launchTimer -= sdt;
@@ -991,16 +998,18 @@ function update(dt) {
     }
   }
 
-  // filet de sécurité : si un tir s'éternise (rebond pathologique),
-  // on rappelle toutes les noix
-  if (flightTime > 40) {
-    toLaunch = 0;
+  // filet de sécurité : des noix qui volent longtemps sans causer le
+  // moindre dégât ni ramasser de bonus tournent en rond — la marée les rappelle
+  if (balls.length > 0 && toLaunch === 0
+    && (gameClock - lastProgress > 10 || flightTime > 90)) {
     for (const b of balls) {
       if (nextLaunchX === null) {
         nextLaunchX = Math.min(Math.max(b.x, RADIUS() + 2), W - RADIUS() - 2);
       }
+      floaters.push({ x: b.x, y: b.y, life: 1, text: '🌊' });
       b.dead = true;
     }
+    sfx.wall();
   }
 
   for (const ball of balls) {
