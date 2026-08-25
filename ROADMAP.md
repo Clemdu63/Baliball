@@ -8,7 +8,7 @@ Incrémenter `CACHE_VERSION` dans `sw.js` à chaque livraison.
 Jeu type Ballz : visée au doigt, balles multiples, briques qui descendent,
 pastilles +1 balle, sauvegarde/reprise, record, PWA installable hors ligne.
 
-## v0.2 — Interface & thèmes
+## v0.2 — Interface & thèmes (livrée ✅)
 
 - **Mode sombre** : suivi automatique du réglage système + bascule manuelle
   dans un menu Réglages (choix mémorisé). Thème sombre = plateau anthracite,

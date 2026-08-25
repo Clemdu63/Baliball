@@ -1,26 +1,17 @@
-'use strict';
-
-/* ============================================================
-   Baliball — casse-briques à balles multiples (type "Ballz")
+/* Moteur et rendu du jeu (canvas).
    - Glisse pour viser, relâche pour tirer
-   - Les balles rebondissent, les briques perdent 1 PV par impact
-   - Chaque tour : nouvelle rangée en haut, tout descend d'un cran
-   - Pastille ○ : +1 balle pour les tours suivants
-   ============================================================ */
+   - Les briques perdent 1 PV par impact, tout descend à chaque tour
+   - Pastille ○ : +1 balle pour les tours suivants */
 
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+import { store, KEYS, settings } from './storage.js';
+import { getTheme } from './theme.js';
+import { initAudio, sfx } from './audio.js';
 
 const COLS = 7;
-const SAVE_KEY = 'baliball.save.v1';
-const BEST_KEY = 'baliball.best.v1';
 
-// localStorage peut être bloqué (navigation privée, iframe…) : le jeu doit marcher sans
-const store = {
-  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* pas de stockage */ } },
-  remove(k) { try { localStorage.removeItem(k); } catch (e) { /* pas de stockage */ } },
-};
+let canvas = null;
+let ctx = null;
+let hooks = {};
 
 // ---- layout ----
 let W = 0, H = 0, dpr = 1;
@@ -44,36 +35,91 @@ function resize() {
   floorY = H - readSafeInset('--sab') - 66;
   deathRow = Math.max(4, Math.floor((floorY - boardTop) / cell) - 1);
 }
-window.addEventListener('resize', resize);
-resize();
 
-// ---- état du jeu ----
+// ---- état ----
 let state = 'menu';            // menu | aim | flight | over
 let round = 1;
 let ballCount = 1;
 let launchX = 0;
-let nextLaunchX = null;        // x d'atterrissage de la 1re balle
+let nextLaunchX = null;
 let blocks = [];               // {col, row, hp, flash}
 let bonuses = [];              // {col, row}
-let balls = [];                // {x, y, vx, vy}
+let balls = [];                // {x, y, vx, vy, dead}
 let toLaunch = 0;
 let launchTimer = 0;
 let collectedThisTurn = 0;
-let aim = null;                // {sx, sy, cx, cy, valid, angle}
+let aim = null;
 let timeScale = 1;
 let userFast = false;
 let flightTime = 0;
-let shiftAnim = 1;             // 0→1 : animation de descente des rangées
-let best = parseInt(store.get(BEST_KEY) || '0', 10) || 0;
-let particles = [];            // {x, y, vx, vy, life, color}
-let floaters = [];             // {x, y, life, text}
+let shiftAnim = 1;
+let best = parseInt(store.get(KEYS.BEST) || '0', 10) || 0;
+let particles = [];
+let floaters = [];
+let stats = { broken: 0, shots: 0 };
 
-const SPEED = () => cell * 16;         // vitesse des balles (px/s)
+const SPEED = () => cell * 16 * (settings.fast ? 1.35 : 1);
 const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
-const MIN_ANGLE = 0.14;                // ~8° au-dessus de l'horizontale
+const MIN_ANGLE = 0.14;
 
-// ---- helpers grille ----
+// ---- API ----
+export function initGame(canvasEl, h) {
+  canvas = canvasEl;
+  ctx = canvas.getContext('2d');
+  hooks = h || {};
+  resize();
+  window.addEventListener('resize', resize);
+  wireInput();
+  requestAnimationFrame(frame);
+}
+
+export function newGame() {
+  round = 1;
+  ballCount = 1;
+  launchX = W / 2;
+  nextLaunchX = null;
+  blocks = [];
+  bonuses = [];
+  balls = [];
+  toLaunch = 0;
+  collectedThisTurn = 0;
+  particles = [];
+  floaters = [];
+  shiftAnim = 1;
+  stats = { broken: 0, shots: 0 };
+  spawnRow();
+  state = 'aim';
+  saveGame();
+}
+
+export function resumeGame() {
+  return loadGame();
+}
+
+export function hasSave() {
+  return !!store.get(KEYS.SAVE);
+}
+
+export function getBest() {
+  return best;
+}
+
+export function toMenu() {
+  // quitter en plein vol : on retrouvera le début du tour à la reprise
+  state = 'menu';
+  balls = [];
+  toLaunch = 0;
+  aim = null;
+  timeScale = 1;
+  userFast = false;
+}
+
+export function isPlaying() {
+  return state === 'aim' || state === 'flight';
+}
+
+// ---- grille ----
 function blockRect(b, yOffset) {
   const pad = cell * 0.055;
   return {
@@ -91,37 +137,19 @@ function bonusCenter(bn, yOffset) {
   };
 }
 
-const PALETTE = ['#43b929', '#8bd52c', '#f0a63c', '#1f7fe0', '#7a4de0', '#e0447a'];
 function blockColor(hp) {
-  return PALETTE[Math.floor((hp - 1) / 4) % PALETTE.length];
+  const palette = getTheme().palette;
+  return palette[Math.floor((hp - 1) / 4) % palette.length];
 }
 
-// ---- cycle de jeu ----
-function newGame() {
-  round = 1;
-  ballCount = 1;
-  launchX = W / 2;
-  nextLaunchX = null;
-  blocks = [];
-  bonuses = [];
-  balls = [];
-  toLaunch = 0;
-  collectedThisTurn = 0;
-  particles = [];
-  floaters = [];
-  shiftAnim = 1;
-  spawnRow();
-  state = 'aim';
-  saveGame();
-}
-
+// ---- cycle ----
 function spawnRow() {
   const cols = [0, 1, 2, 3, 4, 5, 6];
   for (let i = cols.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  const n = 2 + Math.floor(Math.random() * 4); // 2 à 5 briques
+  const n = 2 + Math.floor(Math.random() * 4);
   for (let i = 0; i < n; i++) {
     const hp = Math.random() < 0.18 ? round * 2 : round;
     blocks.push({ col: cols[i], row: 0, hp, flash: 0 });
@@ -140,10 +168,8 @@ function endTurn() {
   userFast = false;
   flightTime = 0;
 
-  // tout descend d'un cran
   for (const b of blocks) b.row += 1;
   for (const bn of bonuses) bn.row += 1;
-  // pastilles arrivées en bas : récupérées automatiquement
   bonuses = bonuses.filter((bn) => {
     if (bn.row >= deathRow) {
       ballCount += 1;
@@ -160,6 +186,7 @@ function endTurn() {
     return;
   }
   round += 1;
+  sfx.newRow();
   spawnRow();
   state = 'aim';
   saveGame();
@@ -169,12 +196,19 @@ function gameOver() {
   state = 'over';
   if (round > best) {
     best = round;
-    store.set(BEST_KEY, String(best));
+    store.set(KEYS.BEST, String(best));
   }
-  store.remove(SAVE_KEY);
-  document.getElementById('go-score').textContent = String(round);
-  document.getElementById('go-best').textContent = 'Record : ' + best;
-  document.getElementById('gameover').classList.remove('hidden');
+  store.remove(KEYS.SAVE);
+  sfx.over();
+  if (hooks.onGameOver) {
+    hooks.onGameOver({
+      round,
+      best,
+      broken: stats.broken,
+      shots: stats.shots,
+      balls: ballCount,
+    });
+  }
 }
 
 function fire(angle) {
@@ -183,21 +217,24 @@ function fire(angle) {
   aim = { angle };
   state = 'flight';
   flightTime = 0;
+  stats.shots += 1;
+  sfx.launch();
 }
 
-// ---- sauvegarde / reprise ----
+// ---- sauvegarde ----
 function saveGame() {
-  store.set(SAVE_KEY, JSON.stringify({
+  store.set(KEYS.SAVE, JSON.stringify({
     round, ballCount,
     launchFrac: launchX / W,
     blocks: blocks.map((b) => [b.col, b.row, b.hp]),
     bonuses: bonuses.map((bn) => [bn.col, bn.row]),
+    stats,
   }));
 }
 
 function loadGame() {
   try {
-    const raw = store.get(SAVE_KEY);
+    const raw = store.get(KEYS.SAVE);
     if (!raw) return false;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.blocks) || !s.round) return false;
@@ -206,9 +243,11 @@ function loadGame() {
     launchX = Math.min(Math.max((s.launchFrac || 0.5) * W, RADIUS() + 2), W - RADIUS() - 2);
     blocks = s.blocks.map(([col, row, hp]) => ({ col, row, hp, flash: 0 }));
     bonuses = (s.bonuses || []).map(([col, row]) => ({ col, row }));
+    stats = s.stats && typeof s.stats.broken === 'number' ? s.stats : { broken: 0, shots: 0 };
     balls = [];
     toLaunch = 0;
     collectedThisTurn = 0;
+    nextLaunchX = null;
     shiftAnim = 1;
     state = 'aim';
     return true;
@@ -230,9 +269,9 @@ function stepBall(ball, dist) {
     ball.x += (ball.vx / sp) * d;
     ball.y += (ball.vy / sp) * d;
     // murs
-    if (ball.x < r) { ball.x = r; ball.vx = Math.abs(ball.vx); }
-    if (ball.x > W - r) { ball.x = W - r; ball.vx = -Math.abs(ball.vx); }
-    if (ball.y < boardTop + r) { ball.y = boardTop + r; ball.vy = Math.abs(ball.vy); }
+    if (ball.x < r) { ball.x = r; ball.vx = Math.abs(ball.vx); sfx.wall(); }
+    if (ball.x > W - r) { ball.x = W - r; ball.vx = -Math.abs(ball.vx); sfx.wall(); }
+    if (ball.y < boardTop + r) { ball.y = boardTop + r; ball.vy = Math.abs(ball.vy); sfx.wall(); }
     // sol : la balle atterrit
     if (ball.y > floorY - r && ball.vy > 0) {
       ball.dead = true;
@@ -285,6 +324,10 @@ function collideBlocks(ball, r) {
         });
       }
       blocks.splice(i, 1);
+      stats.broken += 1;
+      sfx.brk();
+    } else {
+      sfx.hit();
     }
   }
 }
@@ -296,11 +339,12 @@ function collideBonuses(ball, r) {
       collectedThisTurn += 1;
       floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
       bonuses.splice(i, 1);
+      sfx.bonus();
     }
   }
 }
 
-// ---- boucle principale ----
+// ---- boucle ----
 let lastT = 0;
 function frame(t) {
   const dt = Math.min((t - lastT) / 1000 || 0, 1 / 30);
@@ -331,12 +375,10 @@ function update(dt) {
   if (state !== 'flight') return;
 
   flightTime += dt;
-  // accélération auto sur les longs tours, ou après un tap du joueur
   const autoFast = Math.min(3, 1 + Math.max(0, flightTime - 9) * 0.4);
   timeScale = Math.max(userFast ? 2.5 : 1, autoFast);
   const sdt = dt * timeScale;
 
-  // lancement en rafale
   if (toLaunch > 0) {
     launchTimer -= sdt;
     if (launchTimer <= 0) {
@@ -361,18 +403,18 @@ function update(dt) {
 
 // ---- rendu ----
 function draw() {
+  const T = getTheme();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // fond
-  ctx.fillStyle = '#101014';
+  ctx.fillStyle = T.page;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e9e7df';
+  ctx.fillStyle = T.board;
   ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
 
-  const yOff = -(1 - shiftAnim); // animation de descente
+  const yOff = -(1 - shiftAnim);
 
   // ligne de danger
-  ctx.strokeStyle = 'rgba(224, 68, 122, 0.25)';
+  ctx.strokeStyle = T.danger;
   ctx.setLineDash([6, 8]);
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -389,7 +431,7 @@ function draw() {
     ctx.fillStyle = blockColor(b.hp);
     roundRect(rc.x0 - grow, rc.y0 - grow, w + grow * 2, h + grow * 2, cell * 0.09);
     ctx.fill();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = T.blockText;
     ctx.font = '700 ' + Math.round(cell * 0.32) + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -400,17 +442,17 @@ function draw() {
   const pulse = 1 + Math.sin(performance.now() / 300) * 0.08;
   for (const bn of bonuses) {
     const c = bonusCenter(bn, yOff);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = T.bonus;
     ctx.lineWidth = cell * 0.05;
     ctx.beginPath();
     ctx.arc(c.x, c.y, BONUS_R() * pulse, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.strokeStyle = T.bonusHalo;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(c.x, c.y, BONUS_R() * pulse + cell * 0.03, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = T.bonus;
     ctx.beginPath();
     ctx.arc(c.x, c.y, cell * 0.075, 0, Math.PI * 2);
     ctx.fill();
@@ -425,7 +467,7 @@ function draw() {
   ctx.globalAlpha = 1;
   for (const f of floaters) {
     ctx.globalAlpha = Math.max(0, f.life);
-    ctx.fillStyle = '#33a82e';
+    ctx.fillStyle = T.floater;
     ctx.font = '800 ' + Math.round(cell * 0.3) + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(f.text, f.x, f.y);
@@ -434,16 +476,16 @@ function draw() {
 
   // visée
   if (state === 'aim' && aim && aim.valid) {
-    drawAimLine(aim.angle);
+    drawAimLine(aim.angle, T);
   }
 
   // balles en vol
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = T.ball;
   for (const ball of balls) {
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, RADIUS(), 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.strokeStyle = T.ballStroke;
     ctx.lineWidth = 1;
     ctx.stroke();
   }
@@ -453,22 +495,21 @@ function draw() {
     const r = RADIUS();
     const remaining = state === 'flight' ? toLaunch : ballCount;
     if (remaining > 0) {
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = T.ball;
       ctx.beginPath();
       ctx.arc(launchX, floorY - r, r * 1.15, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.strokeStyle = T.ballStroke;
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = '#2b2b28';
+      ctx.fillStyle = T.hud;
       ctx.font = '800 ' + Math.round(cell * 0.26) + 'px -apple-system, sans-serif';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText('X' + remaining, launchX - r * 2, floorY - r);
     }
-    // aperçu du point d'atterrissage de la première balle
     if (state === 'flight' && nextLaunchX !== null) {
-      ctx.fillStyle = 'rgba(43,43,40,0.5)';
+      ctx.fillStyle = T.ghost;
       ctx.beginPath();
       ctx.arc(nextLaunchX, floorY - r, r, 0, Math.PI * 2);
       ctx.fill();
@@ -476,44 +517,46 @@ function draw() {
   }
 
   // HUD
-  ctx.fillStyle = '#2b2b28';
+  ctx.fillStyle = T.hud;
   ctx.font = '800 ' + Math.round(cell * 0.42) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText('MANCHE ' + round, 14, boardTop - 26);
-  ctx.fillStyle = '#8a8a85';
+  ctx.fillStyle = T.hudSub;
   ctx.font = '700 ' + Math.round(cell * 0.24) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('RECORD ' + Math.max(best, round), W - 14, boardTop - 26);
+  ctx.fillText('RECORD ' + Math.max(best, round), W - 58, boardTop - 26);
 
   if (state === 'flight' && timeScale > 1.05) {
-    ctx.fillStyle = '#8a8a85';
+    ctx.fillStyle = T.hudSub;
     ctx.font = '700 ' + Math.round(cell * 0.22) + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('▶▶', W / 2, floorY + 30);
   } else if (state === 'flight') {
-    ctx.fillStyle = 'rgba(138,138,133,0.6)';
+    ctx.fillStyle = T.hudSub;
+    ctx.globalAlpha = 0.6;
     ctx.font = '600 ' + Math.round(cell * 0.2) + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('touche l\'écran pour accélérer', W / 2, floorY + 30);
+    ctx.globalAlpha = 1;
   }
 }
 
-function drawAimLine(angle) {
+function drawAimLine(angle, T) {
   const r = RADIUS();
   const dirX = Math.cos(angle), dirY = -Math.sin(angle);
   let x = launchX, y = floorY - r;
   const step = cell * 0.32;
-  ctx.fillStyle = '#fff';
   for (let i = 0; i < 24; i++) {
     x += dirX * step;
     y += dirY * step;
     if (x < r || x > W - r || y < boardTop + r) break;
     if (pointInBlock(x, y, r)) break;
+    ctx.fillStyle = T.aimDot;
     ctx.beginPath();
     ctx.arc(x, y, Math.max(2.5, r * 0.45), 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.strokeStyle = T.aimDotStroke;
     ctx.lineWidth = 1;
     ctx.stroke();
   }
@@ -537,76 +580,49 @@ function roundRect(x, y, w, h, rad) {
   ctx.closePath();
 }
 
-// ---- entrées tactiles / souris ----
+// ---- entrées ----
 function clampAngle(dx, dy) {
-  if (dy >= 0) return null; // on ne tire que vers le haut
-  let a = Math.atan2(-dy, dx); // 0..π, π/2 = tout droit
+  if (dy >= 0) return null;
+  let a = Math.atan2(-dy, dx);
   if (a < MIN_ANGLE) a = MIN_ANGLE;
   if (a > Math.PI - MIN_ANGLE) a = Math.PI - MIN_ANGLE;
   return a;
 }
 
-canvas.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  if (state === 'flight') { userFast = true; return; }
-  if (state !== 'aim') return;
-  aim = { sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, valid: false, angle: Math.PI / 2 };
-});
+function wireInput() {
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    initAudio();
+    if (state === 'flight') { userFast = true; return; }
+    if (state !== 'aim') return;
+    aim = { sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, valid: false, angle: Math.PI / 2 };
+  });
 
-canvas.addEventListener('pointermove', (e) => {
-  e.preventDefault();
-  if (state !== 'aim' || !aim || aim.sx === undefined) return;
-  aim.cx = e.clientX;
-  aim.cy = e.clientY;
-  const dx = aim.cx - aim.sx, dy = aim.cy - aim.sy;
-  if (Math.hypot(dx, dy) < 14) { aim.valid = false; return; }
-  const a = clampAngle(dx, dy);
-  if (a === null) { aim.valid = false; return; }
-  aim.angle = a;
-  aim.valid = true;
-});
+  canvas.addEventListener('pointermove', (e) => {
+    e.preventDefault();
+    if (state !== 'aim' || !aim || aim.sx === undefined) return;
+    aim.cx = e.clientX;
+    aim.cy = e.clientY;
+    const dx = aim.cx - aim.sx, dy = aim.cy - aim.sy;
+    if (Math.hypot(dx, dy) < 14) { aim.valid = false; return; }
+    const a = clampAngle(dx, dy);
+    if (a === null) { aim.valid = false; return; }
+    aim.angle = a;
+    aim.valid = true;
+  });
 
-function endAim(e) {
-  e.preventDefault();
-  if (state !== 'aim' || !aim || aim.sx === undefined) return;
-  if (aim.valid) fire(aim.angle);
-  else aim = null;
+  canvas.addEventListener('pointerup', (e) => {
+    e.preventDefault();
+    if (state !== 'aim' || !aim || aim.sx === undefined) return;
+    if (aim.valid) fire(aim.angle);
+    else aim = null;
+  });
+
+  canvas.addEventListener('pointercancel', (e) => {
+    e.preventDefault();
+    if (state === 'aim') aim = null;
+  });
+
+  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
 }
-canvas.addEventListener('pointerup', endAim);
-canvas.addEventListener('pointercancel', (e) => {
-  e.preventDefault();
-  if (state === 'aim') aim = null;
-});
-
-// bloque le zoom/scroll iOS
-document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-document.addEventListener('gesturestart', (e) => e.preventDefault());
-
-// ---- menus ----
-const menuEl = document.getElementById('menu');
-const gameoverEl = document.getElementById('gameover');
-const resumeBtn = document.getElementById('btn-resume');
-
-function showMenu() {
-  state = 'menu';
-  document.getElementById('menu-best').textContent = best > 0 ? 'Record : ' + best : '';
-  const hasSave = !!store.get(SAVE_KEY);
-  resumeBtn.style.display = hasSave ? '' : 'none';
-  menuEl.classList.remove('hidden');
-}
-
-document.getElementById('btn-new').addEventListener('click', () => {
-  menuEl.classList.add('hidden');
-  newGame();
-});
-resumeBtn.addEventListener('click', () => {
-  menuEl.classList.add('hidden');
-  if (!loadGame()) newGame();
-});
-document.getElementById('btn-retry').addEventListener('click', () => {
-  gameoverEl.classList.add('hidden');
-  newGame();
-});
-
-showMenu();
-requestAnimationFrame(frame);

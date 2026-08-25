@@ -1,0 +1,79 @@
+<title>Baliball</title>
+<script>
+  // applique le thème avant le premier rendu pour éviter un flash
+  (function () {
+    try {
+      var s = JSON.parse(localStorage.getItem('baliball.settings.v1') || '{}');
+      var dark = s.theme === 'dark' || (s.theme !== 'light'
+        && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    } catch (e) {
+      document.documentElement.dataset.theme = 'light';
+    }
+  })();
+</script>
+<!--STYLE-->
+
+<canvas id="game"></canvas>
+
+<button id="btn-home" class="hidden" aria-label="Menu">⌂</button>
+
+<div id="screen-home" class="screen">
+  <div class="version">v0.2 · démo</div>
+  <div class="logo" aria-label="Baliball">
+    <span class="logo-ball"></span>
+    <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
+  </div>
+  <p id="home-best"></p>
+  <button id="btn-resume" style="display:none">REPRENDRE</button>
+  <button id="btn-new">NOUVELLE PARTIE</button>
+  <button id="btn-settings" class="secondary">RÉGLAGES</button>
+  <p>Glisse le doigt pour viser, relâche pour tirer.<br>
+     Les briques descendent à chaque tour : ne les laisse pas atteindre le bas&nbsp;!</p>
+  <div class="hint">Version démo en ligne — la version installable et jouable hors ligne
+    est servie par GitHub Pages (voir le README du dépôt).</div>
+</div>
+
+<div id="screen-settings" class="screen hidden">
+  <div class="settings-title">RÉGLAGES</div>
+
+  <div class="setting">
+    <div class="label">THÈME</div>
+    <div class="segmented" id="seg-theme">
+      <button data-value="auto">Auto</button>
+      <button data-value="light">Clair</button>
+      <button data-value="dark">Sombre</button>
+    </div>
+  </div>
+
+  <div class="setting">
+    <div class="label">SONS</div>
+    <div class="segmented" id="seg-sound">
+      <button data-value="true">Activés</button>
+      <button data-value="false">Coupés</button>
+    </div>
+  </div>
+
+  <div class="setting">
+    <div class="label">VITESSE DES BALLES</div>
+    <div class="segmented" id="seg-speed">
+      <button data-value="false">Normale</button>
+      <button data-value="true">Rapide</button>
+    </div>
+  </div>
+
+  <button id="btn-settings-back" style="margin-top:10px">RETOUR</button>
+</div>
+
+<div id="screen-over" class="screen hidden">
+  <div class="over-title">PARTIE TERMINÉE</div>
+  <div class="big-score" id="over-round">1</div>
+  <p id="over-best"></p>
+  <div class="stats">
+    <div class="row"><span>Briques cassées</span><b id="stat-broken">0</b></div>
+    <div class="row"><span>Balles accumulées</span><b id="stat-balls">1</b></div>
+    <div class="row"><span>Tirs</span><b id="stat-shots">0</b></div>
+  </div>
+  <button id="btn-retry" style="margin-top:8px">REJOUER</button>
+  <button id="btn-over-home" class="secondary">MENU</button>
+</div>

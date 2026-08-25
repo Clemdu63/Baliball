@@ -12,7 +12,8 @@ JavaScript pur — **jouable hors ligne sur iPhone** une fois installé.
   la partie est perdue quand une brique atteint la ligne du bas.
 - Pendant le vol des balles, **touche l'écran** pour accélérer.
 - La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
-  et **reprendre** plus tard, même hors ligne.
+  (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
+- Dans **Réglages** : thème clair/sombre/auto, sons, vitesse des balles.
 
 ## Installation sur iPhone (jeu hors ligne)
 
@@ -56,8 +57,14 @@ mise à jour.
 
 | Fichier | Rôle |
 |---|---|
-| `index.html` | Page, écrans de menu/fin, réglages iOS plein écran |
-| `game.js` | Tout le jeu (physique, rendu canvas, sauvegarde) |
+| `index.html` | Page et écrans (accueil, réglages, fin de partie) |
+| `style.css` | Styles, thèmes clair/sombre, animations |
+| `js/main.js` | Écrans, réglages, démarrage |
+| `js/game.js` | Moteur du jeu (physique, rendu canvas, sauvegarde) |
+| `js/theme.js` | Thèmes du plateau (couleurs canvas + CSS) |
+| `js/audio.js` | Sons générés en WebAudio |
+| `js/storage.js` | Accès stockage et réglages |
 | `sw.js` | Service worker : cache hors ligne |
 | `manifest.webmanifest` | Manifest PWA (icône, plein écran, portrait) |
 | `icons/` | Icônes d'app (générées par `tools/gen_icons.py`) |
+| `tools/build-demo.mjs` | Assemble la démo mono-fichier (sans service worker) |

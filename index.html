@@ -14,117 +14,86 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <style>
-    :root {
-      --sat: env(safe-area-inset-top, 0px);
-      --sab: env(safe-area-inset-bottom, 0px);
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      background: #101014;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      -webkit-user-select: none;
-      user-select: none;
-      -webkit-touch-callout: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    body { position: fixed; inset: 0; }
-    #game {
-      display: block;
-      touch-action: none;
-    }
-    .overlay {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 14px;
-      background: rgba(16, 16, 20, 0.82);
-      color: #fff;
-      text-align: center;
-      padding: 24px;
-      padding-top: calc(24px + var(--sat));
-      padding-bottom: calc(24px + var(--sab));
-      z-index: 10;
-    }
-    .overlay.hidden { display: none; }
-    .overlay h1 {
-      font-size: 44px; font-weight: 800; letter-spacing: 2px;
-      color: #8bd52c;
-    }
-    .overlay .big-score { font-size: 72px; font-weight: 800; line-height: 1; }
-    .overlay p { font-size: 16px; color: #c9c9c9; }
-    .overlay button {
-      font: inherit;
-      font-size: 19px; font-weight: 700;
-      padding: 14px 44px;
-      border: none; border-radius: 999px;
-      background: #8bd52c; color: #14210a;
-      letter-spacing: 1px;
-      cursor: pointer;
-    }
-    .overlay button.secondary {
-      background: transparent;
-      border: 2px solid #555;
-      color: #ddd;
-    }
-    .overlay .hint {
-      position: absolute;
-      bottom: calc(18px + var(--sab));
-      left: 20px; right: 20px;
-      font-size: 13px; color: #8a8a90;
-      line-height: 1.5;
-    }
-    #offline-badge {
-      display: inline-block;
-      margin-top: 4px;
-      font-size: 12px;
-      color: #8bd52c;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // applique le thème avant le premier rendu pour éviter un flash
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('baliball.settings.v1') || '{}');
+        var dark = s.theme === 'dark' || (s.theme !== 'light'
+          && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'light';
+      }
+    })();
+  </script>
 </head>
 <body>
   <canvas id="game"></canvas>
 
-  <div id="menu" class="overlay">
-    <h1>BALIBALL</h1>
-    <p id="menu-best"></p>
-    <button id="btn-resume" class="hidden" style="display:none">REPRENDRE</button>
+  <button id="btn-home" class="hidden" aria-label="Menu">⌂</button>
+
+  <div id="screen-home" class="screen">
+    <div class="version">v0.2</div>
+    <div class="logo" aria-label="Baliball">
+      <span class="logo-ball"></span>
+      <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
+    </div>
+    <p id="home-best"></p>
+    <button id="btn-resume" style="display:none">REPRENDRE</button>
     <button id="btn-new">NOUVELLE PARTIE</button>
+    <button id="btn-settings" class="secondary">RÉGLAGES</button>
     <p>Glisse le doigt pour viser, relâche pour tirer.<br>
        Les briques descendent à chaque tour : ne les laisse pas atteindre le bas&nbsp;!</p>
     <span id="offline-badge"></span>
     <div class="hint" id="install-hint"></div>
   </div>
 
-  <div id="gameover" class="overlay hidden">
-    <p style="font-size:20px;letter-spacing:3px;color:#e0447a;font-weight:700">PARTIE TERMINÉE</p>
-    <div class="big-score" id="go-score">1</div>
-    <p id="go-best"></p>
-    <button id="btn-retry">REJOUER</button>
+  <div id="screen-settings" class="screen hidden">
+    <div class="settings-title">RÉGLAGES</div>
+
+    <div class="setting">
+      <div class="label">THÈME</div>
+      <div class="segmented" id="seg-theme">
+        <button data-value="auto">Auto</button>
+        <button data-value="light">Clair</button>
+        <button data-value="dark">Sombre</button>
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">SONS</div>
+      <div class="segmented" id="seg-sound">
+        <button data-value="true">Activés</button>
+        <button data-value="false">Coupés</button>
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">VITESSE DES BALLES</div>
+      <div class="segmented" id="seg-speed">
+        <button data-value="false">Normale</button>
+        <button data-value="true">Rapide</button>
+      </div>
+    </div>
+
+    <button id="btn-settings-back" style="margin-top:10px">RETOUR</button>
   </div>
 
-  <script src="game.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').then(function () {
-          document.getElementById('offline-badge').textContent = '✓ Disponible hors ligne';
-        }).catch(function () { /* http:// local : pas de SW, le jeu marche quand même */ });
-      });
-    }
-    // Astuce d'installation iOS (affichée seulement dans Safari, pas une fois installé)
-    (function () {
-      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      var standalone = window.navigator.standalone === true
-        || window.matchMedia('(display-mode: standalone)').matches;
-      if (isIOS && !standalone) {
-        document.getElementById('install-hint').innerHTML =
-          'Pour jouer hors ligne : bouton <strong>Partager</strong> ⬆︎ puis ' +
-          '<strong>« Sur l\'écran d\'accueil »</strong>, et ouvre l\'app une première fois avec Internet.';
-      }
-    })();
-  </script>
+  <div id="screen-over" class="screen hidden">
+    <div class="over-title">PARTIE TERMINÉE</div>
+    <div class="big-score" id="over-round">1</div>
+    <p id="over-best"></p>
+    <div class="stats">
+      <div class="row"><span>Briques cassées</span><b id="stat-broken">0</b></div>
+      <div class="row"><span>Balles accumulées</span><b id="stat-balls">1</b></div>
+      <div class="row"><span>Tirs</span><b id="stat-shots">0</b></div>
+    </div>
+    <button id="btn-retry" style="margin-top:8px">REJOUER</button>
+    <button id="btn-over-home" class="secondary">MENU</button>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
