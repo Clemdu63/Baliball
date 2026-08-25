@@ -64,13 +64,21 @@ fichier audio.
     partie.
   - **Hors ligne** : un code de 4 lettres = la même partie pour tous,
     et on compare les scores à la fin. Zéro connexion.
+  - **Reconnexion** : app fermée par erreur, page rechargée, réseau coupé ?
+    Un bouton **🔁 Reprendre le tournoi** apparaît sur l'accueil (pendant
+    2 h) et remet dans la partie exactement là où elle en était — même
+    grille, même suite de rangées à venir. En ligne, le salon est
+    retrouvé automatiquement : classement, suivi en direct et émojis
+    reprennent comme si de rien n'était.
 
 ## Progression
 
 Les **perles ◉** gagnées en jeu s'échangent à la **Boutique** contre des
 peaux de balle (ballon de plage, frangipanier, lampion, durian) et des
 décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant).
-L'écran **Progrès** suit les statistiques cumulées et 12 succès. Tous les
+L'écran **Progrès** liste **Mes parties récentes** (les 20 dernières :
+mode, score, manche atteinte, il y a combien de temps) et suit les
+statistiques cumulées et 12 succès. Tous les
 1 000 points, une célébration marque le palier — et certains cosmétiques
 se **débloquent au score** (étoile de mer à 2 500, coquillage à 5 000,
 décor Bioluminescence à 8 000). Le score d'une partie se **partage en
@@ -124,6 +132,7 @@ mise à jour.
 | `js/game.js` | Moteur du jeu (physique, rendu canvas, sauvegarde) |
 | `js/levels.js` | Les 24 niveaux du mode Temples |
 | `js/theme.js` | Thèmes du plateau (couleurs canvas + CSS) |
+| `js/net.js` | Tournoi en ligne : pub/sub minimal sur ntfy.sh |
 | `js/audio.js` | Sons générés en WebAudio |
 | `js/storage.js` | Accès stockage et réglages |
 | `sw.js` | Service worker : cache hors ligne |

@@ -168,7 +168,10 @@ function mulberry32(seed) {
   };
 }
 
-let rng = Math.random; // ne sert qu'à l'apparition des rangées (déterministe en duel)
+let rng = Math.random; // ne sert qu'à l'apparition des rangées (déterministe en tournoi)
+let currentSeed = null;
+let spawnLog = [];             // signatures des rangées apparues (tests de déterminisme)
+let replaying = false;
 
 // ---- API ----
 export function initGame(canvasEl, h) {
@@ -183,11 +186,13 @@ export function initGame(canvasEl, h) {
 
 export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   mode = m;
+  spawnLog = [];
   if (m === 'daily') {
     // la « map » du jour est la même pour toutes les parties de la journée
     const d = new Date();
     seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
   }
+  currentSeed = seed;
   rng = seed !== null ? mulberry32(seed) : Math.random;
   round = 1;
   ballCount = 1;
@@ -263,6 +268,7 @@ export function toMenu() {
   // quitter en plein vol : on retrouvera le début du tour à la reprise
   if (mode === 'zen' && (state === 'aim' || state === 'flight')) {
     // le mode zen ne se termine jamais : on encaisse la session en sortant
+    if (stats.shots > 0) addHistory({ mode: 'zen', score, round });
     bankPearls();
     addCumulative();
     pearls = 0;
@@ -366,7 +372,7 @@ export function drawBoardSnapshot(cv, snap) {
 export function debugState() {
   return {
     state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
-    timeScale, accelBtn: accelBtnRect(),
+    timeScale, accelBtn: accelBtnRect(), spawnLog,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((b) => ({ col: b.col, row: b.row, hp: b.hp, type: b.type })),
     geometry: { W, boardTop, floorY, cell, deathRow },
@@ -471,6 +477,11 @@ function spawnRow() {
     const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
     powerups.push({ col: cols[free], row: 0, kind });
   }
+  if (!replaying) {
+    spawnLog.push(round + ':'
+      + blocks.filter((b) => b.row === 0).map((b) => b.col + b.type + b.hp).join(',')
+      + '|' + powerups.filter((p) => p.row === 0).map((p) => p.col + p.kind).join(','));
+  }
 }
 
 function endTurn() {
@@ -560,6 +571,13 @@ function bankPearls() {
   store.set(KEYS.PEARLS, String(wallet + pearls));
 }
 
+/* Historique des parties récentes (écran Progrès). */
+function addHistory(entry) {
+  const h = loadJSON(KEYS.HISTORY, []);
+  h.unshift(Object.assign({ ts: Date.now() }, entry));
+  store.set(KEYS.HISTORY, JSON.stringify(h.slice(0, 20)));
+}
+
 /* Statistiques cumulées (succès et écran Progrès). */
 function addCumulative() {
   const c = loadJSON(KEYS.STATS, {});
@@ -604,6 +622,8 @@ function gameOver(reason) {
       store.set(KEYS.DAILY, JSON.stringify(d));
     }
   }
+  if (mode === 'tournament') store.remove(KEYS.TOUR_SAVE);
+  addHistory({ mode, score, round, reason });
   bankPearls();
   addCumulative();
   sfx.over();
@@ -636,6 +656,7 @@ function puzzleWin() {
   prog.stars[puzzle.idx] = Math.max(prog.stars[puzzle.idx] || 0, starCount);
   prog.unlocked = Math.max(prog.unlocked || 1, puzzle.idx + 2);
   store.set(KEYS.PUZZLE, JSON.stringify(prog));
+  addHistory({ mode: 'puzzle', score, level: puzzle.idx, stars: starCount, win: true });
   bankPearls();
   addCumulative();
   sfx.bonus();
@@ -801,9 +822,11 @@ function swordSweep(row, y) {
 }
 
 // ---- sauvegarde ----
-// seuls les modes classique et zen se reprennent (marée = chrono, temples = niveaux)
+// classique, zen et tournoi se reprennent (marée = chrono, temples = niveaux)
 function saveKey(m) {
-  return m === 'zen' ? KEYS.ZEN_SAVE : m === 'classic' ? KEYS.SAVE : null;
+  return m === 'zen' ? KEYS.ZEN_SAVE
+    : m === 'classic' ? KEYS.SAVE
+      : m === 'tournament' ? KEYS.TOUR_SAVE : null;
 }
 
 function saveGame() {
@@ -811,6 +834,7 @@ function saveGame() {
   if (!key) return;
   store.set(key, JSON.stringify({
     round, ballCount, score, pearls,
+    seed: currentSeed, ts: Date.now(),
     launchFrac: launchX / W,
     blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient]),
     powerups: powerups.map((p) => [p.col, p.row, p.kind]),
@@ -844,6 +868,25 @@ function loadGame(m) {
     const oldBonuses = s.powerups || s.bonuses || [];
     powerups = oldBonuses.map(([col, row, kind]) => ({ col, row, kind: kind || 'ball' }));
     stats = s.stats && typeof s.stats.broken === 'number' ? s.stats : { broken: 0, shots: 0 };
+    if (m === 'tournament') {
+      // repositionner le générateur aléatoire exactement là où il était :
+      // on rejoue les apparitions des manches 1..round dans le vide
+      if (typeof s.seed !== 'number') return false;
+      currentSeed = s.seed;
+      rng = mulberry32(s.seed);
+      const keepBlocks = blocks, keepPowerups = powerups, keepRound = round;
+      replaying = true;
+      blocks = [];
+      powerups = [];
+      for (let r = 1; r <= keepRound; r++) {
+        round = r;
+        spawnRow();
+      }
+      replaying = false;
+      round = keepRound;
+      blocks = keepBlocks;
+      powerups = keepPowerups;
+    }
     balls = [];
     toLaunch = 0;
     collectedThisTurn = 0;

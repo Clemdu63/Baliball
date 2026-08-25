@@ -14,6 +14,10 @@ export const KEYS = {
   DAILY: 'baliball.daily.v1',
   TUTO: 'baliball.tuto.v1',
   NAME: 'baliball.name.v1',
+  UID: 'baliball.uid.v1',
+  TOUR_SAVE: 'baliball.toursave.v1',
+  TOUR_NET: 'baliball.tournet.v1',
+  HISTORY: 'baliball.history.v1',
   SETTINGS: 'baliball.settings.v1',
 };
 

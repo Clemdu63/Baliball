@@ -9,8 +9,20 @@ function topicFor(code) {
   return 'baliball-v1-' + code.toLowerCase();
 }
 
-/* Identifiant de session : distingue deux joueurs portant le même pseudo. */
-export const myUid = Math.random().toString(36).slice(2, 8);
+/* Identifiant persistant : distingue deux joueurs portant le même pseudo,
+   et permet au salon de reconnaître un joueur qui se reconnecte. */
+export const myUid = (() => {
+  try {
+    let u = localStorage.getItem('baliball.uid.v1');
+    if (!u) {
+      u = Math.random().toString(36).slice(2, 8);
+      localStorage.setItem('baliball.uid.v1', u);
+    }
+    return u;
+  } catch (e) {
+    return Math.random().toString(36).slice(2, 8);
+  }
+})();
 
 /* Envoi fiable pendant la fermeture de la page (sendBeacon). */
 export function netBeacon(code, data) {

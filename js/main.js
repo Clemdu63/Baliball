@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -55,6 +55,11 @@ function refreshHome() {
   const resumeBtn = $('btn-resume');
   resumeBtn.style.display = saved ? '' : 'none';
   resumeBtn.textContent = saved === 'zen' ? 'REPRENDRE (PLAGE)' : 'REPRENDRE';
+
+  // tournoi interrompu (déconnexion, fermeture) : proposer d'y retourner
+  const tourSave = loadJSON(KEYS.TOUR_SAVE, null);
+  const fresh = tourSave && tourSave.ts && Date.now() - tourSave.ts < 2 * 3600 * 1000;
+  $('btn-rejoin').style.display = fresh ? '' : 'none';
 }
 
 // ---- accueil ----
@@ -151,6 +156,10 @@ function startCountdown(seed, opts) {
       sfx.bonus();
       startGame('tournament', 0, seed);
       if (net) {
+        store.set(KEYS.TOUR_NET, JSON.stringify({
+          code: net.code, name: net.name, game: net.game,
+          seed, opts: opts || null, ts: Date.now(),
+        }));
         tickerRefresh();
         syncEmojiButton();
       }
@@ -385,6 +394,38 @@ function enterLobby(code, name) {
   netPublish(code, { t: 'join', uid: myUid, name });
   show('screen-lobby');
 }
+
+$('btn-rejoin').addEventListener('click', () => {
+  initAudio();
+  const ctx = loadJSON(KEYS.TOUR_NET, null);
+  if (ctx && ctx.code && Date.now() - (ctx.ts || 0) < 2 * 3600 * 1000) {
+    // en ligne : on se réabonne au salon, l'historique du sujet reconstruit
+    // le classement, et notre identité persistante évite les doublons
+    teardownNet();
+    net = {
+      code: ctx.code, name: ctx.name, roster: new Map(), game: ctx.game,
+      lastPub: 0, lastAnnounce: Date.now(), stop: null, raceWinner: null,
+    };
+    upsert(myUid, { name: ctx.name });
+    net.stop = netSubscribe(ctx.code, onNetMsg, () => {});
+    netPublish(ctx.code, { t: 'join', uid: myUid, name: ctx.name });
+    game.setTournamentOptions(ctx.opts || { fast: false, target: null });
+  }
+  if (game.resumeGame('tournament')) {
+    lastStart = { mode: 'tournament', level: 0, seed: null };
+    showGame();
+    if (net) {
+      tickerRefresh();
+      syncEmojiButton();
+      toast('Te revoilà dans la course !');
+    }
+  } else {
+    teardownNet();
+    store.remove(KEYS.TOUR_SAVE);
+    store.remove(KEYS.TOUR_NET);
+    refreshHome();
+  }
+});
 
 $('btn-tournoi-online').addEventListener('click', () => {
   $('player-name').value = store.get(KEYS.NAME) || '';
@@ -718,7 +759,41 @@ const ACHIEVEMENTS = [
   { name: 'Habitué de la plage', desc: 'Jouer 25 parties', test: (c) => (c.gamesPlayed || 0) >= 25 },
 ];
 
+const MODE_ICONS = {
+  classic: '🥥', tide: '🌊', puzzle: '🛕', zen: '🏖', daily: '🌅', tournament: '📡',
+};
+const MODE_NAMES = {
+  classic: 'Classique', tide: 'Marée montante', puzzle: 'Temples',
+  zen: 'Plage', daily: 'Défi du jour', tournament: 'Tournoi',
+};
+
+function timeAgo(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return 'à l\'instant';
+  if (m < 60) return 'il y a ' + m + ' min';
+  const h = Math.floor(m / 60);
+  if (h < 24) return 'il y a ' + h + ' h';
+  const d = Math.floor(h / 24);
+  return d === 1 ? 'hier' : 'il y a ' + d + ' j';
+}
+
+function renderHistory() {
+  const h = loadJSON(KEYS.HISTORY, []);
+  $('history-list').innerHTML = h.length === 0
+    ? '<div class="ach-item done"><span class="ach-info"><div class="ach-desc">Aucune partie terminée pour l\'instant.</div></span></div>'
+    : h.map((e) => {
+      const what = e.mode === 'puzzle'
+        ? 'Niveau ' + ((e.level || 0) + 1) + ' · ' + '★'.repeat(e.stars || 0)
+        : e.score + ' pts · manche ' + (e.round || 1);
+      return '<div class="ach-item done">'
+        + '<span class="ach-check">' + (MODE_ICONS[e.mode] || '🥥') + '</span>'
+        + '<span class="ach-info"><div class="ach-name">' + (MODE_NAMES[e.mode] || e.mode) + ' — ' + what + '</div>'
+        + '<div class="ach-desc">' + timeAgo(e.ts || Date.now()) + '</div></span></div>';
+    }).join('');
+}
+
 function renderProgress() {
+  renderHistory();
   const c = loadJSON(KEYS.STATS, {});
   const prog = loadJSON(KEYS.PUZZLE, { stars: {} });
   const stars = Object.values(prog.stars || {}).reduce((a, b) => a + b, 0);
@@ -813,6 +888,7 @@ game.initGame($('game'), {
       $('stat-round-label').textContent = 'Manches jouées';
       $('stat-round').textContent = String(s.round);
     } else if (s.mode === 'tournament') {
+      store.remove(KEYS.TOUR_NET);
       if (net && net.game) {
         // en ligne : publication du résultat + classement en direct
         upsert(myUid, { score: s.score, round: s.round, over: true });

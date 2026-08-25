@@ -110,13 +110,14 @@
       </svg>
     </div>
 
-    <div class="version">v2.2.0</div>
+    <div class="version">v2.3.0</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
     </div>
     <p id="home-best"></p>
     <button id="btn-resume" style="display:none">REPRENDRE</button>
+    <button id="btn-rejoin" style="display:none">🔁 REJOINDRE LE TOURNOI</button>
     <button id="btn-play">JOUER</button>
     <div class="home-row">
       <button id="btn-shop" class="secondary"><span class="chip-ico">🛍</span>Boutique</button>
@@ -174,6 +175,9 @@
   <div id="screen-progress" class="screen hidden">
     <div class="settings-title">PROGRÈS</div>
     <div class="shop-scroll">
+      <div class="setting"><div class="label">MES PARTIES RÉCENTES</div></div>
+      <div id="history-list" class="shop-list"></div>
+      <div class="setting" style="margin-top:10px"><div class="label">STATISTIQUES</div></div>
       <div class="stats" id="prog-stats"></div>
       <div class="setting" style="margin-top:10px"><div class="label">SUCCÈS</div></div>
       <div id="ach-list" class="shop-list"></div>
