@@ -19,15 +19,24 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ORDER = ['storage', 'theme', 'audio', 'game', 'main'];
+const ORDER = ['storage', 'theme', 'audio', 'levels', 'game', 'main'];
 const CUT_MARKER = '// service worker : hors ligne';
 
 const read = (p) => readFileSync(join(root, p), 'utf8');
 
 // ---- scripts ----
 let js = '';
+const topLevelNames = new Map(); // nom → module
 for (const name of ORDER) {
   let src = read(join('js', name + '.js'));
+  for (const m of src.matchAll(/^(?:export )?(?:const|let|var|function|class)\s+(\w+)/gm)) {
+    const id = m[1];
+    if (topLevelNames.has(id)) {
+      throw new Error('collision de nom de premier niveau « ' + id + ' » entre js/'
+        + topLevelNames.get(id) + '.js et js/' + name + '.js — renommer l\'un des deux');
+    }
+    topLevelNames.set(id, name);
+  }
   if (name === 'main') {
     const cut = src.indexOf(CUT_MARKER);
     if (cut === -1) throw new Error('marqueur de coupe introuvable dans main.js');

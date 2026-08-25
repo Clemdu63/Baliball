@@ -3,11 +3,23 @@
 
 export const KEYS = {
   SAVE: 'baliball.save.v1',
+  ZEN_SAVE: 'baliball.zensave.v1',
   BEST: 'baliball.best.v1',
   BEST_SCORE: 'baliball.bestscore.v1',
+  TIDE_BEST: 'baliball.tidebest.v1',
+  PUZZLE: 'baliball.puzzle.v1',
   PEARLS: 'baliball.pearls.v1',
   SETTINGS: 'baliball.settings.v1',
 };
+
+export function loadJSON(key, fallback) {
+  try {
+    const raw = store.get(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
 
 export const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },

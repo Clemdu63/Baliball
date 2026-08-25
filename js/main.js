@@ -1,18 +1,19 @@
-/* Écrans, réglages et démarrage. */
+/* Écrans, modes de jeu, réglages et démarrage. */
 
-import { settings, persistSettings } from './storage.js';
+import { settings, persistSettings, KEYS, loadJSON, store } from './storage.js';
 import { setThemeMode } from './theme.js';
 import { initAudio, syncAmbience } from './audio.js';
+import { LEVELS } from './levels.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['screen-home', 'screen-settings', 'screen-over'];
+const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings', 'screen-over', 'screen-win'];
 
 setThemeMode(settings.theme);
 
 function show(id) {
   for (const s of SCREENS) $(s).classList.toggle('hidden', s !== id);
-  $('btn-home').classList.toggle('hidden', id !== null);
+  $('btn-home').classList.add('hidden');
 }
 
 function showGame() {
@@ -23,26 +24,78 @@ function showGame() {
 function refreshHome() {
   const best = game.getBest();
   const bestScore = game.getBestScore();
-  $('home-best').textContent = best > 0
-    ? 'Record : manche ' + best + ' · ' + bestScore + ' pts'
-    : '';
-  $('btn-resume').style.display = game.hasSave() ? '' : 'none';
+  const tideBest = parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0;
+  const parts = [];
+  if (best > 0) parts.push('Classique : manche ' + best + ' · ' + bestScore + ' pts');
+  if (tideBest > 0) parts.push('Marée : ' + tideBest + ' pts');
+  $('home-best').textContent = parts.join(' — ');
+
+  const saved = game.savedMode();
+  const resumeBtn = $('btn-resume');
+  resumeBtn.style.display = saved ? '' : 'none';
+  resumeBtn.textContent = saved === 'zen' ? 'REPRENDRE (PLAGE)' : 'REPRENDRE';
 }
 
 // ---- accueil ----
-$('btn-new').addEventListener('click', () => {
-  initAudio();
-  game.newGame();
-  showGame();
-});
+$('btn-play').addEventListener('click', () => show('screen-modes'));
 
 $('btn-resume').addEventListener('click', () => {
   initAudio();
-  if (!game.resumeGame()) game.newGame();
+  const saved = game.savedMode();
+  if (!saved || !game.resumeGame(saved)) game.newGame('classic');
   showGame();
 });
 
 $('btn-settings').addEventListener('click', () => show('screen-settings'));
+
+// ---- choix du mode ----
+function startMode(m) {
+  initAudio();
+  game.newGame(m);
+  showGame();
+}
+
+$('btn-mode-classic').addEventListener('click', () => startMode('classic'));
+$('btn-mode-tide').addEventListener('click', () => startMode('tide'));
+$('btn-mode-zen').addEventListener('click', () => startMode('zen'));
+$('btn-mode-puzzle').addEventListener('click', () => {
+  renderLevels();
+  show('screen-levels');
+});
+$('btn-modes-back').addEventListener('click', () => {
+  refreshHome();
+  show('screen-home');
+});
+
+// ---- niveaux du mode Temples ----
+function renderLevels() {
+  const prog = loadJSON(KEYS.PUZZLE, { unlocked: 1, stars: {} });
+  const grid = $('levels-grid');
+  grid.innerHTML = '';
+  let earned = 0;
+  LEVELS.forEach((def, i) => {
+    const unlocked = i < (prog.unlocked || 1);
+    const stars = prog.stars[i] || 0;
+    earned += stars;
+    const btn = document.createElement('button');
+    btn.className = 'level-btn' + (unlocked ? '' : ' locked');
+    btn.disabled = !unlocked;
+    btn.innerHTML = '<span class="level-num">' + (unlocked ? (i + 1) : '🔒') + '</span>'
+      + '<span class="level-stars">' + '★'.repeat(stars) + '<span class="dim">'
+      + '★'.repeat(unlocked ? 3 - stars : 0) + '</span></span>';
+    if (unlocked) {
+      btn.addEventListener('click', () => {
+        initAudio();
+        game.newGame('puzzle', i);
+        showGame();
+      });
+    }
+    grid.appendChild(btn);
+  });
+  $('levels-progress').textContent = earned + ' ★ sur ' + LEVELS.length * 3;
+}
+
+$('btn-levels-back').addEventListener('click', () => show('screen-modes'));
 
 // ---- bouton accueil en jeu ----
 $('btn-home').addEventListener('click', () => {
@@ -52,25 +105,71 @@ $('btn-home').addEventListener('click', () => {
 });
 
 // ---- fin de partie ----
+const OVER_TITLES = {
+  line: 'PARTIE TERMINÉE',
+  time: 'TEMPS ÉCOULÉ',
+  shots: 'PLUS DE TIRS',
+};
+
 game.initGame($('game'), {
   onGameOver(s) {
+    $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
-    $('over-best').textContent = 'Record : manche ' + s.best + ' · ' + s.bestScore + ' pts';
-    $('stat-round').textContent = String(s.round);
+    if (s.mode === 'tide') {
+      $('over-best').textContent = 'Record marée : ' + s.tideBest + ' pts';
+      $('stat-round-label').textContent = 'Manches jouées';
+      $('stat-round').textContent = String(s.round);
+    } else if (s.mode === 'puzzle') {
+      $('over-best').textContent = LEVELS[s.level] ? '« ' + LEVELS[s.level].name + ' »' : '';
+      $('stat-round-label').textContent = 'Niveau';
+      $('stat-round').textContent = String(s.level + 1);
+    } else {
+      $('over-best').textContent = 'Record : manche ' + s.best + ' · ' + s.bestScore + ' pts';
+      $('stat-round-label').textContent = 'Manche atteinte';
+      $('stat-round').textContent = String(s.round);
+    }
     $('stat-broken').textContent = String(s.broken);
     $('stat-pearls').textContent = String(s.pearls);
     $('stat-balls').textContent = String(s.balls);
     $('stat-shots').textContent = String(s.shots);
+    const retry = $('btn-retry');
+    retry.dataset.mode = s.mode;
+    retry.dataset.level = String(s.level || 0);
     show('screen-over');
+  },
+  onPuzzleWin(s) {
+    $('win-name').textContent = '« ' + s.name + ' » — niveau ' + (s.level + 1);
+    $('win-stars').innerHTML = '★'.repeat(s.stars) + '<span class="dim">' + '★'.repeat(3 - s.stars) + '</span>';
+    $('win-shots').textContent = s.shotsUsed + ' tir' + (s.shotsUsed > 1 ? 's' : '')
+      + (s.pearls > 0 ? ' · ' + s.pearls + ' perle' + (s.pearls > 1 ? 's' : '') + ' ◉' : '');
+    $('btn-win-next').style.display = s.hasNext ? '' : 'none';
+    $('btn-win-next').dataset.next = String(s.level + 1);
+    show('screen-win');
   },
 });
 
-$('btn-retry').addEventListener('click', () => {
-  game.newGame();
+$('btn-retry').addEventListener('click', (e) => {
+  const m = e.currentTarget.dataset.mode || 'classic';
+  const lvl = parseInt(e.currentTarget.dataset.level || '0', 10);
+  game.newGame(m, lvl);
   showGame();
 });
 
 $('btn-over-home').addEventListener('click', () => {
+  refreshHome();
+  show('screen-home');
+});
+
+$('btn-win-next').addEventListener('click', (e) => {
+  const next = parseInt(e.currentTarget.dataset.next || '0', 10);
+  game.newGame('puzzle', next);
+  showGame();
+});
+$('btn-win-levels').addEventListener('click', () => {
+  renderLevels();
+  show('screen-levels');
+});
+$('btn-win-home').addEventListener('click', () => {
   refreshHome();
   show('screen-home');
 });
@@ -108,6 +207,9 @@ $('btn-settings-back').addEventListener('click', () => {
 // ---- démarrage ----
 refreshHome();
 show('screen-home');
+
+// accès de debug pour les tests automatisés
+window.baliball = game;
 
 // audio iOS : ne peut démarrer qu'après un geste
 document.addEventListener('pointerdown', initAudio, { capture: true });

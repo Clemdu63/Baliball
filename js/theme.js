@@ -67,13 +67,13 @@ export const THEMES = {
   },
 };
 
-let mode = 'auto';
+let themeMode = 'auto';
 let current = THEMES.day;
 const mq = window.matchMedia('(prefers-color-scheme: dark)');
 
 function resolved() {
-  if (mode === 'dark') return 'night';
-  if (mode === 'light') return 'day';
+  if (themeMode === 'dark') return 'night';
+  if (themeMode === 'light') return 'day';
   return mq.matches ? 'night' : 'day';
 }
 
@@ -86,7 +86,7 @@ function apply() {
 }
 
 export function setThemeMode(m) {
-  mode = m;
+  themeMode = m;
   apply();
 }
 
@@ -102,5 +102,5 @@ export function stoneStyle(hp) {
 }
 
 mq.addEventListener('change', () => {
-  if (mode === 'auto') apply();
+  if (themeMode === 'auto') apply();
 });

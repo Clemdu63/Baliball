@@ -8,9 +8,10 @@
    les voisines), piment (dégâts x2 le reste du tir), perle (monnaie),
    fleur de frangipanier (renvoie la noix tout droit vers le haut). */
 
-import { store, KEYS, settings } from './storage.js';
+import { store, KEYS, settings, loadJSON } from './storage.js';
 import { getTheme, stoneStyle } from './theme.js';
 import { initAudio, sfx } from './audio.js';
+import { LEVELS } from './levels.js';
 
 const COLS = 7;
 
@@ -71,6 +72,11 @@ let shotId = 0;                // pour le blindage « 1 dégât par tir »
 let brokenThisShot = 0;
 let fishes = [];
 let fishTimer = 2;
+let mode = 'classic';          // classic | tide | zen | puzzle
+let tideTime = 0;              // secondes restantes (marée montante)
+let puzzle = null;             // {idx, def, shotsLeft}
+
+const TIDE_DURATION = 90;
 
 const SPEED = () => cell * 16 * (settings.fast ? 1.35 : 1);
 const RADIUS = () => cell * 0.13;
@@ -90,7 +96,8 @@ export function initGame(canvasEl, h) {
   requestAnimationFrame(frame);
 }
 
-export function newGame() {
+export function newGame(m = 'classic', levelIdx = 0) {
+  mode = m;
   round = 1;
   ballCount = 1;
   launchX = W / 2;
@@ -109,17 +116,44 @@ export function newGame() {
   pearls = 0;
   chiliActive = false;
   shotId = 0;
-  spawnRow();
+  tideTime = TIDE_DURATION;
+  puzzle = null;
+
+  if (mode === 'puzzle') {
+    const def = LEVELS[levelIdx] || LEVELS[0];
+    puzzle = { idx: levelIdx, def, shotsLeft: def.shots };
+    ballCount = def.balls;
+    loadLevel(def);
+  } else if (mode === 'tide') {
+    // deux rangées d'entrée pour avoir des cibles tout de suite
+    spawnRow();
+    for (const b of blocks) b.row += 1;
+    for (const p of powerups) p.row += 1;
+    spawnRow();
+  } else {
+    spawnRow();
+  }
   state = 'aim';
   saveGame();
 }
 
-export function resumeGame() {
-  return loadGame();
+export function resumeGame(m = 'classic') {
+  return loadGame(m);
+}
+
+/* Quel mode a une partie sauvegardée ? ('classic', 'zen' ou null) */
+export function savedMode() {
+  if (store.get(KEYS.SAVE)) return 'classic';
+  if (store.get(KEYS.ZEN_SAVE)) return 'zen';
+  return null;
 }
 
 export function hasSave() {
-  return !!store.get(KEYS.SAVE);
+  return savedMode() !== null;
+}
+
+export function getMode() {
+  return mode;
 }
 
 export function getBest() {
@@ -132,6 +166,13 @@ export function getBestScore() {
 
 export function toMenu() {
   // quitter en plein vol : on retrouvera le début du tour à la reprise
+  if (mode === 'zen' && pearls > 0) {
+    // le mode zen ne se termine jamais : on encaisse les perles en sortant
+    const wallet = parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
+    store.set(KEYS.PEARLS, String(wallet + pearls));
+    pearls = 0;
+    if (state === 'aim' || state === 'flight') saveGame();
+  }
   state = 'menu';
   balls = [];
   toLaunch = 0;
@@ -143,6 +184,16 @@ export function toMenu() {
 
 export function isPlaying() {
   return state === 'aim' || state === 'flight';
+}
+
+/* État minimal exposé pour les tests automatisés. */
+export function debugState() {
+  return {
+    state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
+    shotsLeft: puzzle ? puzzle.shotsLeft : null,
+    blocks: blocks.map((b) => ({ col: b.col, row: b.row, hp: b.hp, type: b.type })),
+    geometry: { W, boardTop, floorY, cell, deathRow },
+  };
 }
 
 // ---- grille ----
@@ -164,6 +215,35 @@ function powerupCenter(p, yOffset) {
 }
 
 // ---- cycle ----
+
+/* Charge une grille du mode Temples (voir js/levels.js pour les symboles). */
+function loadLevel(def) {
+  blocks = [];
+  powerups = [];
+  const addStone = (col, row, hp, type, orient = 0) => {
+    blocks.push({ col, row, hp, flash: 0, seed: Math.random(), type, orient, lastHitShot: -1 });
+  };
+  def.grid.forEach((rowStr, row) => {
+    for (let col = 0; col < COLS; col++) {
+      const ch = rowStr[col] || '.';
+      if (ch === '.') continue;
+      // symboles spéciaux d'abord : « o » est un bonus, pas une pierre a-v
+      if (ch === 'o') powerups.push({ col, row, kind: 'ball' });
+      else if (ch === '*') powerups.push({ col, row, kind: 'pearl' });
+      else if (ch === 'F') powerups.push({ col, row, kind: 'flower' });
+      else if (ch === 'D') powerups.push({ col, row, kind: 'durian' });
+      else if (ch === 'C') powerups.push({ col, row, kind: 'chili' });
+      else if (ch === 'W') powerups.push({ col, row, kind: 'sword' });
+      else if (ch === 'X') addStone(col, row, 2, 'armored');
+      else if (ch === 'Y') addStone(col, row, 3, 'armored');
+      else if (ch >= 'P' && ch <= 'S') addStone(col, row, 2, 'tri', ch.charCodeAt(0) - 80);
+      else if (ch === '?') addStone(col, row, 3, 'mystery');
+      else if (ch >= '1' && ch <= '9') addStone(col, row, +ch, 'stone');
+      else if (ch >= 'a' && ch <= 'v') addStone(col, row, 10 + ch.charCodeAt(0) - 97, 'stone');
+    }
+  });
+}
+
 function spawnRow() {
   const cols = [0, 1, 2, 3, 4, 5, 6];
   for (let i = cols.length - 1; i > 0; i--) {
@@ -207,6 +287,20 @@ function endTurn() {
   userFast = false;
   flightTime = 0;
 
+  if (mode === 'puzzle') {
+    // pas de descente : on vérifie la victoire ou l'épuisement des tirs
+    if (blocks.length === 0) {
+      puzzleWin();
+      return;
+    }
+    if (puzzle.shotsLeft <= 0) {
+      gameOver('shots');
+      return;
+    }
+    state = 'aim';
+    return;
+  }
+
   for (const b of blocks) b.row += 1;
   for (const p of powerups) p.row += 1;
   powerups = powerups.filter((p) => {
@@ -223,9 +317,27 @@ function endTurn() {
   });
   shiftAnim = 0;
 
-  if (blocks.some((b) => b.row >= deathRow)) {
-    gameOver();
-    return;
+  const reached = blocks.filter((b) => b.row >= deathRow);
+  if (reached.length > 0) {
+    if (mode === 'classic') {
+      gameOver('line');
+      return;
+    }
+    // zen et marée montante : la marée emporte les pierres du bas
+    blocks = blocks.filter((b) => b.row < deathRow);
+    for (const b of reached) {
+      const rc = blockRect(b, 0);
+      const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
+      for (let p = 0; p < 6; p++) {
+        particles.push({
+          x: cx, y: cy,
+          vx: (Math.random() - 0.5) * cell * 2,
+          vy: -Math.random() * cell,
+          life: 1, color: 'rgba(255,255,255,0.8)',
+        });
+      }
+    }
+    if (reached.length) sfx.wall();
   }
   round += 1;
   sfx.newRow();
@@ -234,30 +346,66 @@ function endTurn() {
   saveGame();
 }
 
-function gameOver() {
-  state = 'over';
-  if (round > best) {
-    best = round;
-    store.set(KEYS.BEST, String(best));
-  }
-  if (score > bestScore) {
-    bestScore = score;
-    store.set(KEYS.BEST_SCORE, String(bestScore));
-  }
+function bankPearls() {
   const wallet = parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
   store.set(KEYS.PEARLS, String(wallet + pearls));
-  store.remove(KEYS.SAVE);
+}
+
+function gameOver(reason) {
+  state = 'over';
+  if (mode === 'classic') {
+    if (round > best) {
+      best = round;
+      store.set(KEYS.BEST, String(best));
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      store.set(KEYS.BEST_SCORE, String(bestScore));
+    }
+    store.remove(KEYS.SAVE);
+  } else if (mode === 'tide') {
+    const tb = parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0;
+    if (score > tb) store.set(KEYS.TIDE_BEST, String(score));
+  }
+  bankPearls();
   sfx.over();
   if (hooks.onGameOver) {
     hooks.onGameOver({
+      mode,
+      reason,
       round,
       best,
       score,
       bestScore,
+      tideBest: parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0,
+      level: puzzle ? puzzle.idx : 0,
       pearls,
       broken: stats.broken,
       shots: stats.shots,
       balls: ballCount,
+    });
+  }
+}
+
+function puzzleWin() {
+  state = 'over';
+  const used = puzzle.def.shots - puzzle.shotsLeft;
+  const [s3, s2] = puzzle.def.stars;
+  const starCount = used <= s3 ? 3 : used <= s2 ? 2 : 1;
+  const prog = loadJSON(KEYS.PUZZLE, { unlocked: 1, stars: {} });
+  prog.stars[puzzle.idx] = Math.max(prog.stars[puzzle.idx] || 0, starCount);
+  prog.unlocked = Math.max(prog.unlocked || 1, puzzle.idx + 2);
+  store.set(KEYS.PUZZLE, JSON.stringify(prog));
+  bankPearls();
+  sfx.bonus();
+  if (hooks.onPuzzleWin) {
+    hooks.onPuzzleWin({
+      level: puzzle.idx,
+      name: puzzle.def.name,
+      stars: starCount,
+      shotsUsed: used,
+      pearls,
+      hasNext: puzzle.idx + 1 < LEVELS.length,
     });
   }
 }
@@ -271,8 +419,12 @@ function fire(angle) {
   stats.shots += 1;
   shotId += 1;
   brokenThisShot = 0;
+  if (puzzle) puzzle.shotsLeft -= 1;
+  lastFiredAngle = angle;
   sfx.launch();
 }
+
+let lastFiredAngle = null;
 
 // ---- score ----
 function addScore(damage) {
@@ -367,8 +519,15 @@ function swordSweep(row, y) {
 }
 
 // ---- sauvegarde ----
+// seuls les modes classique et zen se reprennent (marée = chrono, temples = niveaux)
+function saveKey(m) {
+  return m === 'zen' ? KEYS.ZEN_SAVE : m === 'classic' ? KEYS.SAVE : null;
+}
+
 function saveGame() {
-  store.set(KEYS.SAVE, JSON.stringify({
+  const key = saveKey(mode);
+  if (!key) return;
+  store.set(key, JSON.stringify({
     round, ballCount, score, pearls,
     launchFrac: launchX / W,
     blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient]),
@@ -377,10 +536,13 @@ function saveGame() {
   }));
 }
 
-function loadGame() {
+function loadGame(m) {
   try {
-    const raw = store.get(KEYS.SAVE);
+    const raw = store.get(saveKey(m));
     if (!raw) return false;
+    mode = m;
+    tideTime = TIDE_DURATION;
+    puzzle = null;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.blocks) || !s.round) return false;
     round = s.round;
@@ -612,11 +774,29 @@ function update(dt) {
   }
   for (const b of blocks) if (b.flash > 0) b.flash = Math.max(0, b.flash - dt * 6);
 
+  // marée montante : le chrono tourne pendant la visée et le vol
+  if (mode === 'tide' && (state === 'aim' || state === 'flight')) {
+    tideTime -= dt;
+    if (tideTime <= 0) {
+      tideTime = 0;
+      gameOver('time');
+      return;
+    }
+  }
+
   if (state !== 'flight') return;
 
+  // marée montante : dès que la première noix retombe, on rappelle les autres
+  if (mode === 'tide' && nextLaunchX !== null && (balls.length > 0 || toLaunch > 0)) {
+    toLaunch = 0;
+    for (const b of balls) b.dead = true;
+    balls = [];
+  }
+
   flightTime += dt;
+  const tideBoost = mode === 'tide' ? 1.5 : 1;
   const autoFast = Math.min(3, 1 + Math.max(0, flightTime - 9) * 0.4);
-  timeScale = Math.max(userFast ? 2.5 : 1, autoFast);
+  timeScale = Math.max(userFast ? 2.5 : tideBoost, autoFast);
   const sdt = dt * timeScale;
 
   if (toLaunch > 0) {
@@ -1062,7 +1242,7 @@ function draw(t) {
   ctx.fillRect(0, 0, W, H);
 
   drawLagoon(t, T);
-  drawTideLine(t, T);
+  if (mode !== 'puzzle') drawTideLine(t, T);
 
   const yOff = -(1 - shiftAnim);
 
@@ -1117,19 +1297,33 @@ function draw(t) {
     }
   }
 
-  // HUD : manche, score, perles
+  // HUD selon le mode
   ctx.fillStyle = T.hud;
   ctx.font = '800 ' + Math.round(cell * 0.34) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('MANCHE ' + round, 14, boardTop - 26);
+  if (mode === 'tide') {
+    const mm = Math.floor(tideTime / 60);
+    const ss = String(Math.floor(tideTime % 60)).padStart(2, '0');
+    ctx.fillStyle = tideTime <= 10 ? '#ff5a4e' : T.hud;
+    ctx.fillText(mm + ':' + ss, 14, boardTop - 26);
+    ctx.fillStyle = T.hud;
+  } else if (mode === 'puzzle') {
+    ctx.fillText('NIVEAU ' + (puzzle.idx + 1), 14, boardTop - 26);
+  } else {
+    ctx.fillText('MANCHE ' + round, 14, boardTop - 26);
+  }
   ctx.textAlign = 'center';
   ctx.font = '800 ' + Math.round(cell * 0.3) + 'px -apple-system, sans-serif';
   ctx.fillText(String(score), W / 2, boardTop - 26);
   ctx.fillStyle = T.hudSub;
   ctx.font = '700 ' + Math.round(cell * 0.22) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('◉ ' + pearls, W - 58, boardTop - 26);
+  if (mode === 'puzzle') {
+    ctx.fillText('TIRS ' + puzzle.shotsLeft, W - 58, boardTop - 26);
+  } else {
+    ctx.fillText('◉ ' + pearls, W - 58, boardTop - 26);
+  }
 
   if (state === 'flight' && timeScale > 1.05) {
     ctx.fillStyle = T.sandText;

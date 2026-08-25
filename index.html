@@ -86,19 +86,57 @@
       </svg>
     </div>
 
-    <div class="version">v0.4</div>
+    <div class="version">v0.5</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
     </div>
     <p id="home-best"></p>
     <button id="btn-resume" style="display:none">REPRENDRE</button>
-    <button id="btn-new">NOUVELLE PARTIE</button>
+    <button id="btn-play">JOUER</button>
     <button id="btn-settings" class="secondary">RÉGLAGES</button>
     <p>Glisse le doigt pour viser, relâche pour tirer.<br>
        Les pierres descendent à chaque tour : ne les laisse pas atteindre la plage&nbsp;!</p>
     <span id="offline-badge"></span>
     <div class="hint" id="install-hint"></div>
+  </div>
+
+  <div id="screen-modes" class="screen hidden">
+    <div class="settings-title">MODES DE JEU</div>
+    <button class="mode-card" id="btn-mode-classic">
+      <span class="mode-name">🥥 Classique</span>
+      <span class="mode-desc">Les pierres descendent, tiens bon le plus de manches possible.</span>
+    </button>
+    <button class="mode-card" id="btn-mode-tide">
+      <span class="mode-name">🌊 Marée montante</span>
+      <span class="mode-desc">90 secondes chrono, tirs enchaînés, la marée nettoie la plage.</span>
+    </button>
+    <button class="mode-card" id="btn-mode-puzzle">
+      <span class="mode-name">🛕 Temples</span>
+      <span class="mode-desc">Des grilles fixes à libérer en un nombre de tirs limité.</span>
+    </button>
+    <button class="mode-card" id="btn-mode-zen">
+      <span class="mode-name">🏖 Plage</span>
+      <span class="mode-desc">Sans fin ni défaite : la marée emporte les pierres du bas.</span>
+    </button>
+    <button id="btn-modes-back" class="secondary" style="margin-top:8px">RETOUR</button>
+  </div>
+
+  <div id="screen-levels" class="screen hidden">
+    <div class="settings-title">TEMPLES</div>
+    <p id="levels-progress"></p>
+    <div class="levels-grid" id="levels-grid"></div>
+    <button id="btn-levels-back" class="secondary" style="margin-top:8px">RETOUR</button>
+  </div>
+
+  <div id="screen-win" class="screen hidden">
+    <div class="over-title" style="color:var(--accent)">TEMPLE LIBÉRÉ !</div>
+    <p id="win-name"></p>
+    <div class="win-stars" id="win-stars">★★★</div>
+    <p id="win-shots"></p>
+    <button id="btn-win-next" style="margin-top:8px">NIVEAU SUIVANT</button>
+    <button id="btn-win-levels" class="secondary">TOUS LES TEMPLES</button>
+    <button id="btn-win-home" class="secondary">MENU</button>
   </div>
 
   <div id="screen-settings" class="screen hidden">
@@ -141,11 +179,11 @@
   </div>
 
   <div id="screen-over" class="screen hidden">
-    <div class="over-title">PARTIE TERMINÉE</div>
+    <div class="over-title" id="over-title">PARTIE TERMINÉE</div>
     <div class="big-score" id="over-score">0</div>
     <p id="over-best"></p>
     <div class="stats">
-      <div class="row"><span>Manche atteinte</span><b id="stat-round">1</b></div>
+      <div class="row"><span id="stat-round-label">Manche atteinte</span><b id="stat-round">1</b></div>
       <div class="row"><span>Pierres brisées</span><b id="stat-broken">0</b></div>
       <div class="row"><span>Perles gagnées ◉</span><b id="stat-pearls">0</b></div>
       <div class="row"><span>Noix de coco accumulées</span><b id="stat-balls">1</b></div>

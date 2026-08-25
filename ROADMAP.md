@@ -73,7 +73,7 @@ Et un vrai **score en points** (distinct de la manche) : points par PV
 enlevé, multiplicateur de combo quand un même tir casse beaucoup de
 briques, affiché sur l'écran de fin + record de score.
 
-## Lot 3 — Modes de jeu (v0.5) 🏝️
+## Lot 3 — Modes de jeu (v0.5) 🏝️ (livré ✅)
 
 Sélecteur de mode sur l'accueil, records séparés par mode :
 
