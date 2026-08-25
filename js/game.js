@@ -72,12 +72,15 @@ let shotId = 0;                // pour le blindage « 1 dégât par tir »
 let brokenThisShot = 0;
 let fishes = [];
 let fishTimer = 2;
-let mode = 'classic';          // classic | tide | zen | puzzle | duel | daily
+let mode = 'classic';          // classic | tide | zen | puzzle | daily | tournament
 let tideTime = 0;              // secondes restantes (marée montante)
 let puzzle = null;             // {idx, def, shotsLeft}
 let tutoActive = false;        // aides de la première partie
 
 const TIDE_DURATION = 90;
+
+/* Modes chronométrés : marée montante et tournoi entre amis. */
+const isTimed = () => mode === 'tide' || mode === 'tournament';
 
 /* Cosmétiques équipés (boutique) : peau de balle et décor. */
 let cosmetics = { ball: 'coco', decor: 'lagoon' };
@@ -94,7 +97,7 @@ function themed() {
   return Object.assign({}, T, d.overrides);
 }
 
-const SPEED = () => cell * 16 * (settings.fast ? 1.35 : 1);
+const SPEED = () => cell * 12 * (settings.fast ? 1.35 : 1);
 const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
@@ -149,6 +152,7 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   shotId = 0;
   tideTime = TIDE_DURATION;
   puzzle = null;
+  nextMilestone = 1000;
 
   tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
 
@@ -157,7 +161,7 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
     puzzle = { idx: levelIdx, def, shotsLeft: def.shots };
     ballCount = def.balls;
     loadLevel(def);
-  } else if (mode === 'tide') {
+  } else if (isTimed()) {
     // deux rangées d'entrée pour avoir des cibles tout de suite
     spawnRow();
     for (const b of blocks) b.row += 1;
@@ -220,10 +224,44 @@ export function isPlaying() {
   return state === 'aim' || state === 'flight';
 }
 
+/* Dessine une icône (bonus ou pierre) dans un petit canvas pour la légende. */
+export function drawLegendIcon(cv, kind) {
+  const c2 = cv.getContext('2d');
+  const size = cv.width;
+  const oldCtx = ctx, oldCell = cell, oldBoardTop = boardTop;
+  const T = themed();
+  ctx = c2;
+  c2.setTransform(1, 0, 0, 1, 0, 0);
+  c2.clearRect(0, 0, cv.width, cv.height);
+  try {
+    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower'].includes(kind)) {
+      cell = size * 1.35;
+      boardTop = cv.height / 2 - cell / 2;
+      c2.setTransform(1, 0, 0, 1, size / 2 - cell / 2, 0);
+      drawPowerup({ col: 0, row: 0, kind }, 0, T, 1.2);
+    } else if (kind === 'coconut-ball') {
+      cell = size;
+      drawCoconut(size / 2, cv.height / 2, size * 0.3, T);
+    } else {
+      cell = size * 0.95;
+      boardTop = cv.height / 2 - cell / 2;
+      c2.setTransform(1, 0, 0, 1, size / 2 - cell / 2, 0);
+      const hp = kind === 'mystery' ? 3 : kind === 'armored' ? 2 : kind === 'tri' ? 2 : 7;
+      drawStone({ col: 0, row: 0, hp, flash: 0, seed: 0.42, type: kind, orient: 1, lastHitShot: -1 }, 0, T);
+    }
+  } finally {
+    c2.setTransform(1, 0, 0, 1, 0, 0);
+    ctx = oldCtx;
+    cell = oldCell;
+    boardTop = oldBoardTop;
+  }
+}
+
 /* État minimal exposé pour les tests automatisés. */
 export function debugState() {
   return {
     state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
+    timeScale, accelBtn: accelBtnRect(),
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((b) => ({ col: b.col, row: b.row, hp: b.hp, type: b.type })),
     geometry: { W, boardTop, floorY, cell, deathRow },
@@ -353,7 +391,7 @@ function endTurn() {
 
   const reached = blocks.filter((b) => b.row >= deathRow);
   if (reached.length > 0) {
-    if (mode === 'classic' || mode === 'duel' || mode === 'daily') {
+    if (mode === 'classic' || mode === 'daily') {
       gameOver('line');
       return;
     }
@@ -493,9 +531,37 @@ function fire(angle) {
 let lastFiredAngle = null;
 
 // ---- score ----
+let nextMilestone = 1000;
+const CONFETTI = ['#ffd34d', '#52d332', '#3b96f5', '#f75f92', '#ff9d3c'];
+
+function addPoints(n) {
+  score += n;
+  while (score >= nextMilestone) {
+    celebrate(nextMilestone);
+    nextMilestone += 1000;
+  }
+}
+
+/* Palier franchi : bannière, confettis et gong. */
+function celebrate(value) {
+  effects.push({ type: 'milestone', text: value.toLocaleString('fr-FR') + ' pts !', life: 1 });
+  for (let i = 0; i < 26 && particles.length < MAX_PARTICLES; i++) {
+    const a = Math.random() * Math.PI * 2;
+    particles.push({
+      x: W / 2 + (Math.random() - 0.5) * cell * 2,
+      y: boardTop + (floorY - boardTop) * 0.3,
+      vx: Math.cos(a) * cell * (1 + Math.random() * 2),
+      vy: Math.sin(a) * cell * (1 + Math.random() * 2) - cell,
+      life: 1.4,
+      color: CONFETTI[i % CONFETTI.length],
+    });
+  }
+  sfx.milestone();
+}
+
 function addScore(damage) {
   const comboMult = 1 + Math.min(brokenThisShot, 10) * 0.25;
-  score += Math.round(damage * 10 * comboMult);
+  addPoints(Math.round(damage * 10 * comboMult));
 }
 
 // ---- dégâts ----
@@ -518,6 +584,13 @@ function damageBlock(b, amount, cx, cy) {
 
 const MAX_PARTICLES = 280;
 
+/* Bouton « accélérer » : apparaît sur la plage après 8 s de vol. */
+function accelBtnRect() {
+  if (state !== 'flight' || userFast || flightTime < 8) return null;
+  const w = cell * 2.6, h = cell * 0.78;
+  return { x: W / 2 - w / 2, y: floorY + Math.max(8, (H - floorY - h) / 2), w, h };
+}
+
 function breakBlock(b, style, cx, cy) {
   const idx = blocks.indexOf(b);
   if (idx === -1) return;
@@ -525,7 +598,7 @@ function breakBlock(b, style, cx, cy) {
   stats.broken += 1;
   brokenThisShot += 1;
   if (brokenThisShot > 1) {
-    score += 25 * (brokenThisShot - 1); // bonus de combo
+    addPoints(25 * (brokenThisShot - 1)); // bonus de combo
   }
   for (let p = 0; p < 9 && particles.length < MAX_PARTICLES; p++) {
     const a = (p / 9) * Math.PI * 2;
@@ -555,7 +628,7 @@ function mysteryReward(cx, cy) {
   } else if (roll < 0.85) {
     explodeAt(cx, cy, Math.max(2, Math.ceil(round / 2)));
   } else {
-    score += 250;
+    addPoints(250);
     floaters.push({ x: cx, y: cy, life: 1, text: '+250' });
   }
 }
@@ -617,6 +690,7 @@ function loadGame(m) {
     ballCount = s.ballCount || 1;
     score = s.score || 0;
     pearls = s.pearls || 0;
+    nextMilestone = (Math.floor(score / 1000) + 1) * 1000;
     launchX = Math.min(Math.max((s.launchFrac || 0.5) * W, RADIUS() + 2), W - RADIUS() - 2);
     blocks = s.blocks.map(([col, row, hp, type, orient]) => ({
       col, row, hp,
@@ -681,12 +755,20 @@ function collideBlocks(ball, r) {
       collideAABB(ball, r, rc);
     }
 
-    // anti-blocage : évite les trajectoires quasi horizontales infinies
+    // anti-blocage : jamais de trajectoire quasi horizontale (ping-pong
+    // entre les murs) ni quasi verticale (coincée sous le plafond ou
+    // contre une pierre blindée)
     const sp = SPEED();
     if (Math.abs(ball.vy) < sp * 0.02) {
       ball.vy = (ball.vy < 0 ? -1 : 1) * sp * 0.05 || -sp * 0.05;
       const k = sp / Math.hypot(ball.vx, ball.vy);
       ball.vx *= k; ball.vy *= k;
+    }
+    if (Math.abs(ball.vx) < sp * 0.02) {
+      const dir = ball.vx !== 0 ? Math.sign(ball.vx) : (ball.x < W / 2 ? 1 : -1);
+      ball.vx = dir * sp * 0.05;
+      const k2 = sp / Math.hypot(ball.vx, ball.vy);
+      ball.vx *= k2; ball.vy *= k2;
     }
 
     const wasArmoredTick = b.type === 'armored' && b.lastHitShot === shotId;
@@ -837,13 +919,14 @@ function update(dt) {
     if (f.life <= 0) floaters.splice(i, 1);
   }
   for (let i = effects.length - 1; i >= 0; i--) {
-    effects[i].life -= dt * (effects[i].type === 'sword' ? 2.2 : 1.8);
+    const rate = effects[i].type === 'sword' ? 2.2 : effects[i].type === 'milestone' ? 0.55 : 1.8;
+    effects[i].life -= dt * rate;
     if (effects[i].life <= 0) effects.splice(i, 1);
   }
   for (const b of blocks) if (b.flash > 0) b.flash = Math.max(0, b.flash - dt * 6);
 
-  // marée montante : le chrono tourne pendant la visée et le vol
-  if (mode === 'tide' && (state === 'aim' || state === 'flight')) {
+  // modes chronométrés : le chrono tourne pendant la visée et le vol
+  if (isTimed() && (state === 'aim' || state === 'flight')) {
     tideTime -= dt;
     if (tideTime <= 0) {
       tideTime = 0;
@@ -854,16 +937,16 @@ function update(dt) {
 
   if (state !== 'flight') return;
 
-  // marée montante : dès que la première noix retombe, on rappelle les autres
-  if (mode === 'tide' && nextLaunchX !== null && (balls.length > 0 || toLaunch > 0)) {
+  // modes chronométrés : dès que la première noix retombe, on rappelle les autres
+  if (isTimed() && nextLaunchX !== null && (balls.length > 0 || toLaunch > 0)) {
     toLaunch = 0;
     for (const b of balls) b.dead = true;
     balls = [];
   }
 
   flightTime += dt;
-  const tideBoost = mode === 'tide' ? 1.5 : 1;
-  const autoFast = Math.min(3, 1 + Math.max(0, flightTime - 9) * 0.4);
+  const tideBoost = isTimed() ? 1.5 : 1;
+  const autoFast = Math.min(3, 1 + Math.max(0, flightTime - 14) * 0.4);
   timeScale = Math.max(userFast ? 2.5 : tideBoost, autoFast);
   const sdt = dt * timeScale;
 
@@ -878,6 +961,18 @@ function update(dt) {
       });
       toLaunch -= 1;
       launchTimer = 0.07;
+    }
+  }
+
+  // filet de sécurité : si un tir s'éternise (rebond pathologique),
+  // on rappelle toutes les noix
+  if (flightTime > 40) {
+    toLaunch = 0;
+    for (const b of balls) {
+      if (nextLaunchX === null) {
+        nextLaunchX = Math.min(Math.max(b.x, RADIUS() + 2), W - RADIUS() - 2);
+      }
+      b.dead = true;
     }
   }
 
@@ -997,6 +1092,51 @@ function drawBall(x, y, r, T) {
         ctx.closePath();
         ctx.fill();
       }
+      break;
+    }
+    case 'starfish': {
+      ctx.fillStyle = '#f2784b';
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        const rr = i % 2 === 0 ? r * 1.05 : r * 0.5;
+        const px = x + Math.cos(a) * rr;
+        const py = y + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#c9553a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#ffb48f';
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'shell': {
+      ctx.fillStyle = '#f3e2c9';
+      ctx.beginPath();
+      ctx.moveTo(x, y + r * 0.9);
+      ctx.arc(x, y - r * 0.1, r, 0.15 * Math.PI, 0.85 * Math.PI, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#d8b990';
+      ctx.lineWidth = Math.max(1, r * 0.09);
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + r * 0.85);
+        ctx.lineTo(x + i * r * 0.4, y - r * 0.75 + Math.abs(i) * r * 0.18);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#c9a97a';
+      ctx.beginPath();
+      ctx.moveTo(x, y + r * 0.9);
+      ctx.arc(x, y - r * 0.1, r, 0.15 * Math.PI, 0.85 * Math.PI, true);
+      ctx.closePath();
+      ctx.stroke();
       break;
     }
     default:
@@ -1385,6 +1525,23 @@ function drawEffects(T) {
       ctx.lineTo(fx - 26, e.y + 8);
       ctx.closePath();
       ctx.fill();
+    } else if (e.type === 'milestone') {
+      const a = Math.min(1, e.life * 2.2);
+      const scale = 1 + (1 - e.life) * 0.25;
+      ctx.globalAlpha = a;
+      ctx.save();
+      ctx.translate(W / 2, boardTop + (floorY - boardTop) * 0.32);
+      ctx.scale(scale, scale);
+      ctx.font = '800 ' + Math.round(cell * 0.5) + 'px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(0,40,40,0.55)';
+      ctx.strokeText(e.text, 0, 0);
+      ctx.fillStyle = '#ffd34d';
+      ctx.fillText(e.text, 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 1;
     } else if (e.type === 'boom') {
       const rr = (1 - e.life) * cell * 1.6 + cell * 0.3;
       ctx.globalAlpha = Math.max(0, e.life) * 0.7;
@@ -1466,7 +1623,7 @@ function draw(t) {
   ctx.font = '800 ' + Math.round(cell * 0.34) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  if (mode === 'tide') {
+  if (isTimed()) {
     const mm = Math.floor(tideTime / 60);
     const ss = String(Math.floor(tideTime % 60)).padStart(2, '0');
     ctx.fillStyle = tideTime <= 10 ? '#ff5a4e' : T.hud;
@@ -1489,18 +1646,22 @@ function draw(t) {
     ctx.fillText('◉ ' + pearls, W - 58, boardTop - 26);
   }
 
-  if (state === 'flight' && timeScale > 1.05) {
+  const ab = accelBtnRect();
+  if (ab) {
+    roundRect(ab.x, ab.y, ab.w, ab.h, ab.h / 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 ' + Math.round(cell * 0.26) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('▶▶ ACCÉLÉRER', ab.x + ab.w / 2, ab.y + ab.h / 2 + 1);
+  } else if (state === 'flight' && timeScale > 1.05) {
     ctx.fillStyle = T.sandText;
     ctx.font = '700 ' + Math.round(cell * 0.22) + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillText('▶▶', W / 2, floorY + 44);
-  } else if (state === 'flight') {
-    ctx.fillStyle = T.sandText;
-    ctx.globalAlpha = 0.7;
-    ctx.font = '600 ' + Math.round(cell * 0.2) + 'px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('touche l\'écran pour accélérer', W / 2, floorY + 44);
-    ctx.globalAlpha = 1;
   }
   if (chiliActive && state === 'flight') {
     ctx.fillStyle = '#e33f2b';
@@ -1589,7 +1750,14 @@ function wireInput() {
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     initAudio();
-    if (state === 'flight') { userFast = true; return; }
+    if (state === 'flight') {
+      const b = accelBtnRect();
+      if (b && e.clientX >= b.x && e.clientX <= b.x + b.w
+        && e.clientY >= b.y && e.clientY <= b.y + b.h) {
+        userFast = true;
+      }
+      return;
+    }
     if (state !== 'aim') return;
     aim = { sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, valid: false, angle: Math.PI / 2 };
   });

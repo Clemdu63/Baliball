@@ -33,6 +33,7 @@
   <canvas id="game"></canvas>
 
   <button id="btn-home" class="hidden" aria-label="Menu">⌂</button>
+  <button id="btn-restart" class="hidden" aria-label="Recommencer">⟲</button>
 
   <div id="screen-home" class="screen">
     <div class="scene" aria-hidden="true">
@@ -86,7 +87,7 @@
       </svg>
     </div>
 
-    <div class="version">v1.0</div>
+    <div class="version">v1.1</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -97,6 +98,7 @@
     <div class="home-row">
       <button id="btn-shop" class="secondary">BOUTIQUE</button>
       <button id="btn-progress" class="secondary">PROGRÈS</button>
+      <button id="btn-legend" class="secondary">LÉGENDE</button>
       <button id="btn-settings" class="secondary">RÉGLAGES</button>
     </div>
     <p>Glisse le doigt pour viser, relâche pour tirer.<br>
@@ -127,9 +129,9 @@
       <span class="mode-name">🌅 Défi du jour</span>
       <span class="mode-desc">La même partie pour tout le monde — une nouvelle chaque jour.</span>
     </button>
-    <button class="mode-card" id="btn-mode-duel">
-      <span class="mode-name">🤝 Duel de plage</span>
-      <span class="mode-desc">2 joueurs, un seul téléphone, les mêmes pierres : qui tiendra le plus longtemps ?</span>
+    <button class="mode-card" id="btn-mode-tournoi">
+      <span class="mode-name">📡 Tournoi entre amis</span>
+      <span class="mode-desc">2 à 10 téléphones, un code à partager : mêmes pierres, 90 secondes, que le meilleur gagne.</span>
     </button>
     <button id="btn-modes-back" class="secondary" style="margin-top:8px">RETOUR</button>
   </div>
@@ -156,33 +158,61 @@
     <button id="btn-progress-back" class="secondary">RETOUR</button>
   </div>
 
-  <div id="screen-duel-intro" class="screen hidden">
-    <div class="settings-title">🤝 DUEL DE PLAGE</div>
-    <p>Chaque joueur affronte <strong>exactement les mêmes pierres</strong>,
-       l'un après l'autre, sur ce téléphone.<br><br>
-       Celui qui survit le plus de manches gagne — en cas d'égalité,
-       le score départage.</p>
-    <button id="btn-duel-start" style="margin-top:8px">JOUEUR 1 COMMENCE</button>
-    <button id="btn-duel-back" class="secondary">RETOUR</button>
+  <div id="screen-tournoi" class="screen hidden">
+    <div class="settings-title">📡 TOURNOI ENTRE AMIS</div>
+    <p>Chaque téléphone joue <strong>exactement la même partie de 90 secondes</strong>,
+       en même temps, grâce à un code partagé.<br><br>
+       Un joueur crée la partie et dicte son code aux autres ; quand tout le
+       monde est prêt, lancez le décompte ensemble — à la fin, comparez vos
+       scores. Aucune connexion nécessaire.</p>
+    <button id="btn-tournoi-host" style="margin-top:8px">CRÉER UNE PARTIE</button>
+    <button id="btn-tournoi-join" class="secondary">REJOINDRE AVEC UN CODE</button>
+    <button id="btn-tournoi-back" class="secondary">RETOUR</button>
   </div>
 
-  <div id="screen-handoff" class="screen hidden">
-    <div class="settings-title">À TOI, JOUEUR 2 !</div>
-    <div class="stats">
-      <div class="row"><span>Joueur 1</span><b id="handoff-p1"></b></div>
-    </div>
-    <p>Passe le téléphone au joueur 2.<br>Les mêmes pierres t'attendent…</p>
-    <button id="btn-handoff-go" style="margin-top:8px">JOUEUR 2, GO !</button>
+  <div id="screen-tournoi-host" class="screen hidden">
+    <div class="settings-title">CODE DE LA PARTIE</div>
+    <div class="tournoi-code" id="tournoi-code">BALI</div>
+    <p>Dicte ce code aux autres joueurs.<br>
+       Quand tout le monde a rejoint, lancez le décompte <strong>en même
+       temps</strong> (« 3, 2, 1… » à voix haute&nbsp;!).</p>
+    <button id="btn-host-go" style="margin-top:8px">LANCER LE DÉCOMPTE</button>
+    <button id="btn-host-back" class="secondary">RETOUR</button>
   </div>
 
-  <div id="screen-duel-result" class="screen hidden">
-    <div class="over-title" id="duel-winner" style="color:var(--accent)">ÉGALITÉ</div>
-    <div class="stats">
-      <div class="row"><span>Joueur 1</span><b id="result-p1"></b></div>
-      <div class="row"><span>Joueur 2</span><b id="result-p2"></b></div>
+  <div id="screen-tournoi-join" class="screen hidden">
+    <div class="settings-title">REJOINDRE</div>
+    <p>Entre le code dicté par le créateur de la partie :</p>
+    <input id="join-code" class="code-input" maxlength="4" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" placeholder="ABCD">
+    <p id="join-error" class="join-error"></p>
+    <button id="btn-join-go" style="margin-top:8px">LANCER LE DÉCOMPTE</button>
+    <button id="btn-join-back" class="secondary">RETOUR</button>
+  </div>
+
+  <div id="screen-countdown" class="screen hidden">
+    <div class="countdown-num" id="countdown-num">3</div>
+  </div>
+
+  <div id="screen-legend" class="screen hidden">
+    <div class="settings-title">LÉGENDE</div>
+    <div class="shop-scroll">
+      <div class="setting"><div class="label">BONUS À RAMASSER</div></div>
+      <div id="legend-powerups" class="shop-list"></div>
+      <div class="setting" style="margin-top:6px"><div class="label">PIERRES</div></div>
+      <div id="legend-stones" class="shop-list"></div>
+      <p style="font-size:13px">La ligne d'écume marque la marée : en Classique et
+         au Défi du jour, une pierre qui l'atteint met fin à la partie.
+         En Plage et en Tournoi, la marée emporte les pierres du bas.</p>
     </div>
-    <button id="btn-duel-again" style="margin-top:8px">REVANCHE</button>
-    <button id="btn-duel-home" class="secondary">MENU</button>
+    <button id="btn-legend-back" class="secondary">RETOUR</button>
+  </div>
+
+  <div id="screen-confirm" class="screen hidden">
+    <div class="settings-title">RECOMMENCER ?</div>
+    <p>La partie en cours sera perdue.</p>
+    <button id="btn-confirm-yes" style="margin-top:8px">OUI, RECOMMENCER</button>
+    <button id="btn-confirm-no" class="secondary">ANNULER</button>
   </div>
 
   <div id="screen-levels" class="screen hidden">

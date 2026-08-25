@@ -95,6 +95,16 @@ export const DECORS = {
       sand: '#e8c98e', sandDark: '#d5b273', sandText: '#7c5f36',
     },
   },
+  biolum: {
+    name: 'Bioluminescence', emoji: '🪼', unlock: 8000,
+    overrides: {
+      waterTop: '#04202c', waterBottom: '#0d4a52',
+      caustic: 'rgba(80,255,220,0.08)', sparkle: 'rgba(110,255,225,0.9)',
+      sand: '#24343c', sandDark: '#1b2930', sandText: '#bfe8dc',
+      fish: 'rgba(140,255,230,0.25)',
+      foam: 'rgba(160,255,235,0.55)', tideFoam: 'rgba(160,255,235,0.35)',
+    },
+  },
 };
 
 let themeMode = 'auto';

@@ -33,19 +33,27 @@ fichier audio.
 - **🏖 Plage** — zen, sans défaite : idéal en avion.
 - **🌅 Défi du jour** — la même partie pour tout le monde, une nouvelle
   chaque jour (graine de la date, donc jouable hors ligne).
-- **🤝 Duel de plage** — 2 joueurs sur un seul téléphone, exactement les
-  mêmes pierres pour chacun.
+- **📡 Tournoi entre amis** — 2 à 10 téléphones : un code de 4 lettres à
+  partager, tout le monde lance le décompte en même temps et joue
+  exactement la même partie de 90 secondes, puis on compare les scores.
+  Aucune connexion nécessaire (une PWA Safari n'a pas accès au
+  Bluetooth/réseau local, le code partagé remplace la synchronisation).
 
 ## Progression
 
 Les **perles ◉** gagnées en jeu s'échangent à la **Boutique** contre des
 peaux de balle (ballon de plage, frangipanier, lampion, durian) et des
 décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant).
-L'écran **Progrès** suit les statistiques cumulées et 12 succès. Le score
-d'une partie se **partage en image** générée hors ligne.
+L'écran **Progrès** suit les statistiques cumulées et 12 succès. Tous les
+1 000 points, une célébration marque le palier — et certains cosmétiques
+se **débloquent au score** (étoile de mer à 2 500, coquillage à 5 000,
+décor Bioluminescence à 8 000). Le score d'une partie se **partage en
+image** générée hors ligne.
 - À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
   la partie est perdue quand une pierre atteint la plage.
-- Pendant le vol, **touche l'écran** pour accélérer.
+- Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.
+- En jeu : **⟲** recommence la partie (avec confirmation), **⌂** revient au
+  menu ; l'écran **Légende** rappelle l'effet de chaque bonus et pierre.
 - La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
   (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
 - Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,

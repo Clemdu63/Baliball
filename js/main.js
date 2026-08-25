@@ -1,26 +1,40 @@
-/* Écrans, modes de jeu, réglages et démarrage. */
+/* Écrans, modes de jeu, boutique, tournoi, réglages et démarrage. */
 
 import { settings, persistSettings, KEYS, loadJSON, store } from './storage.js';
 import { setThemeMode, DECORS } from './theme.js';
-import { initAudio, syncAmbience } from './audio.js';
+import { initAudio, syncAmbience, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
-  'screen-over', 'screen-win', 'screen-duel-intro', 'screen-handoff', 'screen-duel-result',
-  'screen-shop', 'screen-progress'];
+  'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
+  'screen-tournoi', 'screen-tournoi-host', 'screen-tournoi-join', 'screen-countdown',
+  'screen-confirm'];
 
 setThemeMode(settings.theme);
 
 function show(id) {
   for (const s of SCREENS) $(s).classList.toggle('hidden', s !== id);
   $('btn-home').classList.add('hidden');
+  $('btn-restart').classList.add('hidden');
 }
 
 function showGame() {
   for (const s of SCREENS) $(s).classList.add('hidden');
   $('btn-home').classList.remove('hidden');
+  $('btn-restart').classList.remove('hidden');
+}
+
+/* Derniers paramètres de partie : sert à REJOUER et à RECOMMENCER
+   (indispensable pour rejouer la même graine en Défi du jour / Tournoi). */
+let lastStart = { mode: 'classic', level: 0, seed: null };
+
+function startGame(mode, level = 0, seed = null) {
+  initAudio();
+  lastStart = { mode, level, seed };
+  game.newGame(mode, level, seed);
+  showGame();
 }
 
 function refreshHome() {
@@ -44,22 +58,21 @@ $('btn-play').addEventListener('click', () => show('screen-modes'));
 $('btn-resume').addEventListener('click', () => {
   initAudio();
   const saved = game.savedMode();
-  if (!saved || !game.resumeGame(saved)) game.newGame('classic');
+  if (saved && game.resumeGame(saved)) {
+    lastStart = { mode: saved, level: 0, seed: null };
+  } else {
+    lastStart = { mode: 'classic', level: 0, seed: null };
+    game.newGame('classic');
+  }
   showGame();
 });
 
 $('btn-settings').addEventListener('click', () => show('screen-settings'));
 
 // ---- choix du mode ----
-function startMode(m) {
-  initAudio();
-  game.newGame(m);
-  showGame();
-}
-
-$('btn-mode-classic').addEventListener('click', () => startMode('classic'));
-$('btn-mode-tide').addEventListener('click', () => startMode('tide'));
-$('btn-mode-zen').addEventListener('click', () => startMode('zen'));
+$('btn-mode-classic').addEventListener('click', () => startGame('classic'));
+$('btn-mode-tide').addEventListener('click', () => startGame('tide'));
+$('btn-mode-zen').addEventListener('click', () => startGame('zen'));
 $('btn-mode-puzzle').addEventListener('click', () => {
   renderLevels();
   show('screen-levels');
@@ -69,71 +82,106 @@ $('btn-modes-back').addEventListener('click', () => {
   show('screen-home');
 });
 
-// ---- duel de plage (2 joueurs, tour par tour, même graine) ----
-let duel = null;
-
-function startDuelGame() {
-  initAudio();
-  game.newGame('duel', 0, duel.seed);
-  showGame();
-}
-
-$('btn-mode-duel').addEventListener('click', () => show('screen-duel-intro'));
-$('btn-duel-back').addEventListener('click', () => show('screen-modes'));
-$('btn-duel-start').addEventListener('click', () => {
-  duel = { seed: Math.floor(Math.random() * 2 ** 31), phase: 1, p1: null };
-  startDuelGame();
-});
-$('btn-handoff-go').addEventListener('click', () => {
-  duel.phase = 2;
-  startDuelGame();
-});
-$('btn-duel-again').addEventListener('click', () => {
-  duel = { seed: Math.floor(Math.random() * 2 ** 31), phase: 1, p1: null };
-  startDuelGame();
-});
-$('btn-duel-home').addEventListener('click', () => {
-  duel = null;
-  refreshHome();
-  show('screen-home');
-});
-
-function playerLine(p) {
-  return 'manche ' + p.round + ' · ' + p.score + ' pts';
-}
-
-function endDuelGame(s) {
-  const me = { round: s.round, score: s.score };
-  if (duel && duel.phase === 1) {
-    duel.p1 = me;
-    $('handoff-p1').textContent = playerLine(me);
-    show('screen-handoff');
-    return;
-  }
-  if (duel && duel.phase === 2) {
-    const p1 = duel.p1;
-    let title = 'ÉGALITÉ PARFAITE !';
-    if (p1.round !== me.round) title = p1.round > me.round ? 'JOUEUR 1 GAGNE !' : 'JOUEUR 2 GAGNE !';
-    else if (p1.score !== me.score) title = p1.score > me.score ? 'JOUEUR 1 GAGNE !' : 'JOUEUR 2 GAGNE !';
-    $('duel-winner').textContent = title;
-    $('result-p1').textContent = playerLine(p1);
-    $('result-p2').textContent = playerLine(me);
-    show('screen-duel-result');
-    return;
-  }
-  // duel abandonné entre-temps : retour au menu
-  refreshHome();
-  show('screen-home');
-}
-
 // ---- défi du jour ----
-$('btn-mode-daily').addEventListener('click', () => {
-  initAudio();
+function dailySeed() {
   const d = new Date();
-  const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-  game.newGame('daily', 0, seed);
-  showGame();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+$('btn-mode-daily').addEventListener('click', () => startGame('daily', 0, dailySeed()));
+
+// ---- tournoi entre amis (plusieurs téléphones, même code) ----
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function newTournoiCode() {
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+function codeSeed(code) {
+  let h = 2166136261;
+  for (const ch of code) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+let tournoiCode = null;
+
+$('btn-mode-tournoi').addEventListener('click', () => show('screen-tournoi'));
+$('btn-tournoi-back').addEventListener('click', () => show('screen-modes'));
+
+$('btn-tournoi-host').addEventListener('click', () => {
+  tournoiCode = newTournoiCode();
+  $('tournoi-code').textContent = tournoiCode;
+  show('screen-tournoi-host');
 });
+$('btn-host-back').addEventListener('click', () => show('screen-tournoi'));
+$('btn-host-go').addEventListener('click', () => startCountdown(tournoiCode));
+
+$('btn-tournoi-join').addEventListener('click', () => {
+  $('join-code').value = '';
+  $('join-error').textContent = '';
+  show('screen-tournoi-join');
+});
+$('btn-join-back').addEventListener('click', () => show('screen-tournoi'));
+$('btn-join-go').addEventListener('click', () => {
+  const code = $('join-code').value.trim().toUpperCase();
+  if (code.length !== 4 || [...code].some((c) => !CODE_ALPHABET.includes(c))) {
+    $('join-error').textContent = 'Code invalide : 4 lettres/chiffres (sans I, L, O, 0, 1).';
+    return;
+  }
+  startCountdown(code);
+});
+
+function startCountdown(code) {
+  initAudio();
+  show('screen-countdown');
+  let n = 3;
+  $('countdown-num').textContent = String(n);
+  sfx.newRow();
+  const timer = setInterval(() => {
+    n -= 1;
+    if (n > 0) {
+      $('countdown-num').textContent = String(n);
+      sfx.newRow();
+    } else {
+      clearInterval(timer);
+      sfx.bonus();
+      startGame('tournament', 0, codeSeed(code));
+    }
+  }, 1000);
+}
+
+// ---- niveaux du mode Temples ----
+function renderLevels() {
+  const prog = loadJSON(KEYS.PUZZLE, { unlocked: 1, stars: {} });
+  const grid = $('levels-grid');
+  grid.innerHTML = '';
+  let earned = 0;
+  LEVELS.forEach((def, i) => {
+    const unlocked = i < (prog.unlocked || 1);
+    const stars = prog.stars[i] || 0;
+    earned += stars;
+    const btn = document.createElement('button');
+    btn.className = 'level-btn' + (unlocked ? '' : ' locked');
+    btn.disabled = !unlocked;
+    btn.innerHTML = '<span class="level-num">' + (unlocked ? (i + 1) : '🔒') + '</span>'
+      + '<span class="level-stars">' + '★'.repeat(stars) + '<span class="dim">'
+      + '★'.repeat(unlocked ? 3 - stars : 0) + '</span></span>';
+    if (unlocked) {
+      btn.addEventListener('click', () => startGame('puzzle', i));
+    }
+    grid.appendChild(btn);
+  });
+  $('levels-progress').textContent = earned + ' ★ sur ' + LEVELS.length * 3;
+}
+
+$('btn-levels-back').addEventListener('click', () => show('screen-modes'));
 
 // ---- boutique ----
 const BALL_SKINS = {
@@ -142,6 +190,8 @@ const BALL_SKINS = {
   flower: { name: 'Frangipanier', emoji: '🌸', price: 80 },
   lantern: { name: 'Lampion', emoji: '🏮', price: 100 },
   durian: { name: 'Durian', emoji: '🍈', price: 120 },
+  starfish: { name: 'Étoile de mer', emoji: '⭐', unlock: 2500 },
+  shell: { name: 'Coquillage', emoji: '🐚', unlock: 5000 },
 };
 
 let shop = loadJSON(KEYS.SHOP, { owned: ['coco', 'lagoon'], ball: 'coco', decor: 'lagoon' });
@@ -151,17 +201,25 @@ function wallet() {
   return parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
 }
 
+function cumulativeBestScore() {
+  return loadJSON(KEYS.STATS, {}).bestScore || 0;
+}
+
 function persistShop() {
   store.set(KEYS.SHOP, JSON.stringify(shop));
   game.setCosmetics(shop);
 }
 
 function shopItem(id, def, kind) {
-  const owned = shop.owned.includes(id);
+  const scoreUnlocked = def.unlock !== undefined && cumulativeBestScore() >= def.unlock;
+  const owned = shop.owned.includes(id) || scoreUnlocked;
   const equipped = shop[kind] === id;
   const div = document.createElement('div');
   div.className = 'shop-item';
-  const sub = equipped ? 'Équipé' : owned ? 'Possédé' : '◉ ' + def.price;
+  const sub = equipped ? 'Équipé'
+    : owned ? 'Possédé'
+      : def.unlock !== undefined ? 'Se débloque à ' + def.unlock + ' pts en une partie'
+        : '◉ ' + def.price;
   div.innerHTML = '<span class="shop-emoji">' + def.emoji + '</span>'
     + '<span class="shop-info"><span class="shop-name">' + def.name + '</span>'
     + '<span class="shop-sub">' + sub + '</span></span>';
@@ -178,6 +236,10 @@ function shopItem(id, def, kind) {
       persistShop();
       renderShop();
     });
+  } else if (def.unlock !== undefined) {
+    btn.textContent = '🔒';
+    btn.className = 'owned';
+    btn.disabled = true;
   } else {
     btn.textContent = 'ACHETER';
     btn.disabled = wallet() < def.price;
@@ -214,6 +276,57 @@ $('btn-shop').addEventListener('click', () => {
   show('screen-shop');
 });
 $('btn-shop-back').addEventListener('click', () => {
+  refreshHome();
+  show('screen-home');
+});
+
+// ---- légende ----
+const LEGEND_POWERUPS = [
+  ['ball', '+1 noix de coco', 'Une noix de plus dans ta rafale, dès le tour suivant.'],
+  ['sword', 'Espadon', 'File le long de sa ligne et détruit tout sur son passage.'],
+  ['durian', 'Durian', 'Explose et blesse toutes les pierres voisines.'],
+  ['chili', 'Piment', 'Dégâts doublés jusqu\'à la fin du tir.'],
+  ['pearl', 'Perle', 'Monnaie de la boutique (skins et décors).'],
+  ['flower', 'Frangipanier', 'Renvoie la noix qui la touche tout droit vers le haut.'],
+];
+
+const LEGEND_STONES = [
+  ['stone', 'Pierre de temple', 'Perd 1 PV par impact ; son style change avec sa solidité (grès, mousse, volcanique, dorée).'],
+  ['tri', 'Toit de temple', 'Demi-pierre : l\'hypoténuse renvoie la noix en diagonale.'],
+  ['armored', 'Pierre volcanique', 'Blindée : elle n\'encaisse qu\'1 dégât par tir, quelle que soit la pluie de noix.'],
+  ['mystery', 'Pierre mystère', 'Révèle une surprise en se brisant : noix, perles, explosion ou points.'],
+];
+
+function legendRow([kind, name, desc]) {
+  const div = document.createElement('div');
+  div.className = 'legend-item';
+  const cv = document.createElement('canvas');
+  cv.width = 88;
+  cv.height = 88;
+  game.drawLegendIcon(cv, kind);
+  div.appendChild(cv);
+  const info = document.createElement('span');
+  info.className = 'legend-info';
+  info.innerHTML = '<div class="legend-name">' + name + '</div>'
+    + '<div class="legend-desc">' + desc + '</div>';
+  div.appendChild(info);
+  return div;
+}
+
+function renderLegend() {
+  const p = $('legend-powerups');
+  p.innerHTML = '';
+  for (const row of LEGEND_POWERUPS) p.appendChild(legendRow(row));
+  const s = $('legend-stones');
+  s.innerHTML = '';
+  for (const row of LEGEND_STONES) s.appendChild(legendRow(row));
+}
+
+$('btn-legend').addEventListener('click', () => {
+  renderLegend();
+  show('screen-legend');
+});
+$('btn-legend-back').addEventListener('click', () => {
   refreshHome();
   show('screen-home');
 });
@@ -269,42 +382,18 @@ $('btn-progress-back').addEventListener('click', () => {
   show('screen-home');
 });
 
-// ---- niveaux du mode Temples ----
-function renderLevels() {
-  const prog = loadJSON(KEYS.PUZZLE, { unlocked: 1, stars: {} });
-  const grid = $('levels-grid');
-  grid.innerHTML = '';
-  let earned = 0;
-  LEVELS.forEach((def, i) => {
-    const unlocked = i < (prog.unlocked || 1);
-    const stars = prog.stars[i] || 0;
-    earned += stars;
-    const btn = document.createElement('button');
-    btn.className = 'level-btn' + (unlocked ? '' : ' locked');
-    btn.disabled = !unlocked;
-    btn.innerHTML = '<span class="level-num">' + (unlocked ? (i + 1) : '🔒') + '</span>'
-      + '<span class="level-stars">' + '★'.repeat(stars) + '<span class="dim">'
-      + '★'.repeat(unlocked ? 3 - stars : 0) + '</span></span>';
-    if (unlocked) {
-      btn.addEventListener('click', () => {
-        initAudio();
-        game.newGame('puzzle', i);
-        showGame();
-      });
-    }
-    grid.appendChild(btn);
-  });
-  $('levels-progress').textContent = earned + ' ★ sur ' + LEVELS.length * 3;
-}
-
-$('btn-levels-back').addEventListener('click', () => show('screen-modes'));
-
-// ---- bouton accueil en jeu ----
+// ---- boutons accueil / recommencer en jeu ----
 $('btn-home').addEventListener('click', () => {
   game.toMenu();
-  duel = null; // quitter en plein duel l'abandonne
   refreshHome();
   show('screen-home');
+});
+
+$('btn-restart').addEventListener('click', () => show('screen-confirm'));
+$('btn-confirm-no').addEventListener('click', () => showGame());
+$('btn-confirm-yes').addEventListener('click', () => {
+  game.newGame(lastStart.mode, lastStart.level, lastStart.seed);
+  showGame();
 });
 
 // ---- fin de partie ----
@@ -314,16 +403,26 @@ const OVER_TITLES = {
   shots: 'PLUS DE TIRS',
 };
 
+/* Cosmétiques débloqués par un score en une partie. */
+const SCORE_UNLOCKS = [
+  { threshold: 2500, label: '⭐ Étoile de mer débloquée !' },
+  { threshold: 5000, label: '🐚 Coquillage débloqué !' },
+  { threshold: 8000, label: '🪼 Décor Bioluminescence débloqué !' },
+];
+
+let bestScoreAtStart = cumulativeBestScore();
+let lastOver = null;
+
 game.initGame($('game'), {
   onGameOver(s) {
-    if (s.mode === 'duel') {
-      endDuelGame(s);
-      return;
-    }
     $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
     if (s.mode === 'tide') {
       $('over-best').textContent = 'Record marée : ' + s.tideBest + ' pts';
+      $('stat-round-label').textContent = 'Manches jouées';
+      $('stat-round').textContent = String(s.round);
+    } else if (s.mode === 'tournament') {
+      $('over-best').textContent = '📡 Comparez vos scores !';
       $('stat-round-label').textContent = 'Manches jouées';
       $('stat-round').textContent = String(s.round);
     } else if (s.mode === 'puzzle') {
@@ -339,13 +438,18 @@ game.initGame($('game'), {
       $('stat-round-label').textContent = 'Manche atteinte';
       $('stat-round').textContent = String(s.round);
     }
+    // nouveaux cosmétiques débloqués par ce score ?
+    const newUnlocks = SCORE_UNLOCKS
+      .filter((u) => u.threshold > bestScoreAtStart && s.score >= u.threshold)
+      .map((u) => u.label);
+    if (newUnlocks.length) {
+      $('over-best').textContent += ' — ' + newUnlocks.join(' · ');
+    }
+    bestScoreAtStart = cumulativeBestScore();
     $('stat-broken').textContent = String(s.broken);
     $('stat-pearls').textContent = String(s.pearls);
     $('stat-balls').textContent = String(s.balls);
     $('stat-shots').textContent = String(s.shots);
-    const retry = $('btn-retry');
-    retry.dataset.mode = s.mode;
-    retry.dataset.level = String(s.level || 0);
     lastOver = s;
     show('screen-over');
   },
@@ -360,11 +464,12 @@ game.initGame($('game'), {
   },
 });
 
-$('btn-retry').addEventListener('click', (e) => {
-  const m = e.currentTarget.dataset.mode || 'classic';
-  const lvl = parseInt(e.currentTarget.dataset.level || '0', 10);
-  game.newGame(m, lvl);
-  showGame();
+$('btn-retry').addEventListener('click', () => {
+  if (lastStart.mode === 'tournament') {
+    show('screen-tournoi');
+    return;
+  }
+  startGame(lastStart.mode, lastStart.level, lastStart.seed);
 });
 
 $('btn-over-home').addEventListener('click', () => {
@@ -372,12 +477,23 @@ $('btn-over-home').addEventListener('click', () => {
   show('screen-home');
 });
 
-// ---- partage du score (image générée hors ligne) ----
-let lastOver = null;
+$('btn-win-next').addEventListener('click', (e) => {
+  const next = parseInt(e.currentTarget.dataset.next || '0', 10);
+  startGame('puzzle', next);
+});
+$('btn-win-levels').addEventListener('click', () => {
+  renderLevels();
+  show('screen-levels');
+});
+$('btn-win-home').addEventListener('click', () => {
+  refreshHome();
+  show('screen-home');
+});
 
+// ---- partage du score (image générée hors ligne) ----
 const MODE_LABELS = {
   classic: 'Mode classique', tide: 'Marée montante', puzzle: 'Temples',
-  zen: 'Plage', daily: 'Défi du jour', duel: 'Duel de plage',
+  zen: 'Plage', daily: 'Défi du jour', tournament: 'Tournoi entre amis',
 };
 
 function shareCardBlob(s) {
@@ -385,7 +501,6 @@ function shareCardBlob(s) {
   c.width = 720;
   c.height = 900;
   const x = c.getContext('2d');
-  // ciel → mer → plage
   const sky = x.createLinearGradient(0, 0, 0, 520);
   sky.addColorStop(0, '#bfe9ef');
   sky.addColorStop(1, '#eef9f0');
@@ -410,13 +525,11 @@ function shareCardBlob(s) {
   x.fillRect(0, 700, 720, 200);
   x.fillStyle = 'rgba(255,255,255,0.8)';
   x.fillRect(0, 696, 720, 6);
-  // noix de coco
   x.fillStyle = '#7a5230';
   x.beginPath(); x.arc(360, 620, 46, 0, Math.PI * 2); x.fill();
   x.strokeStyle = '#55361c'; x.lineWidth = 6; x.stroke();
   x.fillStyle = '#a3794e';
   x.beginPath(); x.arc(344, 604, 18, 0, Math.PI * 2); x.fill();
-  // textes
   x.textAlign = 'center';
   x.fillStyle = '#0d4b43';
   x.font = '800 64px -apple-system, sans-serif';
@@ -461,20 +574,6 @@ $('btn-share').addEventListener('click', async () => {
       URL.revokeObjectURL(a.href);
     }
   } catch (e) { /* partage annulé */ }
-});
-
-$('btn-win-next').addEventListener('click', (e) => {
-  const next = parseInt(e.currentTarget.dataset.next || '0', 10);
-  game.newGame('puzzle', next);
-  showGame();
-});
-$('btn-win-levels').addEventListener('click', () => {
-  renderLevels();
-  show('screen-levels');
-});
-$('btn-win-home').addEventListener('click', () => {
-  refreshHome();
-  show('screen-home');
 });
 
 // ---- réglages ----

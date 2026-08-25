@@ -98,6 +98,12 @@ export const sfx = {
   pearl() { strike(note(4) * 2, { t: 0.35, g: 0.045 }); },
   flower() { strike(note(1), { t: 0.22, g: 0.04 }); strike(note(3), { t: 0.28, g: 0.04, when: 0.06 }); },
   mystery() { strike(note(0), { t: 0.2, g: 0.04 }); strike(note(4), { t: 0.3, g: 0.045, when: 0.08 }); },
+  milestone() {
+    strike(131, { t: 0.7, g: 0.07 });
+    strike(note(0), { t: 0.25, g: 0.05, when: 0.08 });
+    strike(note(2), { t: 0.25, g: 0.05, when: 0.18 });
+    strike(note(4), { t: 0.4, g: 0.055, when: 0.28 });
+  },
 };
 
 /* ---- ressac (boucle de bruit filtré, volume modulé lentement) ---- */
