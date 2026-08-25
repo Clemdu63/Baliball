@@ -1,9 +1,12 @@
 /* Moteur et rendu du jeu (canvas) — thème Bali.
    Le plateau est un lagon : les pierres de temple descendent dans l'eau
    claire vers la plage, et on les casse à coups de noix de coco.
-   - Glisse pour viser, relâche pour tirer
-   - Les pierres perdent 1 PV par impact, tout descend à chaque tour
-   - Petite noix cerclée : +1 noix de coco pour les tours suivants */
+
+   Pierres : normales, toit de temple (triangle), volcanique blindée
+   (1 dégât max par tir), mystère (bonus surprise à la casse).
+   Bonus flottants : +1 noix, espadon (nettoie la ligne), durian (explose
+   les voisines), piment (dégâts x2 le reste du tir), perle (monnaie),
+   fleur de frangipanier (renvoie la noix tout droit vers le haut). */
 
 import { store, KEYS, settings } from './storage.js';
 import { getTheme, stoneStyle } from './theme.js';
@@ -44,28 +47,37 @@ let round = 1;
 let ballCount = 1;
 let launchX = 0;
 let nextLaunchX = null;
-let blocks = [];               // {col, row, hp, flash, seed}
-let bonuses = [];              // {col, row}
-let balls = [];                // {x, y, vx, vy, dead}
+let blocks = [];               // {col,row,hp,flash,seed,type,orient?,lastHitShot?}
+let powerups = [];             // {col,row,kind}
+let balls = [];                // {x,y,vx,vy,dead}
 let toLaunch = 0;
 let launchTimer = 0;
-let collectedThisTurn = 0;
+let collectedThisTurn = 0;     // +1 noix ramassées pendant le tir
 let aim = null;
 let timeScale = 1;
 let userFast = false;
 let flightTime = 0;
 let shiftAnim = 1;
 let best = parseInt(store.get(KEYS.BEST) || '0', 10) || 0;
+let bestScore = parseInt(store.get(KEYS.BEST_SCORE) || '0', 10) || 0;
 let particles = [];
 let floaters = [];
+let effects = [];              // {type:'sword', y, x, dir, life} | {type:'boom', x, y, life}
 let stats = { broken: 0, shots: 0 };
-let fishes = [];               // décor : {x, y, dir, speed, size, phase}
+let score = 0;
+let pearls = 0;                // perles gagnées dans cette partie
+let chiliActive = false;       // dégâts x2 jusqu'à la fin du tir
+let shotId = 0;                // pour le blindage « 1 dégât par tir »
+let brokenThisShot = 0;
+let fishes = [];
 let fishTimer = 2;
 
 const SPEED = () => cell * 16 * (settings.fast ? 1.35 : 1);
 const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
+
+const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower'];
 
 // ---- API ----
 export function initGame(canvasEl, h) {
@@ -84,14 +96,19 @@ export function newGame() {
   launchX = W / 2;
   nextLaunchX = null;
   blocks = [];
-  bonuses = [];
+  powerups = [];
   balls = [];
   toLaunch = 0;
   collectedThisTurn = 0;
   particles = [];
   floaters = [];
+  effects = [];
   shiftAnim = 1;
   stats = { broken: 0, shots: 0 };
+  score = 0;
+  pearls = 0;
+  chiliActive = false;
+  shotId = 0;
   spawnRow();
   state = 'aim';
   saveGame();
@@ -109,6 +126,10 @@ export function getBest() {
   return best;
 }
 
+export function getBestScore() {
+  return bestScore;
+}
+
 export function toMenu() {
   // quitter en plein vol : on retrouvera le début du tour à la reprise
   state = 'menu';
@@ -117,6 +138,7 @@ export function toMenu() {
   aim = null;
   timeScale = 1;
   userFast = false;
+  chiliActive = false;
 }
 
 export function isPlaying() {
@@ -134,10 +156,10 @@ function blockRect(b, yOffset) {
   };
 }
 
-function bonusCenter(bn, yOffset) {
+function powerupCenter(p, yOffset) {
   return {
-    x: (bn.col + 0.5) * cell,
-    y: boardTop + (bn.row + 0.5 + yOffset) * cell,
+    x: (p.col + 0.5) * cell,
+    y: boardTop + (p.row + 0.5 + yOffset) * cell,
   };
 }
 
@@ -150,17 +172,35 @@ function spawnRow() {
   }
   const n = 2 + Math.floor(Math.random() * 4);
   for (let i = 0; i < n; i++) {
-    const hp = Math.random() < 0.18 ? round * 2 : round;
-    blocks.push({ col: cols[i], row: 0, hp, flash: 0, seed: Math.random() });
+    const roll = Math.random();
+    let type = 'stone';
+    if (roll < 0.10 && round >= 4) type = 'armored';
+    else if (roll < 0.24 && round >= 2) type = 'tri';
+    else if (roll < 0.30 && round >= 3) type = 'mystery';
+    const hp = type === 'armored'
+      ? Math.max(1, Math.ceil(round / 3))
+      : (Math.random() < 0.18 ? round * 2 : round);
+    blocks.push({
+      col: cols[i], row: 0, hp, flash: 0, seed: Math.random(), type,
+      orient: type === 'tri' ? Math.floor(Math.random() * 4) : 0,
+      lastHitShot: -1,
+    });
   }
-  if (n < COLS) {
-    bonuses.push({ col: cols[n], row: 0 });
+  let free = n;
+  if (free < COLS) {
+    powerups.push({ col: cols[free], row: 0, kind: 'ball' });
+    free += 1;
+  }
+  if (free < COLS && Math.random() < 0.4) {
+    const kind = POWERUP_KINDS[Math.floor(Math.random() * POWERUP_KINDS.length)];
+    powerups.push({ col: cols[free], row: 0, kind });
   }
 }
 
 function endTurn() {
   ballCount += collectedThisTurn;
   collectedThisTurn = 0;
+  chiliActive = false;
   if (nextLaunchX !== null) launchX = nextLaunchX;
   nextLaunchX = null;
   timeScale = 1;
@@ -168,12 +208,15 @@ function endTurn() {
   flightTime = 0;
 
   for (const b of blocks) b.row += 1;
-  for (const bn of bonuses) bn.row += 1;
-  bonuses = bonuses.filter((bn) => {
-    if (bn.row >= deathRow) {
-      ballCount += 1;
-      const c = bonusCenter(bn, 0);
-      floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
+  for (const p of powerups) p.row += 1;
+  powerups = powerups.filter((p) => {
+    if (p.row >= deathRow) {
+      // arrivés sur la plage : les +1 noix sont ramassés, le reste est perdu
+      if (p.kind === 'ball') {
+        ballCount += 1;
+        const c = powerupCenter(p, 0);
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
+      }
       return false;
     }
     return true;
@@ -197,12 +240,21 @@ function gameOver() {
     best = round;
     store.set(KEYS.BEST, String(best));
   }
+  if (score > bestScore) {
+    bestScore = score;
+    store.set(KEYS.BEST_SCORE, String(bestScore));
+  }
+  const wallet = parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
+  store.set(KEYS.PEARLS, String(wallet + pearls));
   store.remove(KEYS.SAVE);
   sfx.over();
   if (hooks.onGameOver) {
     hooks.onGameOver({
       round,
       best,
+      score,
+      bestScore,
+      pearls,
       broken: stats.broken,
       shots: stats.shots,
       balls: ballCount,
@@ -217,16 +269,110 @@ function fire(angle) {
   state = 'flight';
   flightTime = 0;
   stats.shots += 1;
+  shotId += 1;
+  brokenThisShot = 0;
   sfx.launch();
+}
+
+// ---- score ----
+function addScore(damage) {
+  const comboMult = 1 + Math.min(brokenThisShot, 10) * 0.25;
+  score += Math.round(damage * 10 * comboMult);
+}
+
+// ---- dégâts ----
+function damageBlock(b, amount, cx, cy) {
+  if (b.type === 'armored') {
+    if (b.lastHitShot === shotId) return false; // le blindage a déjà encaissé ce tir
+    b.lastHitShot = shotId;
+    amount = 1;
+  }
+  const style = stoneStyle(b.hp);
+  b.hp -= amount;
+  b.flash = 1;
+  addScore(Math.min(amount, Math.max(0, b.hp + amount)));
+  if (b.hp <= 0) {
+    breakBlock(b, style, cx, cy);
+    return true;
+  }
+  return false;
+}
+
+function breakBlock(b, style, cx, cy) {
+  const idx = blocks.indexOf(b);
+  if (idx === -1) return;
+  blocks.splice(idx, 1);
+  stats.broken += 1;
+  brokenThisShot += 1;
+  if (brokenThisShot > 1) {
+    score += 25 * (brokenThisShot - 1); // bonus de combo
+  }
+  for (let p = 0; p < 9; p++) {
+    const a = (p / 9) * Math.PI * 2;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(a) * cell * (1.6 + Math.random()),
+      vy: Math.sin(a) * cell * (1.6 + Math.random()),
+      life: 1,
+      color: p % 3 === 0 ? style.edge : style.base,
+    });
+  }
+  if (b.type === 'mystery') {
+    mysteryReward(cx, cy);
+  }
+  sfx.brk();
+}
+
+function mysteryReward(cx, cy) {
+  const roll = Math.random();
+  sfx.mystery();
+  if (roll < 0.35) {
+    collectedThisTurn += 1;
+    floaters.push({ x: cx, y: cy, life: 1, text: '+1' });
+  } else if (roll < 0.65) {
+    pearls += 3;
+    floaters.push({ x: cx, y: cy, life: 1, text: '+3 ◉' });
+  } else if (roll < 0.85) {
+    explodeAt(cx, cy, Math.max(2, Math.ceil(round / 2)));
+  } else {
+    score += 250;
+    floaters.push({ x: cx, y: cy, life: 1, text: '+250' });
+  }
+}
+
+/* Explosion (durian ou mystère) : dégâts aux pierres voisines. */
+function explodeAt(cx, cy, damage) {
+  effects.push({ type: 'boom', x: cx, y: cy, life: 1 });
+  sfx.boom();
+  const col = Math.floor(cx / cell);
+  const row = Math.floor((cy - boardTop) / cell);
+  for (const b of [...blocks]) {
+    if (Math.abs(b.col - col) <= 1 && Math.abs(b.row - row) <= 1) {
+      const rc = blockRect(b, 0);
+      damageBlock(b, damage, (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2);
+    }
+  }
+}
+
+/* Espadon : traverse la ligne et nettoie tout sur son passage. */
+function swordSweep(row, y) {
+  effects.push({ type: 'sword', y, life: 1 });
+  sfx.sword();
+  for (const b of [...blocks]) {
+    if (b.row !== row) continue;
+    const rc = blockRect(b, 0);
+    const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
+    damageBlock(b, b.type === 'armored' ? 1 : b.hp, cx, cy);
+  }
 }
 
 // ---- sauvegarde ----
 function saveGame() {
   store.set(KEYS.SAVE, JSON.stringify({
-    round, ballCount,
+    round, ballCount, score, pearls,
     launchFrac: launchX / W,
-    blocks: blocks.map((b) => [b.col, b.row, b.hp]),
-    bonuses: bonuses.map((bn) => [bn.col, bn.row]),
+    blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient]),
+    powerups: powerups.map((p) => [p.col, p.row, p.kind]),
     stats,
   }));
 }
@@ -239,14 +385,23 @@ function loadGame() {
     if (!s || !Array.isArray(s.blocks) || !s.round) return false;
     round = s.round;
     ballCount = s.ballCount || 1;
+    score = s.score || 0;
+    pearls = s.pearls || 0;
     launchX = Math.min(Math.max((s.launchFrac || 0.5) * W, RADIUS() + 2), W - RADIUS() - 2);
-    blocks = s.blocks.map(([col, row, hp]) => ({ col, row, hp, flash: 0, seed: Math.random() }));
-    bonuses = (s.bonuses || []).map(([col, row]) => ({ col, row }));
+    blocks = s.blocks.map(([col, row, hp, type, orient]) => ({
+      col, row, hp,
+      type: type || 'stone',
+      orient: orient || 0,
+      flash: 0, seed: Math.random(), lastHitShot: -1,
+    }));
+    const oldBonuses = s.powerups || s.bonuses || [];
+    powerups = oldBonuses.map(([col, row, kind]) => ({ col, row, kind: kind || 'ball' }));
     stats = s.stats && typeof s.stats.broken === 'number' ? s.stats : { broken: 0, shots: 0 };
     balls = [];
     toLaunch = 0;
     collectedThisTurn = 0;
     nextLaunchX = null;
+    chiliActive = false;
     shiftAnim = 1;
     state = 'aim';
     return true;
@@ -280,7 +435,7 @@ function stepBall(ball, dist) {
       break;
     }
     collideBlocks(ball, r);
-    collideBonuses(ball, r);
+    collidePowerups(ball, r);
   }
 }
 
@@ -290,16 +445,11 @@ function collideBlocks(ball, r) {
     const rc = blockRect(b, 0);
     if (ball.x <= rc.x0 - r || ball.x >= rc.x1 + r || ball.y <= rc.y0 - r || ball.y >= rc.y1 + r) continue;
 
-    const dLeft = ball.x - (rc.x0 - r);
-    const dRight = (rc.x1 + r) - ball.x;
-    const dTop = ball.y - (rc.y0 - r);
-    const dBottom = (rc.y1 + r) - ball.y;
-    const m = Math.min(dLeft, dRight, dTop, dBottom);
-
-    if (m === dLeft) { ball.x = rc.x0 - r; if (ball.vx > 0) ball.vx = -ball.vx; }
-    else if (m === dRight) { ball.x = rc.x1 + r; if (ball.vx < 0) ball.vx = -ball.vx; }
-    else if (m === dTop) { ball.y = rc.y0 - r; if (ball.vy > 0) ball.vy = -ball.vy; }
-    else { ball.y = rc.y1 + r; if (ball.vy < 0) ball.vy = -ball.vy; }
+    if (b.type === 'tri') {
+      if (!collideTriangle(ball, r, b, rc)) continue;
+    } else {
+      collideAABB(ball, r, rc);
+    }
 
     // anti-blocage : évite les trajectoires quasi horizontales infinies
     const sp = SPEED();
@@ -309,38 +459,102 @@ function collideBlocks(ball, r) {
       ball.vx *= k; ball.vy *= k;
     }
 
-    const style = stoneStyle(b.hp);
-    b.hp -= 1;
-    b.flash = 1;
-    if (b.hp <= 0) {
-      const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
-      for (let p = 0; p < 9; p++) {
-        const a = (p / 9) * Math.PI * 2;
-        particles.push({
-          x: cx, y: cy,
-          vx: Math.cos(a) * cell * (1.6 + Math.random()),
-          vy: Math.sin(a) * cell * (1.6 + Math.random()),
-          life: 1,
-          color: p % 3 === 0 ? style.edge : style.base,
-        });
-      }
-      blocks.splice(i, 1);
-      stats.broken += 1;
-      sfx.brk();
-    } else {
-      sfx.hit();
-    }
+    const wasArmoredTick = b.type === 'armored' && b.lastHitShot === shotId;
+    const broke = damageBlock(b, chiliActive ? 2 : 1,
+      (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2);
+    if (!broke && !wasArmoredTick) sfx.hit();
+    else if (!broke && wasArmoredTick) sfx.wall();
   }
 }
 
-function collideBonuses(ball, r) {
-  for (let i = bonuses.length - 1; i >= 0; i--) {
-    const c = bonusCenter(bonuses[i], 0);
-    if (Math.hypot(ball.x - c.x, ball.y - c.y) < r + BONUS_R()) {
-      collectedThisTurn += 1;
-      floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
-      bonuses.splice(i, 1);
-      sfx.bonus();
+function collideAABB(ball, r, rc) {
+  const dLeft = ball.x - (rc.x0 - r);
+  const dRight = (rc.x1 + r) - ball.x;
+  const dTop = ball.y - (rc.y0 - r);
+  const dBottom = (rc.y1 + r) - ball.y;
+  const m = Math.min(dLeft, dRight, dTop, dBottom);
+
+  if (m === dLeft) { ball.x = rc.x0 - r; if (ball.vx > 0) ball.vx = -ball.vx; }
+  else if (m === dRight) { ball.x = rc.x1 + r; if (ball.vx < 0) ball.vx = -ball.vx; }
+  else if (m === dTop) { ball.y = rc.y0 - r; if (ball.vy > 0) ball.vy = -ball.vy; }
+  else { ball.y = rc.y1 + r; if (ball.vy < 0) ball.vy = -ball.vy; }
+}
+
+/* Toit de temple : demi-pierre triangulaire.
+   orient : 0 = angle droit en bas-gauche, 1 = bas-droite,
+            2 = haut-gauche, 3 = haut-droite.
+   L'hypoténuse renvoie la noix en diagonale. */
+function triGeometry(b, rc) {
+  const { x0, y0, x1, y1 } = rc;
+  switch (b.orient) {
+    case 0: return { a: { x: x0, y: y0 }, bpt: { x: x1, y: y1 }, corner: { x: x0, y: y1 }, n: { x: 1 / Math.SQRT2, y: -1 / Math.SQRT2 } };
+    case 1: return { a: { x: x0, y: y1 }, bpt: { x: x1, y: y0 }, corner: { x: x1, y: y1 }, n: { x: -1 / Math.SQRT2, y: -1 / Math.SQRT2 } };
+    case 2: return { a: { x: x0, y: y1 }, bpt: { x: x1, y: y0 }, corner: { x: x0, y: y0 }, n: { x: 1 / Math.SQRT2, y: 1 / Math.SQRT2 } };
+    default: return { a: { x: x0, y: y0 }, bpt: { x: x1, y: y1 }, corner: { x: x1, y: y0 }, n: { x: -1 / Math.SQRT2, y: 1 / Math.SQRT2 } };
+  }
+}
+
+function collideTriangle(ball, r, b, rc) {
+  const g = triGeometry(b, rc);
+  // distance signée à l'hypoténuse (normale vers l'extérieur du triangle)
+  const sd = (ball.x - g.a.x) * g.n.x + (ball.y - g.a.y) * g.n.y;
+  if (sd > r) return false; // du côté vide, hors de portée
+
+  // au-delà de l'hypoténuse (côté plein) : les deux côtés droits agissent
+  // comme une pierre normale
+  if (sd < -r * 0.4) {
+    collideAABB(ball, r, rc);
+    return true;
+  }
+
+  // rebond sur l'hypoténuse (projection du point de contact sur le segment)
+  const abx = g.bpt.x - g.a.x, aby = g.bpt.y - g.a.y;
+  const tt = ((ball.x - g.a.x) * abx + (ball.y - g.a.y) * aby) / (abx * abx + aby * aby);
+  if (tt < -0.1 || tt > 1.1) return false;
+  const dot = ball.vx * g.n.x + ball.vy * g.n.y;
+  if (dot < 0) {
+    ball.vx -= 2 * dot * g.n.x;
+    ball.vy -= 2 * dot * g.n.y;
+  }
+  ball.x = g.a.x + g.n.x * (r + 0.5) + Math.max(0, Math.min(1, tt)) * abx;
+  ball.y = g.a.y + g.n.y * (r + 0.5) + Math.max(0, Math.min(1, tt)) * aby;
+  return true;
+}
+
+function collidePowerups(ball, r) {
+  for (let i = powerups.length - 1; i >= 0; i--) {
+    const p = powerups[i];
+    const c = powerupCenter(p, 0);
+    if (Math.hypot(ball.x - c.x, ball.y - c.y) >= r + BONUS_R()) continue;
+    powerups.splice(i, 1);
+    switch (p.kind) {
+      case 'ball':
+        collectedThisTurn += 1;
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '+1' });
+        sfx.bonus();
+        break;
+      case 'sword':
+        swordSweep(p.row, c.y);
+        break;
+      case 'durian':
+        explodeAt(c.x, c.y, Math.max(2, round));
+        break;
+      case 'chili':
+        chiliActive = true;
+        floaters.push({ x: c.x, y: c.y, life: 1, text: 'x2 !' });
+        sfx.chili();
+        break;
+      case 'pearl':
+        pearls += 1;
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '+1 ◉' });
+        sfx.pearl();
+        break;
+      case 'flower':
+        ball.vx = 0;
+        ball.vy = -SPEED();
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '↑' });
+        sfx.flower();
+        break;
     }
   }
 }
@@ -392,6 +606,10 @@ function update(dt) {
     f.life -= dt * 1.2;
     if (f.life <= 0) floaters.splice(i, 1);
   }
+  for (let i = effects.length - 1; i >= 0; i--) {
+    effects[i].life -= dt * (effects[i].type === 'sword' ? 2.2 : 1.8);
+    if (effects[i].life <= 0) effects.splice(i, 1);
+  }
   for (const b of blocks) if (b.flash > 0) b.flash = Math.max(0, b.flash - dt * 6);
 
   if (state !== 'flight') return;
@@ -435,12 +653,10 @@ function drawCoconut(x, y, r, T) {
   ctx.strokeStyle = c.dark;
   ctx.lineWidth = Math.max(1, r * 0.16);
   ctx.stroke();
-  // reflet
   ctx.fillStyle = c.light;
   ctx.beginPath();
   ctx.arc(x - r * 0.32, y - r * 0.34, r * 0.42, 0, Math.PI * 2);
   ctx.fill();
-  // fibres
   ctx.strokeStyle = c.dark;
   ctx.lineWidth = Math.max(0.6, r * 0.08);
   ctx.globalAlpha = 0.5;
@@ -448,7 +664,6 @@ function drawCoconut(x, y, r, T) {
   ctx.arc(x + r * 0.15, y + r * 0.1, r * 0.62, 0.3, 1.4);
   ctx.stroke();
   ctx.globalAlpha = 1;
-  // les trois yeux
   if (r >= 5) {
     ctx.fillStyle = c.dark;
     const er = Math.max(0.8, r * 0.11);
@@ -458,85 +673,129 @@ function drawCoconut(x, y, r, T) {
   }
 }
 
-/* Pierre de temple : bloc taillé, biseau, rainures, mousse/éclats selon le palier. */
+function stonePath(b, rc, grow) {
+  const rad = cell * 0.07;
+  const x = rc.x0 - grow, y = rc.y0 - grow;
+  const x1 = rc.x1 + grow, y1 = rc.y1 + grow;
+  if (b.type === 'tri') {
+    const g = triGeometry(b, { x0: x, y0: y, x1, y1 });
+    ctx.beginPath();
+    ctx.moveTo(g.a.x, g.a.y);
+    ctx.lineTo(g.bpt.x, g.bpt.y);
+    ctx.lineTo(g.corner.x, g.corner.y);
+    ctx.closePath();
+  } else {
+    roundRect(x, y, x1 - x, y1 - y, rad);
+  }
+}
+
+/* Pierre de temple : bloc taillé, biseau, rainures, mousse/éclats selon le
+   palier ; variantes toit (triangle), blindée (volcanique) et mystère. */
 function drawStone(b, yOff, T) {
   const rc = blockRect(b, yOff);
   const w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
   const grow = b.flash * cell * 0.03;
-  const x = rc.x0 - grow, y = rc.y0 - grow;
-  const ww = w + grow * 2, hh = h + grow * 2;
-  const style = stoneStyle(b.hp);
-  const rad = cell * 0.07;
+  const style = b.type === 'armored' ? T.stones[2] : stoneStyle(b.hp);
 
+  stonePath(b, rc, grow);
   ctx.fillStyle = style.base;
-  roundRect(x, y, ww, hh, rad);
   ctx.fill();
   ctx.strokeStyle = style.edge;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = b.type === 'armored' ? 3 : 2;
   ctx.stroke();
 
-  // arête claire en haut, ombre en bas
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x + rad, y + 1.5);
-  ctx.lineTo(x + ww - rad, y + 1.5);
-  ctx.stroke();
-  ctx.strokeStyle = style.groove;
-  ctx.beginPath();
-  ctx.moveTo(x + rad, y + hh - 1.5);
-  ctx.lineTo(x + ww - rad, y + hh - 1.5);
-  ctx.stroke();
+  const x = rc.x0 - grow, y = rc.y0 - grow;
+  const ww = w + grow * 2, hh = h + grow * 2;
 
-  // rainures de taille de pierre
-  ctx.strokeStyle = style.groove;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(x + ww * 0.12, y + hh * 0.36);
-  ctx.lineTo(x + ww * 0.88, y + hh * 0.36);
-  ctx.stroke();
-
-  // détails du palier (positions stables grâce à seed)
-  const s = b.seed;
-  if (style.moss) {
-    ctx.fillStyle = style.moss;
-    ctx.globalAlpha = 0.8;
-    blob(x + ww * (0.18 + s * 0.2), y + hh * 0.2, ww * 0.14);
-    blob(x + ww * (0.65 + s * 0.15), y + hh * (0.6 + s * 0.2), ww * 0.11);
-    ctx.globalAlpha = 1;
+  if (b.type !== 'tri') {
+    // arête claire en haut, ombre en bas
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y + 1.5);
+    ctx.lineTo(x + ww - 4, y + 1.5);
+    ctx.stroke();
+    ctx.strokeStyle = style.groove;
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y + hh - 1.5);
+    ctx.lineTo(x + ww - 4, y + hh - 1.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + ww * 0.12, y + hh * 0.36);
+    ctx.lineTo(x + ww * 0.88, y + hh * 0.36);
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
-  if (style.speck) {
-    ctx.fillStyle = style.speck;
-    for (let i = 0; i < 4; i++) {
-      const px = x + ww * ((s * (i + 3) * 7.13) % 0.8 + 0.1);
-      const py = y + hh * ((s * (i + 5) * 3.71) % 0.7 + 0.15);
-      ctx.fillRect(px, py, 2.4, 2.4);
+
+  const s = b.seed;
+  if (b.type === 'armored') {
+    // rivets de pierre volcanique
+    ctx.fillStyle = style.speck || style.edge;
+    const rr = 2.2;
+    for (const [fx, fy] of [[0.16, 0.2], [0.84, 0.2], [0.16, 0.8], [0.84, 0.8]]) {
+      ctx.beginPath();
+      ctx.arc(x + ww * fx, y + hh * fy, rr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (b.type !== 'tri') {
+    if (style.moss) {
+      ctx.fillStyle = style.moss;
+      ctx.globalAlpha = 0.8;
+      blob(x + ww * (0.18 + s * 0.2), y + hh * 0.2, ww * 0.14);
+      blob(x + ww * (0.65 + s * 0.15), y + hh * (0.6 + s * 0.2), ww * 0.11);
+      ctx.globalAlpha = 1;
+    }
+    if (style.speck) {
+      ctx.fillStyle = style.speck;
+      for (let i = 0; i < 4; i++) {
+        const px = x + ww * ((s * (i + 3) * 7.13) % 0.8 + 0.1);
+        const py = y + hh * ((s * (i + 5) * 3.71) % 0.7 + 0.15);
+        ctx.fillRect(px, py, 2.4, 2.4);
+      }
+    }
+    if (style.shine) {
+      ctx.save();
+      stonePath(b, rc, grow);
+      ctx.clip();
+      ctx.fillStyle = style.shine;
+      ctx.beginPath();
+      ctx.moveTo(x + ww * 0.15, y);
+      ctx.lineTo(x + ww * 0.35, y);
+      ctx.lineTo(x + ww * 0.05, y + hh);
+      ctx.lineTo(x - ww * 0.15, y + hh);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
   }
-  if (style.shine) {
-    ctx.save();
-    roundRect(x, y, ww, hh, rad);
-    ctx.clip();
-    ctx.fillStyle = style.shine;
-    ctx.beginPath();
-    ctx.moveTo(x + ww * 0.15, y);
-    ctx.lineTo(x + ww * 0.35, y);
-    ctx.lineTo(x + ww * 0.05, y + hh);
-    ctx.lineTo(x - ww * 0.15, y + hh);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
 
-  // le nombre, lisible sur toutes les pierres
-  ctx.font = '700 ' + Math.round(cell * 0.32) + 'px -apple-system, sans-serif';
+  // position du nombre : centre, ou près de l'angle droit pour les toits
+  let tx = (rc.x0 + rc.x1) / 2;
+  let ty = (rc.y0 + rc.y1) / 2 + 1;
+  let fontScale = 0.32;
+  if (b.type === 'tri') {
+    const g = triGeometry(b, rc);
+    tx = (g.corner.x * 2 + g.a.x + g.bpt.x) / 4;
+    ty = (g.corner.y * 2 + g.a.y + g.bpt.y) / 4 + 1;
+    fontScale = 0.26;
+  }
+  const label = b.type === 'mystery' ? '?' : String(b.hp);
+  ctx.font = '700 ' + Math.round(cell * fontScale) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineWidth = 3;
   ctx.strokeStyle = T.blockTextHalo;
-  ctx.strokeText(String(b.hp), (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2 + 1);
+  ctx.strokeText(label, tx, ty);
   ctx.fillStyle = T.blockText;
-  ctx.fillText(String(b.hp), (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2 + 1);
+  ctx.fillText(label, tx, ty);
+
+  if (b.type === 'mystery') {
+    // lueur discrète qui pulse
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.25 + 0.2 * Math.sin(performance.now() / 300 + s * 6)) + ')';
+    ctx.lineWidth = 1.5;
+    stonePath(b, rc, grow + 2);
+    ctx.stroke();
+  }
 }
 
 function blob(x, y, r) {
@@ -546,16 +805,123 @@ function blob(x, y, r) {
   ctx.fill();
 }
 
+/* ---- icônes des bonus ---- */
+function drawPowerup(p, yOff, T, t) {
+  const c = powerupCenter(p, yOff);
+  const pulse = 1 + Math.sin(t * 3.3 + p.col) * 0.08;
+  const ringColors = {
+    ball: T.aimDot, sword: '#9fd7e8', durian: '#c9e06a',
+    chili: '#ff6b4a', pearl: '#f3e7ff', flower: '#ffc7dd',
+  };
+  ctx.strokeStyle = ringColors[p.kind] || T.aimDot;
+  ctx.lineWidth = cell * 0.045;
+  ctx.beginPath();
+  ctx.arc(c.x, c.y, BONUS_R() * pulse, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const r = cell * 0.115;
+  switch (p.kind) {
+    case 'ball':
+      drawCoconut(c.x, c.y, cell * 0.105, T);
+      break;
+    case 'sword': {
+      // espadon stylisé
+      ctx.fillStyle = '#7db8cc';
+      ctx.beginPath();
+      ctx.ellipse(c.x + r * 0.2, c.y, r * 0.85, r * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5d98ac';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(c.x - r * 0.6, c.y);
+      ctx.lineTo(c.x - r * 1.5, c.y - r * 0.15);
+      ctx.stroke();
+      ctx.fillStyle = '#5d98ac';
+      ctx.beginPath();
+      ctx.moveTo(c.x + r * 0.9, c.y);
+      ctx.lineTo(c.x + r * 1.4, c.y - r * 0.5);
+      ctx.lineTo(c.x + r * 1.4, c.y + r * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'durian': {
+      ctx.fillStyle = '#a8b83e';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8ba02c';
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const sx = c.x + Math.cos(a) * r * 0.8;
+        const sy = c.y + Math.sin(a) * r * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(c.x + Math.cos(a + 0.2) * r * 0.5, c.y + Math.sin(a + 0.2) * r * 0.5);
+        ctx.lineTo(c.x + Math.cos(a - 0.2) * r * 0.5, c.y + Math.sin(a - 0.2) * r * 0.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    }
+    case 'chili': {
+      ctx.strokeStyle = '#e33f2b';
+      ctx.lineWidth = r * 0.55;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y - r * 0.1, r * 0.62, 0.5, 2.4);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = '#3f8f3a';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(c.x + r * 0.45, c.y - r * 0.5);
+      ctx.lineTo(c.x + r * 0.75, c.y - r * 0.85);
+      ctx.stroke();
+      break;
+    }
+    case 'pearl': {
+      ctx.fillStyle = '#f6efff';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(c.x - r * 0.2, c.y - r * 0.22, r * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#c9a97a';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + r * 0.35, r * 0.75, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+      break;
+    }
+    case 'flower': {
+      ctx.fillStyle = '#fff4f8';
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.ellipse(c.x + Math.cos(a) * r * 0.45, c.y + Math.sin(a) * r * 0.45,
+          r * 0.42, r * 0.26, a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffd34d';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+  }
+}
+
 /* Décor du lagon : eau, reflets, poissons, palmes, plage. */
 function drawLagoon(t, T) {
-  // eau
   const grad = ctx.createLinearGradient(0, boardTop, 0, floorY);
   grad.addColorStop(0, T.waterTop);
   grad.addColorStop(1, T.waterBottom);
   ctx.fillStyle = grad;
   ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
 
-  // la nuit : reflet chaud du couchant en haut de l'eau
   if (T.waterGlow) {
     const g2 = ctx.createLinearGradient(0, boardTop, 0, boardTop + 120);
     g2.addColorStop(0, T.waterGlow);
@@ -564,7 +930,6 @@ function drawLagoon(t, T) {
     ctx.fillRect(0, boardTop - 6, W, 126);
   }
 
-  // caustiques : trois ondes lumineuses qui dérivent lentement
   ctx.strokeStyle = T.caustic;
   ctx.lineWidth = 12;
   const span = floorY - boardTop;
@@ -579,7 +944,6 @@ function drawLagoon(t, T) {
     ctx.stroke();
   }
 
-  // scintillements
   ctx.fillStyle = T.sparkle;
   for (let i = 0; i < 14; i++) {
     const sx = ((i * 73.7) % 1) * W;
@@ -592,7 +956,6 @@ function drawLagoon(t, T) {
   }
   ctx.globalAlpha = 1;
 
-  // poissons
   for (const f of fishes) {
     const wob = Math.sin(t * 6 + f.phase) * f.size * 0.25;
     ctx.fillStyle = T.fish;
@@ -607,7 +970,6 @@ function drawLagoon(t, T) {
     ctx.fill();
   }
 
-  // palmes qui dépassent dans les coins hauts
   ctx.fillStyle = T.palm;
   palmFrond(-6, boardTop + 6, 1, t);
   palmFrond(W + 6, boardTop + 10, -1, t);
@@ -619,7 +981,6 @@ function palmFrond(x0, y0, dir, t) {
   ctx.translate(x0, y0);
   for (let i = 0; i < 3; i++) {
     const ang = dir * (0.25 + i * 0.35) + sway * 0.01;
-    ctx.rotate(0);
     ctx.beginPath();
     const len = cell * (1.4 - i * 0.25);
     const tipX = Math.cos(ang) * len * dir;
@@ -634,13 +995,11 @@ function palmFrond(x0, y0, dir, t) {
 }
 
 function drawBeach(t, T) {
-  // plage
   ctx.fillStyle = T.sand;
   ctx.fillRect(0, floorY, W, H - floorY);
   ctx.fillStyle = T.sandDark;
   ctx.fillRect(0, floorY + 26, W, 3);
 
-  // écume du bord de l'eau, animée
   ctx.strokeStyle = T.foam;
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -652,7 +1011,6 @@ function drawBeach(t, T) {
   ctx.stroke();
 }
 
-/* Ligne de marée : petites arches d'écume au niveau où la partie se perd. */
 function drawTideLine(t, T) {
   const y = boardTop + deathRow * cell;
   ctx.strokeStyle = T.tideFoam;
@@ -662,6 +1020,36 @@ function drawTideLine(t, T) {
     ctx.beginPath();
     ctx.arc(x + 6, y, 7, Math.PI, 0);
     ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawEffects(T) {
+  for (const e of effects) {
+    if (e.type === 'sword') {
+      ctx.globalAlpha = Math.max(0, e.life);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(0, e.y - 4, W, 8);
+      ctx.fillStyle = '#7db8cc';
+      const fx = W * (1 - e.life);
+      ctx.beginPath();
+      ctx.ellipse(fx, e.y, 16, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(fx - 12, e.y);
+      ctx.lineTo(fx - 26, e.y - 8);
+      ctx.lineTo(fx - 26, e.y + 8);
+      ctx.closePath();
+      ctx.fill();
+    } else if (e.type === 'boom') {
+      const rr = (1 - e.life) * cell * 1.6 + cell * 0.3;
+      ctx.globalAlpha = Math.max(0, e.life) * 0.7;
+      ctx.strokeStyle = '#ffb648';
+      ctx.lineWidth = 6 * e.life + 1;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, rr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -678,28 +1066,16 @@ function draw(t) {
 
   const yOff = -(1 - shiftAnim);
 
-  // pierres de temple
   for (const b of blocks) drawStone(b, yOff, T);
+  for (const p of powerups) drawPowerup(p, yOff, T, t);
 
-  // petites noix « +1 »
-  const pulse = 1 + Math.sin(t * 3.3) * 0.08;
-  for (const bn of bonuses) {
-    const c = bonusCenter(bn, yOff);
-    ctx.strokeStyle = T.aimDot;
-    ctx.lineWidth = cell * 0.045;
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, BONUS_R() * pulse, 0, Math.PI * 2);
-    ctx.stroke();
-    drawCoconut(c.x, c.y, cell * 0.105, T);
-  }
-
-  // éclats de pierre et textes flottants
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
     ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
   }
   ctx.globalAlpha = 1;
+  drawEffects(T);
   for (const f of floaters) {
     ctx.globalAlpha = Math.max(0, f.life);
     ctx.font = '800 ' + Math.round(cell * 0.3) + 'px -apple-system, sans-serif';
@@ -712,19 +1088,16 @@ function draw(t) {
   }
   ctx.globalAlpha = 1;
 
-  // visée
   if (state === 'aim' && aim && aim.valid) {
     drawAimLine(aim.angle, T);
   }
 
   drawBeach(t, T);
 
-  // noix de coco en vol
   for (const ball of balls) {
     drawCoconut(ball.x, ball.y, RADIUS(), T);
   }
 
-  // lanceur + compteur
   if (state === 'aim' || state === 'flight') {
     const r = RADIUS();
     const remaining = state === 'flight' ? toLaunch : ballCount;
@@ -744,16 +1117,19 @@ function draw(t) {
     }
   }
 
-  // HUD
+  // HUD : manche, score, perles
   ctx.fillStyle = T.hud;
-  ctx.font = '800 ' + Math.round(cell * 0.42) + 'px -apple-system, sans-serif';
+  ctx.font = '800 ' + Math.round(cell * 0.34) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText('MANCHE ' + round, 14, boardTop - 26);
+  ctx.textAlign = 'center';
+  ctx.font = '800 ' + Math.round(cell * 0.3) + 'px -apple-system, sans-serif';
+  ctx.fillText(String(score), W / 2, boardTop - 26);
   ctx.fillStyle = T.hudSub;
-  ctx.font = '700 ' + Math.round(cell * 0.24) + 'px -apple-system, sans-serif';
+  ctx.font = '700 ' + Math.round(cell * 0.22) + 'px -apple-system, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('RECORD ' + Math.max(best, round), W - 58, boardTop - 26);
+  ctx.fillText('◉ ' + pearls, W - 58, boardTop - 26);
 
   if (state === 'flight' && timeScale > 1.05) {
     ctx.fillStyle = T.sandText;
@@ -767,6 +1143,12 @@ function draw(t) {
     ctx.textAlign = 'center';
     ctx.fillText('touche l\'écran pour accélérer', W / 2, floorY + 44);
     ctx.globalAlpha = 1;
+  }
+  if (chiliActive && state === 'flight') {
+    ctx.fillStyle = '#e33f2b';
+    ctx.font = '800 ' + Math.round(cell * 0.24) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('🌶 x2', 14, floorY + 44);
   }
 }
 

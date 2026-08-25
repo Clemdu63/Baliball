@@ -4,6 +4,8 @@
 export const KEYS = {
   SAVE: 'baliball.save.v1',
   BEST: 'baliball.best.v1',
+  BEST_SCORE: 'baliball.bestscore.v1',
+  PEARLS: 'baliball.pearls.v1',
   SETTINGS: 'baliball.settings.v1',
 };
 

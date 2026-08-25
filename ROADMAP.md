@@ -51,7 +51,7 @@ Le lot le plus important : tout l'habillage passe au thème Bali.
   rebondit dessus.
 - Nouvelle icône d'app (noix de coco sur fond lagon + temple).
 
-## Lot 2 — Bonus & briques spéciales (v0.4) 🌶️
+## Lot 2 — Bonus & briques spéciales (v0.4) 🌶️ (livré ✅)
 
 Nouvelles cases sur le plateau, toutes dans le thème :
 

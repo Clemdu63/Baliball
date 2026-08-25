@@ -92,6 +92,12 @@ export const sfx = {
     strike(note(2), { t: 0.4, g: 0.05, when: 0.3 });
     strike(note(0), { t: 0.6, g: 0.05, when: 0.55 });
   },
+  sword() { noiseBurst({ t: 0.18, g: 0.05, cutoff: 2400 }); strike(note(4), { t: 0.3, g: 0.04, when: 0.05 }); },
+  boom() { noiseBurst({ t: 0.25, g: 0.08, cutoff: 500 }); strike(74, { t: 0.8, g: 0.08 }); },
+  chili() { noiseBurst({ t: 0.12, g: 0.04, cutoff: 3600 }); strike(note(3), { t: 0.2, g: 0.035, when: 0.06 }); },
+  pearl() { strike(note(4) * 2, { t: 0.35, g: 0.045 }); },
+  flower() { strike(note(1), { t: 0.22, g: 0.04 }); strike(note(3), { t: 0.28, g: 0.04, when: 0.06 }); },
+  mystery() { strike(note(0), { t: 0.2, g: 0.04 }); strike(note(4), { t: 0.3, g: 0.045, when: 0.08 }); },
 };
 
 /* ---- ressac (boucle de bruit filtré, volume modulé lentement) ---- */

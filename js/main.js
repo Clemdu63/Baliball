@@ -22,7 +22,10 @@ function showGame() {
 
 function refreshHome() {
   const best = game.getBest();
-  $('home-best').textContent = best > 0 ? 'Record : ' + best : '';
+  const bestScore = game.getBestScore();
+  $('home-best').textContent = best > 0
+    ? 'Record : manche ' + best + ' · ' + bestScore + ' pts'
+    : '';
   $('btn-resume').style.display = game.hasSave() ? '' : 'none';
 }
 
@@ -51,9 +54,11 @@ $('btn-home').addEventListener('click', () => {
 // ---- fin de partie ----
 game.initGame($('game'), {
   onGameOver(s) {
-    $('over-round').textContent = String(s.round);
-    $('over-best').textContent = 'Record : ' + s.best;
+    $('over-score').textContent = String(s.score);
+    $('over-best').textContent = 'Record : manche ' + s.best + ' · ' + s.bestScore + ' pts';
+    $('stat-round').textContent = String(s.round);
     $('stat-broken').textContent = String(s.broken);
+    $('stat-pearls').textContent = String(s.pearls);
     $('stat-balls').textContent = String(s.balls);
     $('stat-shots').textContent = String(s.shots);
     show('screen-over');
