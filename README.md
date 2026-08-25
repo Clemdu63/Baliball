@@ -61,12 +61,20 @@ fichier audio.
   tir miroir, pluie de bonus, pierres durcies ou noix rapides.
 - **📡 Tournoi entre amis** — chacun sur son téléphone, la même partie
   classique (infinie) pour tout le monde, en deux variantes :
+  - **Événements communs** : toutes les 5 manches (hors manches à Barong),
+    le lagon s'anime pour tout le monde en même temps — pluie de bonus,
+    marée généreuse (+2 noix), brume, vent du volcan qui durcit les
+    pierres. Dérivés de la graine : identiques pour tous, même hors ligne.
   - **En ligne** : salon avec pseudos et **suivi en direct** — bandeau
     « 🥇 Angel · 1 240 · 3 🎮 », toasts « Marvin a terminé : 890 pts » /
     « Angel passe en tête ! » / arrivées et départs du salon, **réactions
     émojis** qui flottent sur l'écran des autres, **réglages de salon**
     (course au premier à 2 000 ou 5 000 pts — la partie s'arrête pour tout
-    le monde dès qu'un joueur gagne — ou survie ; vitesse commune), podium
+    le monde dès qu'un joueur gagne — ou survie ; vitesse commune ;
+    **soirée en manches Best of 3** : points cumulés 3/2/1 à chaque
+    manche, manche suivante lancée depuis le classement, podium final de
+    la soirée ; **sabotage amical** : un combo ×5 envoie une vague qui
+    fait surgir une pierre blindée chez les adversaires), podium
     et bannière de victoire, classement en direct après sa défaite — avec
     **mode spectateur** : un éliminé peut observer le plateau de n'importe
     quel joueur encore en vie (👁 depuis le classement), mis à jour à

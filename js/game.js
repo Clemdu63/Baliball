@@ -256,6 +256,7 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   fever = 0;
   feverActive = false;
   shieldCharges = 0;
+  fogUntil = 0;
 
   tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
 
@@ -426,7 +427,7 @@ export function debugState() {
   return {
     state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
     timeScale, accelBtn: accelBtnRect(), spawnLog,
-    fever, shield: shieldCharges, weeklyMut,
+    fever, shield: shieldCharges, weeklyMut, fogUntil,
     boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
@@ -489,6 +490,53 @@ function loadLevel(def) {
   });
 }
 
+/* Événements communs du tournoi : toutes les 5 manches (hors manches à
+   Barong), le même pour tous les joueurs — dérivé de la graine, donc
+   valable aussi en tournoi hors ligne, sans aucun message réseau. */
+const TOUR_EVENTS = [
+  { id: 'rain', name: '🎁 Pluie de bonus !' },
+  { id: 'gift', name: '🥥 Marée généreuse : +2 noix !' },
+  { id: 'fog', name: '🌫 Brume sur le lagon !' },
+  { id: 'wind', name: '🌋 Vent du volcan : pierres durcies !' },
+];
+let fogUntil = 0;              // brume d'événement : voile jusqu'à cette manche
+
+function tourEventFor(r) {
+  if (mode !== 'tournament' || r < 5 || r % 5 !== 0 || bossRound(r)) return null;
+  const roll = mulberry32(((currentSeed || 0) ^ Math.imul(r, 7919)) >>> 0)();
+  return TOUR_EVENTS[Math.floor(roll * TOUR_EVENTS.length)];
+}
+
+/* Sabotage amical (option de salon du tournoi en ligne) : une vague
+   adverse fait surgir une pierre blindée sur le plateau. */
+export function dropSurpriseStone() {
+  if (state !== 'aim' && state !== 'flight') return false;
+  const occupied = new Set();
+  for (const b of blocks) {
+    const span = b.type === 'wide' ? 2 : b.type === 'boss' ? 3 : 1;
+    const vspan = b.type === 'boss' ? 2 : 1;
+    for (let c = 0; c < span; c++) {
+      for (let r = 0; r < vspan; r++) occupied.add((b.col + c) + ':' + (b.row + r));
+    }
+  }
+  for (const p of powerups) occupied.add(p.col + ':' + p.row);
+  const free = [];
+  for (let r = 1; r <= 3; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!occupied.has(c + ':' + r)) free.push([c, r]);
+    }
+  }
+  if (!free.length) return false;
+  const [c, r] = free[Math.floor(Math.random() * free.length)];
+  blocks.push({
+    col: c, row: r, hp: Math.max(1, Math.ceil(round / 3)),
+    flash: 1, seed: Math.random(), type: 'armored', orient: 0, lastHitShot: -1,
+  });
+  effects.push({ type: 'milestone', text: '🌊 Vague adverse !', life: 1, color: '#7ef0d8' });
+  sfx.boom();
+  return true;
+}
+
 /* Le Barong apparaît toutes les 10 manches dans les modes sans fin.
    La décision ne dépend que de la manche : en tournoi, tous les joueurs
    le voient au même moment et le flux aléatoire principal reste intact. */
@@ -507,8 +555,10 @@ function spawnRow() {
     return;
   }
   const lvl = unlockCount();
+  const ev = tourEventFor(round);
   let hpMult = lvl >= 4 ? 1.3 : 1; // pierres ardentes : tout durcit
   if (mode === 'weekly' && weeklyMut === 'hard') hpMult *= 1.5;
+  if (ev && ev.id === 'wind') hpMult *= 1.25;
   const used = new Set();
 
   // palier 1 : pierre large sur deux colonnes
@@ -560,6 +610,14 @@ function spawnRow() {
     const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
     powerups.push({ col: cols[free], row: 0, kind });
     free += 1;
+  }
+  // événement « pluie de bonus » : deux bonus de plus dans la rangée
+  if (ev && ev.id === 'rain') {
+    for (let k = 0; k < 2 && free < cols.length; k++) {
+      const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
+      powerups.push({ col: cols[free], row: 0, kind });
+      free += 1;
+    }
   }
   // portails jumeaux : la noix qui entre dans l'un ressort de l'autre
   if (round >= 5 && free + 1 < cols.length && rng() < 0.12) {
@@ -664,6 +722,18 @@ function endTurn() {
   shiftAnim = 0;
   round += 1;
   if (isSeeded()) announceTiers();
+
+  // événement commun du tournoi (bannière et effets hors-apparition ;
+  // la pluie de bonus et le vent s'appliquent dans spawnRow)
+  const ev2 = tourEventFor(round);
+  if (ev2) {
+    effects.push({ type: 'milestone', text: ev2.name, life: 1, color: '#7ef0d8' });
+    sfx.milestone();
+    if (ev2.id === 'gift') ballCount += 2;
+    if (ev2.id === 'fog') fogUntil = round + 2;
+    if (!replaying) spawnLog.push('E' + round + ':' + ev2.id);
+  }
+
   sfx.newRow();
   spawnRow();
 
@@ -679,7 +749,7 @@ function endTurn() {
 
   state = 'aim';
   saveGame();
-  if (hooks.onTurnEnd) hooks.onTurnEnd({ mode, score, round });
+  if (hooks.onTurnEnd) hooks.onTurnEnd({ mode, score, round, combo: brokenThisShot });
 }
 
 /* Renforts du Barong. Le flux aléatoire principal (rangées) ne doit pas
@@ -1026,7 +1096,7 @@ function saveGame() {
     round, ballCount, score, pearls,
     seed: currentSeed, ts: Date.now(),
     launchFrac: launchX / W,
-    fever, shield: shieldCharges,
+    fever, shield: shieldCharges, fogUntil,
     blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient,
       b.type === 'boss' ? { m: b.maxHp, r: b.roarIn } : 0]),
     powerups: powerups.map((p) => [p.col, p.row, p.kind, p.pair || 0]),
@@ -1054,6 +1124,7 @@ function loadGame(m) {
     fever = s.fever || 0;
     feverActive = false;
     shieldCharges = s.shield || 0;
+    fogUntil = s.fogUntil || 0;
     weeklyMut = null;
     blocks = s.blocks.map(([col, row, hp, type, orient, extra]) => ({
       col, row, hp,
@@ -2198,8 +2269,9 @@ function draw(t) {
   for (const b of blocks) drawStone(b, yOff, T);
   for (const p of powerups) drawPowerup(p, yOff, T, t);
 
-  // mutateur brouillard : le haut du lagon est voilé
-  if (mode === 'weekly' && weeklyMut === 'fog') {
+  // mutateur brouillard (hebdo) ou brume d'événement (tournoi)
+  if ((mode === 'weekly' && weeklyMut === 'fog')
+    || (mode === 'tournament' && round < fogUntil)) {
     const fh = boardTop + cell * 3;
     const fg = ctx.createLinearGradient(0, boardTop, 0, fh + cell);
     fg.addColorStop(0, 'rgba(216,236,238,0.95)');
