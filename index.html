@@ -14,6 +14,7 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="fonts/baloo2-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <script>
     // applique le thème avant le premier rendu pour éviter un flash
@@ -38,8 +39,13 @@
   <div id="screen-home" class="screen">
     <div class="scene" aria-hidden="true">
       <svg viewBox="0 0 400 870" preserveAspectRatio="xMidYMax slice">
-        <rect class="sc-sky1" x="0" y="0" width="400" height="480"></rect>
-        <rect class="sc-sky2" x="0" y="300" width="400" height="180" opacity="0.55"></rect>
+        <defs>
+          <linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style="stop-color:var(--scene-sky1)"></stop>
+            <stop offset="1" style="stop-color:var(--scene-sky2)"></stop>
+          </linearGradient>
+        </defs>
+        <rect fill="url(#skyg)" x="0" y="0" width="400" height="480"></rect>
         <!-- étoiles (visibles la nuit) -->
         <circle class="sc-star" cx="60" cy="80" r="1.6"></circle>
         <circle class="sc-star" cx="150" cy="46" r="1.2"></circle>
@@ -48,7 +54,9 @@
         <circle class="sc-star" cx="200" cy="140" r="1.2"></circle>
         <circle class="sc-star" cx="95" cy="170" r="1.0"></circle>
         <!-- soleil haut (jour) / bas sur l'horizon (nuit) -->
+        <circle class="sc-sun sc-sun-hi" cx="312" cy="130" r="58" opacity="0.25"></circle>
         <circle class="sc-sun sc-sun-hi" cx="312" cy="130" r="38"></circle>
+        <circle class="sc-sun sc-sun-lo" cx="180" cy="430" r="66" opacity="0.3"></circle>
         <circle class="sc-sun sc-sun-lo" cx="180" cy="430" r="46"></circle>
         <!-- volcan à l'horizon -->
         <path class="sc-volcano" d="M -30 480 L 105 295 L 150 340 L 175 315 L 300 480 Z"></path>
@@ -69,6 +77,9 @@
         <!-- oiseaux -->
         <path class="sc-birds" d="M 120 210 q 7 -7 14 0 M 134 210 q 7 -7 14 0" fill="none"></path>
         <path class="sc-birds" d="M 170 190 q 6 -6 12 0 M 182 190 q 6 -6 12 0" fill="none"></path>
+        <!-- vaguelettes -->
+        <path d="M 30 520 q 20 -6 40 0 M 250 545 q 22 -6 44 0 M 120 585 q 24 -6 48 0"
+              stroke="rgba(255,255,255,0.4)" stroke-width="3" fill="none" stroke-linecap="round"></path>
         <!-- écume -->
         <path d="M 0 626 Q 50 620 100 626 T 200 626 T 300 626 T 400 626 L 400 634 L 0 634 Z"
               fill="rgba(255,255,255,0.55)"></path>
@@ -87,7 +98,7 @@
       </svg>
     </div>
 
-    <div class="version">v1.1</div>
+    <div class="version">v1.2</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -96,10 +107,10 @@
     <button id="btn-resume" style="display:none">REPRENDRE</button>
     <button id="btn-play">JOUER</button>
     <div class="home-row">
-      <button id="btn-shop" class="secondary">BOUTIQUE</button>
-      <button id="btn-progress" class="secondary">PROGRÈS</button>
-      <button id="btn-legend" class="secondary">LÉGENDE</button>
-      <button id="btn-settings" class="secondary">RÉGLAGES</button>
+      <button id="btn-shop" class="secondary"><span class="chip-ico">🛍</span>Boutique</button>
+      <button id="btn-progress" class="secondary"><span class="chip-ico">🏆</span>Progrès</button>
+      <button id="btn-legend" class="secondary"><span class="chip-ico">📖</span>Légende</button>
+      <button id="btn-settings" class="secondary"><span class="chip-ico">⚙️</span>Réglages</button>
     </div>
     <p>Glisse le doigt pour viser, relâche pour tirer.<br>
        Les pierres descendent à chaque tour : ne les laisse pas atteindre la plage&nbsp;!</p>

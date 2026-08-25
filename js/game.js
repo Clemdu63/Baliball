@@ -14,6 +14,7 @@ import { initAudio, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 
 const COLS = 7;
+const FONT = "'Baloo 2', -apple-system, sans-serif";
 
 let canvas = null;
 let ctx = null;
@@ -97,7 +98,7 @@ function themed() {
   return Object.assign({}, T, d.overrides);
 }
 
-const SPEED = () => cell * 12 * (settings.fast ? 1.35 : 1);
+const SPEED = () => cell * 9 * (settings.fast ? 1.4 : 1);
 const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
@@ -131,6 +132,11 @@ export function initGame(canvasEl, h) {
 
 export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   mode = m;
+  if (m === 'daily') {
+    // la « map » du jour est la même pour toutes les parties de la journée
+    const d = new Date();
+    seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  }
   rng = seed !== null ? mulberry32(seed) : Math.random;
   round = 1;
   ballCount = 1;
@@ -1251,7 +1257,7 @@ function drawStone(b, yOff, T) {
     fontScale = 0.26;
   }
   const label = b.type === 'mystery' ? '?' : String(b.hp);
-  ctx.font = '700 ' + Math.round(cell * fontScale) + 'px -apple-system, sans-serif';
+  ctx.font = '700 ' + Math.round(cell * fontScale) + 'px ' + FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineWidth = 3;
@@ -1532,7 +1538,7 @@ function drawEffects(T) {
       ctx.save();
       ctx.translate(W / 2, boardTop + (floorY - boardTop) * 0.32);
       ctx.scale(scale, scale);
-      ctx.font = '800 ' + Math.round(cell * 0.5) + 'px -apple-system, sans-serif';
+      ctx.font = '800 ' + Math.round(cell * 0.5) + 'px ' + FONT;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineWidth = 6;
@@ -1579,7 +1585,7 @@ function draw(t) {
   drawEffects(T);
   for (const f of floaters) {
     ctx.globalAlpha = Math.max(0, f.life);
-    ctx.font = '800 ' + Math.round(cell * 0.3) + 'px -apple-system, sans-serif';
+    ctx.font = '800 ' + Math.round(cell * 0.3) + 'px ' + FONT;
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,40,40,0.4)';
@@ -1605,7 +1611,7 @@ function draw(t) {
     if (remaining > 0) {
       drawBall(launchX, floorY - r, r * 1.15, T);
       ctx.fillStyle = T.sandText;
-      ctx.font = '800 ' + Math.round(cell * 0.26) + 'px -apple-system, sans-serif';
+      ctx.font = '800 ' + Math.round(cell * 0.26) + 'px ' + FONT;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText('X' + remaining, launchX - r * 2.2, floorY - r);
@@ -1620,7 +1626,7 @@ function draw(t) {
 
   // HUD selon le mode
   ctx.fillStyle = T.hud;
-  ctx.font = '800 ' + Math.round(cell * 0.34) + 'px -apple-system, sans-serif';
+  ctx.font = '800 ' + Math.round(cell * 0.34) + 'px ' + FONT;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   if (isTimed()) {
@@ -1635,10 +1641,10 @@ function draw(t) {
     ctx.fillText('MANCHE ' + round, 14, boardTop - 26);
   }
   ctx.textAlign = 'center';
-  ctx.font = '800 ' + Math.round(cell * 0.3) + 'px -apple-system, sans-serif';
+  ctx.font = '800 ' + Math.round(cell * 0.3) + 'px ' + FONT;
   ctx.fillText(String(score), W / 2, boardTop - 26);
   ctx.fillStyle = T.hudSub;
-  ctx.font = '700 ' + Math.round(cell * 0.22) + 'px -apple-system, sans-serif';
+  ctx.font = '700 ' + Math.round(cell * 0.22) + 'px ' + FONT;
   ctx.textAlign = 'right';
   if (mode === 'puzzle') {
     ctx.fillText('TIRS ' + puzzle.shotsLeft, W - 58, boardTop - 26);
@@ -1652,20 +1658,20 @@ function draw(t) {
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 ' + Math.round(cell * 0.26) + 'px -apple-system, sans-serif';
+    ctx.font = '800 ' + Math.round(cell * 0.26) + 'px ' + FONT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('▶▶ ACCÉLÉRER', ab.x + ab.w / 2, ab.y + ab.h / 2 + 1);
   } else if (state === 'flight' && timeScale > 1.05) {
     ctx.fillStyle = T.sandText;
-    ctx.font = '700 ' + Math.round(cell * 0.22) + 'px -apple-system, sans-serif';
+    ctx.font = '700 ' + Math.round(cell * 0.22) + 'px ' + FONT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('▶▶', W / 2, floorY + 44);
   }
   if (chiliActive && state === 'flight') {
     ctx.fillStyle = '#e33f2b';
-    ctx.font = '800 ' + Math.round(cell * 0.24) + 'px -apple-system, sans-serif';
+    ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
     ctx.textAlign = 'left';
     ctx.fillText('🌶 x2', 14, floorY + 44);
   }
@@ -1688,7 +1694,7 @@ function drawTutorial(T) {
   const cy = boardTop + (floorY - boardTop) * 0.58;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '700 ' + Math.round(cell * 0.24) + 'px -apple-system, sans-serif';
+  ctx.font = '700 ' + Math.round(cell * 0.24) + 'px ' + FONT;
   lines.forEach((line, i) => {
     const y = cy + i * cell * 0.42;
     ctx.lineWidth = 4;

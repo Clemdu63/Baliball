@@ -1,6 +1,15 @@
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('fonts/baloo2-latin.woff2') format('woff2');
+}
+
 :root {
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
+  --font: 'Baloo 2', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   /* jour : lagon en pleine lumière */
   --page: #0c1f22;
@@ -9,10 +18,16 @@
   --muted: #d8ccab;
   --hint: #9caf9f;
   --accent: #12a086;
-  --accent-text: #06281f;
+  --accent-hi: #1cc2a2;
+  --accent-press: #0a6b58;
+  --accent-text: #ffffff;
   --danger: #e0447a;
   --line: #4d6360;
   --chip: rgba(255, 255, 255, 0.09);
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-text: #1d4a44;
+  --logo-shadow: #0d4b43;
 
   /* paysage de l'accueil (jour) */
   --scene-sky1: #bfe9ef;
@@ -37,10 +52,16 @@
   --muted: #cbbd9e;
   --hint: #84806f;
   --accent: #f5a24b;
-  --accent-text: #2b1704;
+  --accent-hi: #ffbd6d;
+  --accent-press: #a86322;
+  --accent-text: #331b04;
   --danger: #f75f92;
   --line: #45435a;
   --chip: rgba(255, 255, 255, 0.08);
+  --glass: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-text: #f0e4c8;
+  --logo-shadow: #241303;
 
   --scene-sky1: #241a4e;
   --scene-sky2: #ff8a5c;
@@ -62,7 +83,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: var(--page);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font);
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -103,24 +124,37 @@ body { position: fixed; inset: 0; }
 .screen p { font-size: 16px; color: var(--muted); }
 
 button {
-  font: inherit;
-  font-size: 19px;
-  font-weight: 700;
-  padding: 14px 44px;
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 800;
+  padding: 14px 42px;
   border: none;
-  border-radius: 999px;
-  background: var(--accent);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
   color: var(--accent-text);
-  letter-spacing: 1px;
+  letter-spacing: 0.6px;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 0 var(--accent-press), 0 8px 16px rgba(0, 0, 0, 0.22);
+  transition: transform 0.07s ease, box-shadow 0.07s ease;
+}
+
+button:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--accent-press), 0 3px 8px rgba(0, 0, 0, 0.2);
 }
 
 button.secondary {
-  background: rgba(255, 255, 255, 0.55);
-  border: none;
-  color: #234;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  background: var(--glass);
+  border: 1.5px solid var(--glass-border);
+  color: var(--glass-text);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+button.secondary:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
 button:focus-visible {
@@ -128,9 +162,8 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-:root[data-theme="dark"] button.secondary {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--muted);
+@media (prefers-reduced-motion: reduce) {
+  button, button:active { transition: none; }
 }
 
 .hint {
@@ -234,17 +267,16 @@ button:focus-visible {
 .logo {
   position: relative;
   display: flex;
-  gap: 2px;
-  padding-top: 34px;
-  font-size: 44px;
+  gap: 1px;
+  padding-top: 36px;
+  font-family: var(--font);
+  font-size: 54px;
   font-weight: 800;
-  letter-spacing: 2px;
-  color: var(--logo-color);
-  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.25);
-}
-
-:root[data-theme="dark"] .logo {
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  letter-spacing: 1px;
+  color: #ffffff;
+  text-shadow:
+    0 3px 0 var(--logo-shadow),
+    0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
 .logo .lt {
@@ -299,10 +331,11 @@ button:focus-visible {
 
 /* ---- fin de partie ---- */
 .over-title {
-  font-size: 20px;
-  letter-spacing: 3px;
+  font-family: var(--font);
+  font-size: 21px;
+  letter-spacing: 2.5px;
   color: var(--danger);
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .big-score {
@@ -337,9 +370,10 @@ button:focus-visible {
 
 /* ---- réglages ---- */
 .settings-title {
-  font-size: 24px;
+  font-family: var(--font);
+  font-size: 26px;
   font-weight: 800;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
 }
 
 .setting {
@@ -375,6 +409,8 @@ button:focus-visible {
   letter-spacing: 0;
   box-shadow: none;
 }
+
+.segmented button:active { transform: none; }
 
 .segmented button.active {
   background: var(--accent);
@@ -456,16 +492,28 @@ button:focus-visible {
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
-/* ---- accueil : rangée de boutons secondaires ---- */
+/* ---- accueil : chips d'accès rapide ---- */
 .home-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .home-row button {
-  font-size: 13px;
-  padding: 10px 16px;
-  letter-spacing: 0.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 74px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 9px 0 7px;
+  border-radius: 16px;
+}
+
+.home-row .chip-ico {
+  font-size: 21px;
+  line-height: 1.1;
 }
 
 /* ---- boutique & progrès ---- */

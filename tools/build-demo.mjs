@@ -64,10 +64,17 @@ const themeMatch = index.match(/<script>[\s\S]*?<\/script>/);
 if (!bodyMatch || !themeMatch) throw new Error('structure index.html inattendue');
 const body = bodyMatch[1].replace(/\s*<script type="module"[^>]*><\/script>/, '');
 
+// la police est inlinée : la démo mono-fichier n'a pas accès à fonts/
+const fontB64 = readFileSync(join(root, 'fonts', 'baloo2-latin.woff2')).toString('base64');
+const css = read('style.css').replace(
+  "url('fonts/baloo2-latin.woff2')",
+  "url(data:font/woff2;base64," + fontB64 + ')'
+);
+
 const out = '<title>Baliball</title>\n'
   + themeMatch[0] + '\n'
-  + '<style>\n' + read('style.css') + '</style>\n'
-  + body
+  + '<style>\n' + css + '</style>\n'
+  + body.replace(/\s*<link rel="preload"[^>]*>/, '')
   + '\n<script>\n' + js + '\n</script>\n';
 
 const dest = process.argv[2] || join(root, 'demo.html');
