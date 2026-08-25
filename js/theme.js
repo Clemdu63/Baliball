@@ -33,6 +33,7 @@ export const THEMES = {
       { kind: 'volcanic', base: '#6e6a66', edge: '#454140', groove: 'rgba(0,0,0,0.25)', speck: '#383532' },
       { kind: 'gold', base: '#e2b451', edge: '#a87f28', groove: 'rgba(120,80,10,0.25)', shine: 'rgba(255,255,255,0.4)' },
     ],
+    armor: { base: '#b03a28', edge: '#6e1c10', groove: 'rgba(0,0,0,0.3)', speck: '#4a140b', crack: '#ffab52' },
   },
   night: {
     name: 'night',
@@ -64,6 +65,7 @@ export const THEMES = {
       { kind: 'volcanic', base: '#55514d', edge: '#33302d', groove: 'rgba(0,0,0,0.3)', speck: '#262421' },
       { kind: 'gold', base: '#d3a13c', edge: '#96701f', groove: 'rgba(110,70,5,0.3)', shine: 'rgba(255,255,255,0.35)' },
     ],
+    armor: { base: '#93291a', edge: '#54120a', groove: 'rgba(0,0,0,0.35)', speck: '#3d0d06', crack: '#ff8c3d' },
   },
 };
 

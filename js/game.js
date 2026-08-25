@@ -1202,7 +1202,7 @@ function drawStone(b, yOff, T) {
   const rc = blockRect(b, yOff);
   const w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
   const grow = b.flash * cell * 0.03;
-  const style = b.type === 'armored' ? T.stones[2] : stoneStyle(b.hp);
+  const style = b.type === 'armored' ? T.armor : stoneStyle(b.hp);
 
   stonePath(b, rc, grow);
   ctx.fillStyle = style.base;
@@ -1236,7 +1236,18 @@ function drawStone(b, yOff, T) {
 
   const s = b.seed;
   if (b.type === 'armored') {
-    // rivets de pierre volcanique
+    // fissures de lave incandescentes
+    ctx.strokeStyle = style.crack;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(x + ww * 0.2, y + hh * 0.62);
+    ctx.lineTo(x + ww * 0.38, y + hh * 0.5);
+    ctx.lineTo(x + ww * 0.46, y + hh * 0.66);
+    ctx.moveTo(x + ww * 0.62, y + hh * 0.28);
+    ctx.lineTo(x + ww * 0.76, y + hh * 0.42);
+    ctx.lineTo(x + ww * 0.88, y + hh * 0.34);
+    ctx.stroke();
+    // rivets du blindage
     ctx.fillStyle = style.speck || style.edge;
     const rr = 2.2;
     for (const [fx, fy] of [[0.16, 0.2], [0.84, 0.2], [0.16, 0.8], [0.84, 0.8]]) {
