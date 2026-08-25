@@ -231,10 +231,10 @@ export function getMissions() {
 }
 
 /* Options du tournoi : vitesse commune et objectif de course éventuel. */
-let tourOpts = { fast: false, target: null };
+let tourOpts = { fast: false, target: null, chaos: false };
 
 export function setTournamentOptions(o) {
-  tourOpts = Object.assign({ fast: false, target: null }, o);
+  tourOpts = Object.assign({ fast: false, target: null, chaos: false }, o);
 }
 
 /* Fin imposée de l'extérieur (course gagnée par un autre joueur). */
@@ -258,6 +258,8 @@ const TRAILS = {
   petals: { colors: ['#ffc7dd', '#fff4f8'], vy: 26, life: 0.7 },
   embers: { colors: ['#ffb648', '#ff7847'], vy: 42, life: 0.5 },
   stars: { colors: ['#bfffe9', '#ffffff'], vy: 12, life: 0.6 },
+  foam: { colors: ['#e6fbff', '#bfeef5', '#ffffff'], vy: 18, life: 0.55 },
+  gold: { colors: ['#ffd34d', '#ffb648', '#fff3c4'], vy: 30, life: 0.6 },
 };
 
 /* Applique le décor équipé par-dessus le thème jour/nuit. */
@@ -274,7 +276,7 @@ const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
 
-const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower', 'gecko', 'lotus', 'guide'];
+const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower', 'gecko', 'lotus', 'guide', 'gong'];
 
 /* Générateur aléatoire à graine : en duel, les deux joueurs reçoivent
    exactement la même séquence de pierres et de bonus. */
@@ -442,7 +444,7 @@ export function drawLegendIcon(cv, kind) {
   c2.setTransform(1, 0, 0, 1, 0, 0);
   c2.clearRect(0, 0, cv.width, cv.height);
   try {
-    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower', 'gecko', 'portal', 'lotus', 'guide'].includes(kind)) {
+    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower', 'gecko', 'portal', 'lotus', 'guide', 'gong'].includes(kind)) {
       cell = size * 1.35;
       boardTop = cv.height / 2 - cell / 2;
       c2.setTransform(1, 0, 0, 1, size / 2 - cell / 2, 0);
@@ -526,6 +528,12 @@ export function drawBoardSnapshot(cv, snap) {
 export function debugSet(o) {
   if (o && typeof o.guide === 'number') guideShots = o.guide;
   if (o && typeof o.fever === 'number') fever = o.fever;
+  if (o && typeof o.spawnBoss === 'string' && BOSS_KINDS.includes(o.spawnBoss)) {
+    blocks.push({
+      col: 2, row: 0, hp: 60, maxHp: 60, roarIn: 1, bossKind: o.spawnBoss,
+      flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
+    });
+  }
 }
 
 /* État minimal exposé pour les tests automatisés. */
@@ -611,7 +619,9 @@ const TOUR_EVENTS = [
 let fogUntil = 0;              // brume d'événement : voile jusqu'à cette manche
 
 function tourEventFor(r) {
-  if (mode !== 'tournament' || r < 5 || r % 5 !== 0 || bossRound(r)) return null;
+  // option Chaos du salon : un événement toutes les 3 manches au lieu de 5
+  const step = tourOpts.chaos ? 3 : 5;
+  if (mode !== 'tournament' || r < step || r % step !== 0 || bossRound(r)) return null;
   const roll = mulberry32(((currentSeed || 0) ^ Math.imul(r, 7919)) >>> 0)();
   return TOUR_EVENTS[Math.floor(roll * TOUR_EVENTS.length)];
 }
@@ -671,10 +681,12 @@ function bossRound(r) {
    Barong (10) appelle 2 blindées · Rangda (20) se régénère · Naga (30)
    dresse un mur · Garuda (40) fait surgir une pierre large · le Léak (50)
    maudit des pierres en blindées · Hanuman (60) chipe une noix. */
-const BOSS_KINDS = ['barong', 'rangda', 'naga', 'garuda', 'leyak', 'hanuman'];
+const BOSS_KINDS = ['barong', 'rangda', 'naga', 'garuda', 'leyak', 'hanuman',
+  'bedawang', 'dewi', 'raksasa'];
 const BOSS_NAMES = {
   barong: '🎭 Le Barong', rangda: '👺 Rangda', naga: '🐉 Le Naga',
   garuda: '🦅 Garuda', leyak: '🔥 Le Léak', hanuman: '🐒 Hanuman',
+  bedawang: '🐢 Bedawang', dewi: '🌊 Dewi Danu', raksasa: '👹 Le Raksasa',
 };
 
 /* Illustrations des masques (chargées en fond ; repli vectoriel sinon).
@@ -686,6 +698,9 @@ const BOSS_ART_SRC = {
   garuda: 'art/boss-garuda.webp',
   leyak: 'art/boss-leyak.webp',
   hanuman: 'art/boss-hanuman.webp',
+  bedawang: 'art/boss-bedawang.webp',
+  dewi: 'art/boss-dewi.webp',
+  raksasa: 'art/boss-raksasa.webp',
 };
 const BOSS_ART = {};
 for (const k of BOSS_KINDS) {
@@ -886,6 +901,16 @@ function endTurn() {
   round += 1;
   if (isSeeded()) announceTiers();
 
+  // cap de manche : tous les 25 crans, une pluie de perles
+  if (round % 25 === 0 && mode !== 'puzzle' && !isTimed()) {
+    pearls += 10;
+    effects.push({
+      type: 'milestone', text: '🏝 Cap de la manche ' + round + ' ! +10 ◉',
+      life: 1, color: '#ffd34d',
+    });
+    sfx.milestone();
+  }
+
   // événement commun du tournoi (bannière et effets hors-apparition ;
   // la pluie de bonus et le vent s'appliquent dans spawnRow)
   const ev2 = tourEventFor(round);
@@ -906,7 +931,7 @@ function endTurn() {
     boss.roarIn = (boss.roarIn || 3) - 1;
     if (boss.roarIn <= 0) {
       boss.roarIn = 3;
-      bossRoar(boss);
+      if (bossRoar(boss)) return; // séisme fatal : la partie vient de finir
     }
   }
 
@@ -974,6 +999,50 @@ function bossRoar(boss) {
       ballCount -= 1;
       const rc = blockRect(boss, 0);
       floaters.push({ x: (rc.x0 + rc.x1) / 2, y: rc.y1, life: 1, text: '−1 🥥' });
+    } else {
+      placeStones(side, free, 1, 'armored', armorHp);
+    }
+  } else if (boss.bossKind === 'bedawang') {
+    // séisme : tout descend d'un cran immédiatement, sans nouvelle rangée
+    effects.push({ type: 'milestone', text: '🐢 Bedawang fait trembler l\'île !', life: 1, color: '#ff8c3d' });
+    for (const b2 of blocks) b2.row += 1;
+    for (const p2 of powerups) p2.row += 1;
+    powerups = powerups.filter((p2) => {
+      if (p2.row >= deathRow) {
+        if (p2.kind === 'ball') ballCount += 1;
+        return false;
+      }
+      return true;
+    });
+    const reached = blocks.filter((b2) => bottomRow(b2) >= deathRow);
+    if (reached.length > 0) {
+      if (mode === 'zen' || isTimed()) {
+        blocks = blocks.filter((b2) => bottomRow(b2) < deathRow);
+      } else if (shieldCharges > 0) {
+        shieldCharges -= 1;
+        effects.push({ type: 'milestone', text: '🪷 Le lotus te sauve !', life: 1, color: '#ffc7dd' });
+        sfx.milestone();
+        blocks = blocks.filter((b2) => bottomRow(b2) < deathRow);
+      } else {
+        gameOver('line');
+        return true;
+      }
+    }
+    shiftAnim = 0;
+  } else if (boss.bossKind === 'dewi') {
+    // la déesse du lac noie le lagon dans la brume pour 2 manches
+    effects.push({ type: 'milestone', text: '🌊 Dewi Danu voile le lagon !', life: 1, color: '#9fd7e8' });
+    fogUntil = round + 2;
+    placeStones(side, free, 1, 'armored', armorHp);
+  } else if (boss.bossKind === 'raksasa') {
+    // l'ogre dévore tous les bonus flottants du plateau
+    effects.push({ type: 'milestone', text: '👹 Le Raksasa dévore les bonus !', life: 1, color: '#ff8c3d' });
+    if (powerups.length > 0) {
+      for (const p2 of powerups) {
+        const c2 = powerupCenter(p2, 0);
+        floaters.push({ x: c2.x, y: c2.y, life: 1, text: '😋' });
+      }
+      powerups = [];
     } else {
       placeStones(side, free, 1, 'armored', armorHp);
     }
@@ -1596,6 +1665,16 @@ function collidePowerups(ball, r) {
         floaters.push({ x: c.x, y: c.y, life: 1, text: '🧭' });
         sfx.mystery();
         break;
+      case 'gong': {
+        // le gong résonne : TOUTES les pierres perdent 1 PV
+        effects.push({ type: 'milestone', text: '🥁 GONG !', life: 1, color: '#ffd34d' });
+        sfx.boom();
+        for (const b2 of [...blocks]) {
+          const rc2 = blockRect(b2, 0);
+          damageBlock(b2, 1, (rc2.x0 + rc2.x1) / 2, (rc2.y0 + rc2.y1) / 2);
+        }
+        break;
+      }
     }
   }
 }
@@ -1872,6 +1951,89 @@ function drawBall(x, y, r, T) {
       ctx.fill();
       break;
     }
+    case 'turtle': {
+      // carapace de tortue
+      ctx.fillStyle = '#3a8f5a';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1d5c36';
+      ctx.lineWidth = Math.max(1, r * 0.14);
+      ctx.stroke();
+      ctx.strokeStyle = '#2a7346';
+      ctx.lineWidth = Math.max(0.8, r * 0.1);
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5);
+        ctx.lineTo(x + Math.cos(a) * r * 0.96, y + Math.sin(a) * r * 0.96);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.32, y - r * 0.34, r * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'moon': {
+      // pleine lune et ses cratères
+      ctx.fillStyle = '#e8e4da';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#b8b2a4';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#c9c3b4';
+      for (const [fx, fy, fr] of [[-0.3, -0.2, 0.22], [0.28, 0.12, 0.16], [-0.05, 0.42, 0.13], [0.32, -0.4, 0.1]]) {
+        ctx.beginPath();
+        ctx.arc(x + fx * r, y + fy * r, fr * r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'bubble': {
+      // bulle translucide
+      ctx.fillStyle = 'rgba(190,240,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = Math.max(1, r * 0.1);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = Math.max(1, r * 0.14);
+      ctx.beginPath();
+      ctx.arc(x - r * 0.25, y - r * 0.25, r * 0.55, Math.PI * 0.9, Math.PI * 1.5);
+      ctx.stroke();
+      break;
+    }
+    case 'lava': {
+      // pierre volcanique fissurée de lave
+      ctx.fillStyle = '#3a3532';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#211d1a';
+      ctx.lineWidth = Math.max(1, r * 0.12);
+      ctx.stroke();
+      ctx.strokeStyle = '#ff7847';
+      ctx.lineWidth = Math.max(1, r * 0.11);
+      ctx.beginPath();
+      ctx.moveTo(x - r * 0.6, y - r * 0.1);
+      ctx.lineTo(x - r * 0.15, y + r * 0.12);
+      ctx.lineTo(x + r * 0.2, y - r * 0.22);
+      ctx.lineTo(x + r * 0.62, y + r * 0.05);
+      ctx.stroke();
+      ctx.fillStyle = '#ffb648';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.15, y + r * 0.12, r * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case 'shell': {
       ctx.fillStyle = '#f3e2c9';
       ctx.beginPath();
@@ -1927,6 +2089,9 @@ const BOSS_STYLES = {
   garuda: { base: '#d9c7a3', accent: '#ffb648', mouth: '#8a5a1e', eye: '#3d2c12' },
   leyak: { base: '#155e46', accent: '#9ff4e4', mouth: '#0a2e24', eye: '#101c14' },
   hanuman: { base: '#e9ded0', accent: '#e2493c', mouth: '#7a1f1f', eye: '#20140a' },
+  bedawang: { base: '#3a6b4a', accent: '#ffd34d', mouth: '#1d3a27', eye: '#20140a' },
+  dewi: { base: '#b9cfe0', accent: '#e8f4ff', mouth: '#5b7f9a', eye: '#28455c' },
+  raksasa: { base: '#6b4a2f', accent: '#c0392b', mouth: '#33200f', eye: '#ff9d3c' },
 };
 
 /* Barre de vie et points restants, posés par-dessus le masque. */
@@ -2187,6 +2352,7 @@ function drawPowerup(p, yOff, T, t) {
     ball: T.aimDot, sword: '#9fd7e8', durian: '#c9e06a',
     chili: '#ff6b4a', pearl: '#f3e7ff', flower: '#ffc7dd',
     gecko: '#8fd45f', portal: '#b48cff', lotus: '#ff9fcc', guide: '#ffe28a',
+    gong: '#e8b04b',
   };
   ctx.strokeStyle = ringColors[p.kind] || T.aimDot;
   ctx.lineWidth = cell * 0.045;
@@ -2363,6 +2529,32 @@ function drawPowerup(p, yOff, T, t) {
       ctx.fillStyle = '#20140a';
       ctx.beginPath();
       ctx.arc(c.x, c.y, r * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'gong': {
+      // gong de bronze suspendu
+      ctx.strokeStyle = '#7a5a2a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(c.x - r * 0.8, c.y - r * 0.75);
+      ctx.lineTo(c.x + r * 0.8, c.y - r * 0.75);
+      ctx.stroke();
+      ctx.fillStyle = '#d3a13c';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + r * 0.08, r * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#96701f';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.strokeStyle = '#b8892e';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + r * 0.08, r * 0.45, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#8a5a1e';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + r * 0.08, r * 0.18, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
@@ -2644,9 +2836,8 @@ function draw(t) {
   for (const b of blocks) drawStone(b, yOff, T);
   for (const p of powerups) drawPowerup(p, yOff, T, t);
 
-  // mutateur brouillard (hebdo) ou brume d'événement (tournoi)
-  if ((mode === 'weekly' && weeklyMut === 'fog')
-    || (mode === 'tournament' && round < fogUntil)) {
+  // mutateur brouillard (hebdo), brume d'événement (tournoi) ou de boss
+  if ((mode === 'weekly' && weeklyMut === 'fog') || round < fogUntil) {
     const fh = boardTop + cell * 3;
     const fg = ctx.createLinearGradient(0, boardTop, 0, fh + cell);
     fg.addColorStop(0, 'rgba(216,236,238,0.95)');
@@ -2712,7 +2903,12 @@ function draw(t) {
     }
   }
 
-  // HUD selon le mode
+  // HUD selon le mode — jamais en état menu : il transparaissait
+  // à travers les écrans translucides (bug visuel « MANCHE 1 » fantôme)
+  if (state === 'menu') {
+    drawTutorial(T);
+    return;
+  }
   ctx.fillStyle = T.hud;
   ctx.font = '800 ' + Math.round(cell * 0.34) + 'px ' + FONT;
   ctx.textAlign = 'left';
@@ -2788,7 +2984,7 @@ function draw(t) {
     ctx.fillStyle = '#e33f2b';
     ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
     ctx.textAlign = 'left';
-    ctx.fillText('🌶 x2', 14, floorY + 44);
+    ctx.fillText('🌶 x2', 14, floorY + 22);
   }
   if (shieldCharges > 0 && (state === 'aim' || state === 'flight')) {
     ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
@@ -2802,7 +2998,7 @@ function draw(t) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffe28a';
-    ctx.fillText('🧭 x' + guideShots, 14, floorY + 44);
+    ctx.fillText('🧭 x' + guideShots, 14, floorY + 22);
   }
 
   drawTutorial(T);

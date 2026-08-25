@@ -27,14 +27,20 @@ illustration.
   trajectoire complète, rebonds sur les murs compris.
 - Les combos remplissent la **jauge Gamelan** : pleine, le prochain tir est
   une **fièvre** à dégâts doublés, traînée de braises comprise.
-- Toutes les 10 manches, un des **six boss** se dresse — un masque peint
+- Toutes les 10 manches, un des **neuf boss** se dresse — un masque peint
   géant sur deux rangées, avec un pouvoir toutes les 3 manches s'il
   survit : 🎭 le **Barong** (manche 10) appelle 2 pierres blindées,
   👺 **Rangda** (20) se régénère, 🐉 le **Naga** (30) fait surgir un mur
   de pierres, 🦅 **Garuda** (40) abat une pierre large, 🔥 le **Léak**
   (50) maudit des pierres normales en blindées, 🐒 **Hanuman** (60)
-  chipe une noix de coco de ta rafale — puis le cycle recommence. Le
-  vaincre rapporte 1 000 pts et 15 perles.
+  chipe une noix de coco de ta rafale, 🐢 **Bedawang** (70) déclenche un
+  **séisme** qui fait tout descendre d'un cran, 🌊 **Dewi Danu** (80)
+  noie le lagon dans la brume, 👹 le **Raksasa** (90) **dévore tous les
+  bonus** du plateau — puis le cycle recommence. Le vaincre rapporte
+  1 000 pts et 15 perles.
+- Le **gong 🥁** (bonus rare) résonne dans tout le lagon : toutes les
+  pierres perdent 1 PV d'un coup.
+- Tous les 25 crans de manche, une pluie de perles (+10 ◉) célèbre le cap.
 - Pierres spéciales : **toit de temple** (triangle, rebond en diagonale),
   **volcanique blindée** (1 dégât par seconde max), **mystère « ? »** (surprise
   à la casse).
@@ -91,7 +97,8 @@ illustration.
     **soirée en manches Best of 3** : points cumulés 3/2/1 à chaque
     manche, manche suivante lancée depuis le classement, podium final de
     la soirée ; **sabotage amical** : un combo ×5 envoie une vague qui
-    fait surgir une pierre blindée chez les adversaires), podium
+    fait surgir une pierre blindée chez les adversaires ; **Chaos 🌪** :
+    un événement commun toutes les 3 manches au lieu de 5), podium
     et bannière de victoire, classement en direct après sa défaite — avec
     **mode spectateur** : un éliminé peut observer le plateau de n'importe
     quel joueur encore en vie (👁 depuis le classement), mis à jour à

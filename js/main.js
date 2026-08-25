@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.1.1';
+const APP_VERSION = '3.3.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -219,7 +219,7 @@ $('btn-join-go').addEventListener('click', () => {
 // -- en ligne : salon ntfy.sh, pseudos, scores en direct --
 let net = null;          // {code, name, stop, game, roster:Map, lastPub, lastAnnounce, raceWinner, opts, series}
 let lastLeaderUid = null;
-let lobbyOpts = { target: null, fast: false, series: 1, sabotage: false };
+let lobbyOpts = { target: null, fast: false, series: 1, sabotage: false, chaos: false };
 let lastEmojiSent = 0;
 let lastWaveSent = 0;
 
@@ -238,7 +238,7 @@ function teardownNet(announce) {
 }
 
 /* Réactions émojis en direct pendant la partie. */
-const EMOJIS = ['😂', '🔥', '🥥', '💀', '👏'];
+const EMOJIS = ['😂', '🔥', '🥥', '💀', '👏', '🤙', '😱'];
 
 function syncEmojiButton() {
   const on = !!(net && net.game && game.getMode() === 'tournament' && game.isPlaying());
@@ -570,6 +570,7 @@ bindLobbyOpt('seg-goal', 'target', (v) => (v === 'null' ? null : parseInt(v, 10)
 bindLobbyOpt('seg-tspeed', 'fast', (v) => v === 'true');
 bindLobbyOpt('seg-series', 'series', (v) => parseInt(v, 10));
 bindLobbyOpt('seg-sabotage', 'sabotage', (v) => v === 'true');
+bindLobbyOpt('seg-chaos', 'chaos', (v) => v === 'true');
 
 $('btn-lobby-start').addEventListener('click', () => {
   if (!net) return;
@@ -577,7 +578,10 @@ $('btn-lobby-start').addEventListener('click', () => {
     t: 'start', uid: myUid,
     seed: Math.floor(Math.random() * 2 ** 31),
     game: Math.random().toString(36).slice(2, 8),
-    opts: { fast: lobbyOpts.fast, target: lobbyOpts.target, sabotage: lobbyOpts.sabotage },
+    opts: {
+      fast: lobbyOpts.fast, target: lobbyOpts.target,
+      sabotage: lobbyOpts.sabotage, chaos: lobbyOpts.chaos,
+    },
     series: lobbyOpts.series > 1 ? { n: 1, of: lobbyOpts.series, pts: {} } : null,
   });
   $('lobby-status').textContent = 'Lancement…';
@@ -705,6 +709,10 @@ const BALL_SKINS = {
   durian: { name: 'Durian', emoji: '🍈', price: 120 },
   starfish: { name: 'Étoile de mer', emoji: '⭐', unlock: 2500 },
   shell: { name: 'Coquillage', emoji: '🐚', unlock: 5000 },
+  turtle: { name: 'Carapace de tortue', emoji: '🐢', price: 150 },
+  moon: { name: 'Pleine lune', emoji: '🌕', price: 200 },
+  bubble: { name: 'Bulle du lagon', emoji: '🫧', price: 250 },
+  lava: { name: 'Cœur de volcan', emoji: '🌋', unlock: 15000 },
 };
 
 const TRAIL_SKINS = {
@@ -712,6 +720,8 @@ const TRAIL_SKINS = {
   petals: { name: 'Pétales de frangipanier', emoji: '🌸', price: 60 },
   embers: { name: 'Braises du volcan', emoji: '🔥', price: 100 },
   stars: { name: 'Poussière d\'étoiles', emoji: '✨', unlock: 10000 },
+  foam: { name: 'Écume de mer', emoji: '🌊', price: 90 },
+  gold: { name: 'Poussière d\'or', emoji: '🪙', price: 160 },
 };
 
 let shop = loadJSON(KEYS.SHOP, {
@@ -820,6 +830,7 @@ const LEGEND_POWERUPS = [
   ['portal', 'Portails jumeaux', 'La noix qui entre dans l\'un ressort de l\'autre. Ils descendent avec la marée.'],
   ['lotus', 'Lotus-bouclier', 'Sauve la partie une fois : la pierre qui atteint la plage est engloutie (2 max).'],
   ['guide', 'Boussole marine', 'Rare : pendant 2 tirs, la visée révèle toute la trajectoire, rebonds sur les murs compris.'],
+  ['gong', 'Gong', 'Résonne dans tout le lagon : TOUTES les pierres perdent 1 PV.'],
 ];
 
 const LEGEND_STONES = [
@@ -829,7 +840,7 @@ const LEGEND_STONES = [
   ['mystery', 'Pierre mystère', 'Révèle une surprise en se brisant : noix, perles, explosion ou points.'],
   ['wide', 'Pierre large', 'Deux colonnes d\'un bloc, très solide — apparaît à partir de 10 000 pts.'],
   ['round', 'Pierre ronde', 'Rebonds courbes imprévisibles — apparaît à partir de 30 000 pts.'],
-  ['boss', 'Les boss', 'Toutes les 10 manches, un des 6 boss se dresse : 🎭 Barong (2 blindées), 👺 Rangda (se régénère), 🐉 Naga (mur), 🦅 Garuda (pierre large), 🔥 Léak (maudit des pierres en blindées), 🐒 Hanuman (chipe une noix). Le vaincre : 1 000 pts et 15 perles.'],
+  ['boss', 'Les boss', 'Toutes les 10 manches, un des 9 boss se dresse : 🎭 Barong (2 blindées), 👺 Rangda (se régénère), 🐉 Naga (mur), 🦅 Garuda (pierre large), 🔥 Léak (maudit des pierres), 🐒 Hanuman (chipe une noix), 🐢 Bedawang (séisme !), 🌊 Dewi Danu (brume), 👹 Raksasa (dévore les bonus). Le vaincre : 1 000 pts et 15 perles.'],
 ];
 
 function legendRow([kind, name, desc]) {

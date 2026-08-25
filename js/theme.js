@@ -107,6 +107,34 @@ export const DECORS = {
       foam: 'rgba(160,255,235,0.55)', tideFoam: 'rgba(160,255,235,0.35)',
     },
   },
+  recif: {
+    name: 'Récif corail', emoji: '🪸', price: 180,
+    overrides: {
+      waterTop: '#c96a8d', waterBottom: '#f3b7c0',
+      caustic: 'rgba(255,255,255,0.14)', sparkle: 'rgba(255,240,250,0.95)',
+      sand: '#f6e3cb', sandDark: '#e3caab', sandText: '#8a5a52',
+      fish: 'rgba(120,30,60,0.16)',
+    },
+  },
+  lampions: {
+    name: 'Nuit des lampions', emoji: '🏮', price: 220,
+    overrides: {
+      waterTop: '#1b1030', waterBottom: '#4a2a52',
+      waterGlow: 'rgba(255,170,80,0.25)',
+      caustic: 'rgba(255,190,120,0.09)', sparkle: 'rgba(255,200,120,0.95)',
+      sand: '#3a2a33', sandDark: '#2c2028', sandText: '#f0d8b8',
+      foam: 'rgba(255,210,150,0.5)',
+    },
+  },
+  mousson: {
+    name: 'Mousson', emoji: '⛈', unlock: 20000,
+    overrides: {
+      waterTop: '#2c3e46', waterBottom: '#5c7681',
+      caustic: 'rgba(255,255,255,0.12)', sparkle: 'rgba(210,235,255,0.9)',
+      sand: '#6b6a5e', sandDark: '#585749', sandText: '#e6e2d2',
+      fish: 'rgba(20,40,50,0.2)', foam: 'rgba(255,255,255,0.65)',
+    },
+  },
 };
 
 let themeMode = 'auto';

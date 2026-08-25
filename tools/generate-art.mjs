@@ -139,6 +139,29 @@ const JOBS = {
         + BOSS_STYLE,
     },
   ],
+  boss3: [
+    {
+      id: 'boss-bedawang', model: 'pro', aspect: '1:1', n: 2, seed: 10100,
+      prompt: 'Mythical Balinese Bedawang cosmic turtle head, game boss portrait: '
+        + 'ancient sea turtle face with emerald and gold ornate shell patterns on '
+        + 'its head, wise heavy-lidded golden eyes, carved stone-like beak, gold '
+        + 'jewelry and crown details, moss accents, ' + BOSS_STYLE,
+    },
+    {
+      id: 'boss-dewi', model: 'pro', aspect: '1:1', n: 2, seed: 10200,
+      prompt: 'Serene Balinese water goddess Dewi Danu mask, game boss portrait: '
+        + 'elegant silver and pale-blue face, closed serene smile, ornate silver '
+        + 'crown with lotus motifs, pearl jewelry, flowing water-like hair strands '
+        + 'of pale cyan, gentle glow, beautiful but eerie, ' + BOSS_STYLE,
+    },
+    {
+      id: 'boss-raksasa', model: 'pro', aspect: '1:1', n: 2, seed: 10300,
+      prompt: 'Massive Balinese Raksasa ogre mask, game boss portrait: bulky brown '
+        + 'and dark red giant face, enormous grinning mouth with big blunt teeth, '
+        + 'small greedy orange eyes, heavy gold earrings and nose ring, wild dark '
+        + 'hair, hungry expression, ' + BOSS_STYLE,
+    },
+  ],
   modes: [
     ['mode-classic', 'a shiny coconut smashing into a carved mossy temple stone above a turquoise lagoon, action moment, dynamic'],
     ['mode-tide', 'a big curling turquoise ocean wave with white foam, seen from the beach, powerful and fresh'],
