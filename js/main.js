@@ -7,7 +7,8 @@ import { LEVELS } from './levels.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings', 'screen-over', 'screen-win'];
+const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
+  'screen-over', 'screen-win', 'screen-duel-intro', 'screen-handoff', 'screen-duel-result'];
 
 setThemeMode(settings.theme);
 
@@ -67,6 +68,63 @@ $('btn-modes-back').addEventListener('click', () => {
   show('screen-home');
 });
 
+// ---- duel de plage (2 joueurs, tour par tour, même graine) ----
+let duel = null;
+
+function startDuelGame() {
+  initAudio();
+  game.newGame('duel', 0, duel.seed);
+  showGame();
+}
+
+$('btn-mode-duel').addEventListener('click', () => show('screen-duel-intro'));
+$('btn-duel-back').addEventListener('click', () => show('screen-modes'));
+$('btn-duel-start').addEventListener('click', () => {
+  duel = { seed: Math.floor(Math.random() * 2 ** 31), phase: 1, p1: null };
+  startDuelGame();
+});
+$('btn-handoff-go').addEventListener('click', () => {
+  duel.phase = 2;
+  startDuelGame();
+});
+$('btn-duel-again').addEventListener('click', () => {
+  duel = { seed: Math.floor(Math.random() * 2 ** 31), phase: 1, p1: null };
+  startDuelGame();
+});
+$('btn-duel-home').addEventListener('click', () => {
+  duel = null;
+  refreshHome();
+  show('screen-home');
+});
+
+function playerLine(p) {
+  return 'manche ' + p.round + ' · ' + p.score + ' pts';
+}
+
+function endDuelGame(s) {
+  const me = { round: s.round, score: s.score };
+  if (duel && duel.phase === 1) {
+    duel.p1 = me;
+    $('handoff-p1').textContent = playerLine(me);
+    show('screen-handoff');
+    return;
+  }
+  if (duel && duel.phase === 2) {
+    const p1 = duel.p1;
+    let title = 'ÉGALITÉ PARFAITE !';
+    if (p1.round !== me.round) title = p1.round > me.round ? 'JOUEUR 1 GAGNE !' : 'JOUEUR 2 GAGNE !';
+    else if (p1.score !== me.score) title = p1.score > me.score ? 'JOUEUR 1 GAGNE !' : 'JOUEUR 2 GAGNE !';
+    $('duel-winner').textContent = title;
+    $('result-p1').textContent = playerLine(p1);
+    $('result-p2').textContent = playerLine(me);
+    show('screen-duel-result');
+    return;
+  }
+  // duel abandonné entre-temps : retour au menu
+  refreshHome();
+  show('screen-home');
+}
+
 // ---- niveaux du mode Temples ----
 function renderLevels() {
   const prog = loadJSON(KEYS.PUZZLE, { unlocked: 1, stars: {} });
@@ -100,6 +158,7 @@ $('btn-levels-back').addEventListener('click', () => show('screen-modes'));
 // ---- bouton accueil en jeu ----
 $('btn-home').addEventListener('click', () => {
   game.toMenu();
+  duel = null; // quitter en plein duel l'abandonne
   refreshHome();
   show('screen-home');
 });
@@ -113,6 +172,10 @@ const OVER_TITLES = {
 
 game.initGame($('game'), {
   onGameOver(s) {
+    if (s.mode === 'duel') {
+      endDuelGame(s);
+      return;
+    }
     $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
     if (s.mode === 'tide') {

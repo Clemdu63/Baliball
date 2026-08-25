@@ -2,7 +2,7 @@
    Incrémenter CACHE_VERSION à chaque mise à jour du jeu. */
 'use strict';
 
-const CACHE_VERSION = 'baliball-v5';
+const CACHE_VERSION = 'baliball-v6';
 const ASSETS = [
   './',
   './index.html',

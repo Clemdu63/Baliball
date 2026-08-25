@@ -85,6 +85,20 @@ const MIN_ANGLE = 0.14;
 
 const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower'];
 
+/* Générateur aléatoire à graine : en duel, les deux joueurs reçoivent
+   exactement la même séquence de pierres et de bonus. */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let rng = Math.random; // ne sert qu'à l'apparition des rangées (déterministe en duel)
+
 // ---- API ----
 export function initGame(canvasEl, h) {
   canvas = canvasEl;
@@ -96,8 +110,9 @@ export function initGame(canvasEl, h) {
   requestAnimationFrame(frame);
 }
 
-export function newGame(m = 'classic', levelIdx = 0) {
+export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   mode = m;
+  rng = seed !== null ? mulberry32(seed) : Math.random;
   round = 1;
   ballCount = 1;
   launchX = W / 2;
@@ -247,22 +262,22 @@ function loadLevel(def) {
 function spawnRow() {
   const cols = [0, 1, 2, 3, 4, 5, 6];
   for (let i = cols.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  const n = 2 + Math.floor(Math.random() * 4);
+  const n = 2 + Math.floor(rng() * 4);
   for (let i = 0; i < n; i++) {
-    const roll = Math.random();
+    const roll = rng();
     let type = 'stone';
     if (roll < 0.10 && round >= 4) type = 'armored';
     else if (roll < 0.24 && round >= 2) type = 'tri';
     else if (roll < 0.30 && round >= 3) type = 'mystery';
     const hp = type === 'armored'
       ? Math.max(1, Math.ceil(round / 3))
-      : (Math.random() < 0.18 ? round * 2 : round);
+      : (rng() < 0.18 ? round * 2 : round);
     blocks.push({
       col: cols[i], row: 0, hp, flash: 0, seed: Math.random(), type,
-      orient: type === 'tri' ? Math.floor(Math.random() * 4) : 0,
+      orient: type === 'tri' ? Math.floor(rng() * 4) : 0,
       lastHitShot: -1,
     });
   }
@@ -271,8 +286,8 @@ function spawnRow() {
     powerups.push({ col: cols[free], row: 0, kind: 'ball' });
     free += 1;
   }
-  if (free < COLS && Math.random() < 0.4) {
-    const kind = POWERUP_KINDS[Math.floor(Math.random() * POWERUP_KINDS.length)];
+  if (free < COLS && rng() < 0.4) {
+    const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
     powerups.push({ col: cols[free], row: 0, kind });
   }
 }
@@ -319,7 +334,7 @@ function endTurn() {
 
   const reached = blocks.filter((b) => b.row >= deathRow);
   if (reached.length > 0) {
-    if (mode === 'classic') {
+    if (mode === 'classic' || mode === 'duel') {
       gameOver('line');
       return;
     }

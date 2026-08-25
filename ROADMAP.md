@@ -86,7 +86,7 @@ Sélecteur de mode sur l'accueil, records séparés par mode :
 - **Plage** (zen) : pas de game over, les briques du bas s'effacent —
   pour jouer détendu en avion ✈️.
 
-## Lot 4 — Multijoueur local (v0.6) 🤝
+## Lot 4 — Multijoueur local (v0.6) 🤝 (livré ✅)
 
 Sur un seul iPhone (une PWA Safari n'a pas accès au Bluetooth/réseau
 local : le 2-appareils hors ligne n'est pas possible en web — voir Notes) :
