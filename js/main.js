@@ -12,7 +12,7 @@ const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-setting
   'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
   'screen-tournoi', 'screen-online-setup', 'screen-lobby', 'screen-standings',
   'screen-offline-menu', 'screen-tournoi-host', 'screen-tournoi-join',
-  'screen-countdown', 'screen-confirm'];
+  'screen-countdown', 'screen-confirm', 'screen-spectate'];
 
 setThemeMode(settings.theme);
 
@@ -199,6 +199,7 @@ function teardownNet(announce) {
   if (net && net.stop) net.stop();
   net = null;
   lastLeaderUid = null;
+  spectateUid = null;
   $('live-ticker').classList.add('hidden');
   $('live-toasts').innerHTML = '';
   syncEmojiButton();
@@ -275,8 +276,11 @@ function renderStandings() {
   const medals = ['🥇', '🥈', '🥉'];
   $('standings-list').innerHTML = sorted.map(([uid, p], i) => {
     const me = uid === myUid;
+    const watch = !me && !p.over
+      ? ' <button class="watch-btn" data-watch="' + uid + '">👁 regarder</button>'
+      : '';
     return '<div class="row' + (me ? ' standing-row-me' : '') + '"><span>'
-      + (medals[i] || (i + 1) + '.') + ' ' + p.name + (me ? ' (toi)' : '')
+      + (medals[i] || (i + 1) + '.') + ' ' + p.name + (me ? ' (toi)' : '') + watch
       + '</span><b>' + p.score + ' pts · ' + (p.over ? 'terminé' : 'en jeu 🎮') + '</b></div>';
   }).join('');
   const mine = net.roster.get(myUid);
@@ -327,11 +331,19 @@ function onNetMsg(d, age) {
     }
   } else if (d.t === 'score') {
     if (d.game !== net.game) return;
-    upsert(d.uid, { name: d.name, score: d.score, round: d.round });
+    upsert(d.uid, { name: d.name, score: d.score, round: d.round, board: d.board });
     tickerRefresh();
+    if (spectateUid === d.uid) renderSpectate();
   } else if (d.t === 'over') {
     if (d.game !== net.game) return;
-    upsert(d.uid, { name: d.name, score: d.score, round: d.round, over: true });
+    upsert(d.uid, { name: d.name, score: d.score, round: d.round, over: true, board: d.board || (net.roster.get(d.uid) || {}).board });
+    if (spectateUid === d.uid) {
+      // le joueur observé vient de terminer : petit message puis retour au classement
+      toast('« ' + d.name + ' » a terminé — retour au classement');
+      spectateUid = null;
+      renderStandings();
+      show('screen-standings');
+    }
     if (d.won && !net.raceWinner) {
       net.raceWinner = d.uid === myUid ? 'Toi' : d.name;
       if (age < 30) {
@@ -439,18 +451,26 @@ $('btn-lobby-start').addEventListener('click', () => {
 });
 
 // ---- réactions émojis ----
+function sendEmoji(emoji) {
+  if (!net || !net.game) return;
+  if (Date.now() - lastEmojiSent < 2500) return;
+  lastEmojiSent = Date.now();
+  spawnEmojiFloat('Toi', emoji);
+  netPublish(net.code, { t: 'emoji', uid: myUid, name: net.name, e: emoji });
+}
+
 $('btn-emoji').addEventListener('click', () => {
   $('emoji-bar').classList.toggle('hidden');
 });
 $('emoji-bar').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (!btn || !net || !net.game) return;
+  if (!btn) return;
   $('emoji-bar').classList.add('hidden');
-  if (Date.now() - lastEmojiSent < 2500) return;
-  lastEmojiSent = Date.now();
-  const emoji = btn.dataset.e;
-  spawnEmojiFloat('Toi', emoji);
-  netPublish(net.code, { t: 'emoji', uid: myUid, name: net.name, e: emoji });
+  sendEmoji(btn.dataset.e);
+});
+document.querySelector('.spectate-emojis').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) sendEmoji(btn.dataset.e);
 });
 
 // quitter la page en plein salon : on prévient les autres
@@ -460,6 +480,36 @@ window.addEventListener('pagehide', () => {
 $('btn-lobby-back').addEventListener('click', () => {
   teardownNet(true);
   show('screen-tournoi');
+});
+
+// ---- mode spectateur : observer un joueur encore en jeu ----
+let spectateUid = null;
+
+function renderSpectate() {
+  if (!net || !spectateUid) return;
+  const p = net.roster.get(spectateUid);
+  if (!p) return;
+  $('spectate-title').textContent = '👁 ' + p.name.toUpperCase();
+  $('spectate-info').textContent = p.score + ' pts · manche ' + p.round
+    + (p.board && p.board.balls ? ' · ' + p.board.balls + ' 🥥' : '')
+    + ' — le plateau se met à jour à chaque tir';
+  if (p.board) {
+    game.drawBoardSnapshot($('spectate-canvas'), p.board);
+  }
+}
+
+$('standings-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-watch]');
+  if (!btn) return;
+  spectateUid = btn.dataset.watch;
+  renderSpectate();
+  show('screen-spectate');
+});
+
+$('btn-spectate-back').addEventListener('click', () => {
+  spectateUid = null;
+  renderStandings();
+  show('screen-standings');
 });
 
 $('btn-standings-lobby').addEventListener('click', () => {
@@ -747,7 +797,7 @@ game.initGame($('game'), {
       net.lastPub = Date.now();
       netPublish(net.code, {
         t: 'score', uid: myUid, name: net.name, game: net.game,
-        score: s.score, round: s.round,
+        score: s.score, round: s.round, board: game.getBoardSnapshot(),
       });
     }
   },
@@ -766,6 +816,7 @@ game.initGame($('game'), {
         netPublish(net.code, {
           t: 'over', uid: myUid, name: net.name, game: net.game,
           score: s.score, round: s.round, won: s.reason === 'race',
+          board: game.getBoardSnapshot(),
         });
         syncEmojiButton();
         $('live-ticker').classList.add('hidden');

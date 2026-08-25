@@ -809,6 +809,39 @@ button:focus-visible {
   .emoji-float { animation: none; opacity: 0.9; }
 }
 
+/* ---- écran spectateur ---- */
+#spectate-canvas {
+  width: min(300px, 78vw);
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.spectate-emojis {
+  display: flex;
+  gap: 8px;
+}
+
+.spectate-emojis button {
+  width: 44px; height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 21px;
+  background: var(--chip);
+  box-shadow: none;
+}
+
+.watch-btn {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  margin-left: 8px;
+  box-shadow: none;
+}
+
+/* les émojis flottent aussi au-dessus des écrans (spectateurs) */
+#emoji-floats { z-index: 12; }
+
 /* ---- classement : vainqueur de la course ---- */
 .standings-banner {
   font-family: var(--font);

@@ -281,6 +281,48 @@ export function drawLegendIcon(cv, kind) {
   }
 }
 
+/* Instantané compact du plateau (mode spectateur du tournoi en ligne). */
+export function getBoardSnapshot() {
+  return {
+    blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type === 'stone' ? 0 : b.type, b.orient || 0]),
+    balls: ballCount,
+  };
+}
+
+/* Dessine un instantané reçu dans un canvas (écran spectateur). */
+export function drawBoardSnapshot(cv, snap) {
+  const c2 = cv.getContext('2d');
+  const oldCtx = ctx, oldCell = cell, oldBoardTop = boardTop;
+  const T = themed();
+  ctx = c2;
+  cell = cv.width / COLS;
+  boardTop = 0;
+  try {
+    c2.setTransform(1, 0, 0, 1, 0, 0);
+    const g = c2.createLinearGradient(0, 0, 0, cv.height);
+    g.addColorStop(0, T.waterTop);
+    g.addColorStop(1, T.waterBottom);
+    c2.fillStyle = g;
+    c2.fillRect(0, 0, cv.width, cv.height);
+    c2.fillStyle = T.sand;
+    c2.fillRect(0, cv.height - cell * 0.4, cv.width, cell * 0.4);
+    c2.fillStyle = T.foam;
+    c2.fillRect(0, cv.height - cell * 0.4, cv.width, 2.5);
+    for (const [col, row, hp, type, orient] of (snap && snap.blocks) || []) {
+      drawStone({
+        col, row, hp,
+        type: type === 0 ? 'stone' : type,
+        orient: orient || 0,
+        flash: 0, seed: ((col * 7 + row) % 10) / 10, lastHitShot: -1,
+      }, 0, T);
+    }
+  } finally {
+    ctx = oldCtx;
+    cell = oldCell;
+    boardTop = oldBoardTop;
+  }
+}
+
 /* État minimal exposé pour les tests automatisés. */
 export function debugState() {
   return {

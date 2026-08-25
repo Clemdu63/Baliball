@@ -50,8 +50,10 @@ fichier audio.
     émojis** qui flottent sur l'écran des autres, **réglages de salon**
     (course au premier à 2 000 ou 5 000 pts — la partie s'arrête pour tout
     le monde dès qu'un joueur gagne — ou survie ; vitesse commune), podium
-    et bannière de victoire, classement en direct après sa défaite, retour
-    au salon pour la revanche. S'appuie sur le service public gratuit
+    et bannière de victoire, classement en direct après sa défaite — avec
+    **mode spectateur** : un éliminé peut observer le plateau de n'importe
+    quel joueur encore en vie (👁 depuis le classement), mis à jour à
+    chaque tir, et lui envoyer des émojis. Retour au salon pour la revanche. S'appuie sur le service public gratuit
     [ntfy.sh](https://ntfy.sh) (aucun compte) ; Internet requis pendant la
     partie.
   - **Hors ligne** : un code de 4 lettres = la même partie pour tous,
