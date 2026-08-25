@@ -79,6 +79,8 @@ let mode = 'classic';          // classic | tide | zen | puzzle | daily | weekly
 let tideTime = 0;              // secondes restantes (marée montante)
 let puzzle = null;             // {idx, def, shotsLeft}
 let tutoActive = false;        // aides de la première partie
+let ghost = null;              // défi du jour : scores par manche du meilleur run
+let ghostTrace = [];           // trace du run en cours
 let fever = 0;                 // jauge Gamelan (0..1), remplie par les combos
 let feverActive = false;       // tir « fièvre » en cours : dégâts x2
 let shieldCharges = 0;         // lotus : sauve la partie quand une pierre touche la plage
@@ -150,6 +152,82 @@ function announceTiers() {
 /* Mode chronométré : marée montante. */
 const isTimed = () => mode === 'tide';
 
+/* ---- missions du jour : 3 objectifs tirés de la date, perles à la clé ---- */
+const MISSION_POOL = [
+  { id: 'break40', name: 'Brise 40 pierres', target: 40, reward: 10 },
+  { id: 'shots30', name: 'Tire 30 fois', target: 30, reward: 8 },
+  { id: 'combo6', name: 'Fais un combo ×6', target: 1, reward: 12 },
+  { id: 'pearls5', name: 'Ramasse 5 perles en jeu', target: 5, reward: 10 },
+  { id: 'boss1', name: 'Vaincs un Barong', target: 1, reward: 15 },
+  { id: 'play3', name: 'Termine 3 parties', target: 3, reward: 8 },
+  { id: 'score2k', name: 'Atteins 2 000 pts en une partie', target: 1, reward: 12 },
+  { id: 'fever1', name: 'Déclenche une fièvre Gamelan', target: 1, reward: 10 },
+];
+
+let missionState = null;
+
+function dailySeedNum() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+function missionsToday() {
+  const today = todayKey();
+  if (missionState && missionState.date === today) return missionState;
+  const saved = loadJSON(KEYS.MISSIONS, null);
+  if (saved && saved.date === today && Array.isArray(saved.ids)) {
+    missionState = saved;
+  } else {
+    const r = mulberry32(dailySeedNum() >>> 0);
+    const pool = MISSION_POOL.map((_, i) => i);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    missionState = {
+      date: today,
+      ids: pool.slice(0, 3).map((i) => MISSION_POOL[i].id),
+      progress: {}, done: {},
+    };
+    store.set(KEYS.MISSIONS, JSON.stringify(missionState));
+  }
+  return missionState;
+}
+
+function missionAdd(id, n = 1) {
+  const st = missionsToday();
+  if (!st.ids.includes(id) || st.done[id]) return;
+  const def = MISSION_POOL.find((m) => m.id === id);
+  st.progress[id] = Math.min(def.target, (st.progress[id] || 0) + n);
+  if (st.progress[id] >= def.target) {
+    st.done[id] = true;
+    const wallet = parseInt(store.get(KEYS.PEARLS) || '0', 10) || 0;
+    store.set(KEYS.PEARLS, String(wallet + def.reward));
+    effects.push({
+      type: 'milestone',
+      text: '📜 Mission accomplie ! +' + def.reward + ' ◉',
+      life: 1, color: '#ffd34d',
+    });
+    sfx.milestone();
+    store.set(KEYS.MISSIONS, JSON.stringify(st));
+  }
+}
+
+function missionPersist() {
+  if (missionState) store.set(KEYS.MISSIONS, JSON.stringify(missionState));
+}
+
+export function getMissions() {
+  const st = missionsToday();
+  return st.ids.map((id) => {
+    const def = MISSION_POOL.find((m) => m.id === id);
+    return Object.assign({}, def, {
+      progress: st.done[id] ? def.target : (st.progress[id] || 0),
+      done: !!st.done[id],
+    });
+  });
+}
+
 /* Options du tournoi : vitesse commune et objectif de course éventuel. */
 let tourOpts = { fast: false, target: null };
 
@@ -166,12 +244,19 @@ export function forceGameOver(reason) {
   }
 }
 
-/* Cosmétiques équipés (boutique) : peau de balle et décor. */
-let cosmetics = { ball: 'coco', decor: 'lagoon' };
+/* Cosmétiques équipés (boutique) : peau de balle, décor et sillage. */
+let cosmetics = { ball: 'coco', decor: 'lagoon', trail: 'none' };
 
 export function setCosmetics(c) {
-  cosmetics = Object.assign({ ball: 'coco', decor: 'lagoon' }, c);
+  cosmetics = Object.assign({ ball: 'coco', decor: 'lagoon', trail: 'none' }, c);
 }
+
+/* Sillage cosmétique derrière les noix. */
+const TRAILS = {
+  petals: { colors: ['#ffc7dd', '#fff4f8'], vy: 26, life: 0.7 },
+  embers: { colors: ['#ffb648', '#ff7847'], vy: 42, life: 0.5 },
+  stars: { colors: ['#bfffe9', '#ffffff'], vy: 12, life: 0.6 },
+};
 
 /* Applique le décor équipé par-dessus le thème jour/nuit. */
 function themed() {
@@ -257,6 +342,13 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   feverActive = false;
   shieldCharges = 0;
   fogUntil = 0;
+  ghostTrace = [];
+  ghost = null;
+  if (mode === 'daily') {
+    // fantôme : les scores par manche du meilleur run du jour
+    const d = loadJSON(KEYS.DAILY, {});
+    if (d.date === todayKey() && Array.isArray(d.trace)) ghost = d.trace;
+  }
 
   tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
 
@@ -428,6 +520,7 @@ export function debugState() {
     state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
     timeScale, accelBtn: accelBtnRect(), spawnLog,
     fever, shield: shieldCharges, weeklyMut, fogUntil,
+    ghostLen: ghost ? ghost.length : 0,
     boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
@@ -661,6 +754,8 @@ function endTurn() {
     return;
   }
 
+  if (mode === 'daily') ghostTrace[round] = score;
+
   // palier 3 (Grande marée) : toutes les 5 manches, tout descend de DEUX crans
   const bigTide = tierUnlocked(2) && (round + 1) % 5 === 0;
   const shifts = bigTide ? 2 : 1;
@@ -747,6 +842,7 @@ function endTurn() {
     }
   }
 
+  missionPersist();
   state = 'aim';
   saveGame();
   if (hooks.onTurnEnd) hooks.onTurnEnd({ mode, score, round, combo: brokenThisShot });
@@ -836,13 +932,15 @@ function gameOver(reason) {
   } else if (mode === 'daily') {
     const today = todayKey();
     const d = loadJSON(KEYS.DAILY, {});
-    if (d.date !== today || score > (d.score || 0)) {
-      if (d.date !== today) { d.score = 0; d.round = 0; }
-      d.date = today;
-      d.score = Math.max(d.score || 0, score);
-      d.round = Math.max(d.round || 0, round);
-      store.set(KEYS.DAILY, JSON.stringify(d));
+    if (d.date !== today) { d.score = 0; d.round = 0; d.trace = null; }
+    d.date = today;
+    if (score >= (d.score || 0)) {
+      ghostTrace[round] = score;
+      d.trace = ghostTrace; // nouveau meilleur run : il devient le fantôme
     }
+    d.score = Math.max(d.score || 0, score);
+    d.round = Math.max(d.round || 0, round);
+    store.set(KEYS.DAILY, JSON.stringify(d));
   } else if (mode === 'weekly') {
     const wk = isoWeekSeed();
     const w = loadJSON(KEYS.WEEKLY, {});
@@ -853,6 +951,9 @@ function gameOver(reason) {
     store.set(KEYS.WEEKLY, JSON.stringify(w));
   }
   if (mode === 'tournament') store.remove(KEYS.TOUR_SAVE);
+  missionAdd('play3');
+  if (score >= 2000) missionAdd('score2k');
+  missionPersist();
   addHistory({ mode, score, round, reason });
   bankPearls();
   addCumulative();
@@ -888,6 +989,8 @@ function puzzleWin() {
   prog.stars[puzzle.idx] = Math.max(prog.stars[puzzle.idx] || 0, starCount);
   prog.unlocked = Math.max(prog.unlocked || 1, puzzle.idx + 2);
   store.set(KEYS.PUZZLE, JSON.stringify(prog));
+  missionAdd('play3');
+  missionPersist();
   addHistory({ mode: 'puzzle', score, level: puzzle.idx, stars: starCount, win: true });
   bankPearls();
   addCumulative();
@@ -913,7 +1016,9 @@ function fire(angle) {
     fever = 0;
     effects.push({ type: 'milestone', text: '🔥 FIÈVRE GAMELAN !', life: 1, color: '#ff9d3c' });
     sfx.chili();
+    missionAdd('fever1');
   }
+  missionAdd('shots30');
   toLaunch = ballCount;
   launchTimer = 0;
   aim = { angle };
@@ -1000,6 +1105,8 @@ function breakBlock(b, style, cx, cy) {
   blocks.splice(idx, 1);
   stats.broken += 1;
   brokenThisShot += 1;
+  missionAdd('break40');
+  if (brokenThisShot === 6) missionAdd('combo6');
   // les combos chauffent la jauge Gamelan (fièvre au prochain tir)
   fever = Math.min(1, fever + 0.035 + brokenThisShot * 0.006);
   if (brokenThisShot > 1) {
@@ -1008,6 +1115,8 @@ function breakBlock(b, style, cx, cy) {
   if (b.type === 'boss') {
     addPoints(1000);
     pearls += 15;
+    missionAdd('boss1');
+    missionAdd('pearls5', 15);
     effects.push({ type: 'milestone', text: '🎭 Barong vaincu ! +1000', life: 1, color: '#ffd34d' });
     floaters.push({ x: cx, y: cy, life: 1, text: '+15 ◉' });
     for (let p = 0; p < 22 && particles.length < MAX_PARTICLES; p++) {
@@ -1046,6 +1155,7 @@ function mysteryReward(cx, cy) {
     floaters.push({ x: cx, y: cy, life: 1, text: '+1' });
   } else if (roll < 0.65) {
     pearls += 3;
+    missionAdd('pearls5', 3);
     floaters.push({ x: cx, y: cy, life: 1, text: '+3 ◉' });
   } else if (roll < 0.85) {
     explodeAt(cx, cy, Math.max(2, Math.ceil(round / 2)));
@@ -1351,6 +1461,7 @@ function collidePowerups(ball, r) {
         break;
       case 'pearl':
         pearls += 1;
+        missionAdd('pearls5');
         floaters.push({ x: c.x, y: c.y, life: 1, text: '+1 ◉' });
         sfx.pearl();
         break;
@@ -1485,15 +1596,16 @@ function update(dt) {
     sfx.wall();
   }
 
-  // traînée de braises pendant un tir de fièvre
-  if (feverActive && !reduceMotion.matches) {
+  // traînée de braises pendant un tir de fièvre, sillage cosmétique sinon
+  const trail = feverActive ? TRAILS.embers : TRAILS[cosmetics.trail];
+  if (trail && !reduceMotion.matches) {
     for (const b of balls) {
-      if (particles.length < MAX_PARTICLES && Math.random() < 0.35) {
+      if (particles.length < MAX_PARTICLES && Math.random() < (feverActive ? 0.35 : 0.22)) {
         particles.push({
           x: b.x, y: b.y,
-          vx: (Math.random() - 0.5) * 30, vy: 40,
-          life: 0.5,
-          color: Math.random() < 0.5 ? '#ffb648' : '#ff7847',
+          vx: (Math.random() - 0.5) * 30, vy: trail.vy,
+          life: trail.life,
+          color: trail.colors[Math.floor(Math.random() * trail.colors.length)],
         });
       }
     }
@@ -2351,7 +2463,17 @@ function draw(t) {
   } else if (mode === 'puzzle') {
     ctx.fillText('NIVEAU ' + (puzzle.idx + 1), 14, boardTop - 26);
   } else {
-    ctx.fillText('MANCHE ' + round, 14, boardTop - 26);
+    const label = 'MANCHE ' + round;
+    ctx.fillText(label, 14, boardTop - 26);
+    // fantôme du défi du jour : le score du meilleur run à cette manche
+    if (mode === 'daily' && ghost && ghost[round] != null) {
+      const gw = ctx.measureText(label).width;
+      ctx.font = '700 ' + Math.round(cell * 0.19) + 'px ' + FONT;
+      ctx.fillStyle = score >= ghost[round] ? '#7ef0d8' : '#ff8c8c';
+      ctx.fillText('👻 ' + ghost[round], 20 + gw, boardTop - 26);
+      ctx.fillStyle = T.hud;
+      ctx.font = '800 ' + Math.round(cell * 0.34) + 'px ' + FONT;
+    }
   }
   ctx.textAlign = 'center';
   ctx.font = '800 ' + Math.round(cell * 0.3) + 'px ' + FONT;

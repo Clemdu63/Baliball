@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.6.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -50,6 +50,13 @@ function refreshHome() {
   if (best > 0) parts.push('Classique : manche ' + best + ' · ' + bestScore + ' pts');
   if (tideBest > 0) parts.push('Marée : ' + tideBest + ' pts');
   $('home-best').textContent = parts.join(' — ');
+
+  const missions = game.getMissions();
+  const doneCount = missions.filter((m) => m.done).length;
+  $('home-missions').textContent = doneCount >= missions.length
+    ? '📜 Missions du jour accomplies ! ✅'
+    : '📜 Missions du jour : ' + doneCount + '/' + missions.length
+      + ' — à suivre dans Progrès';
 
   const saved = game.savedMode();
   const resumeBtn = $('btn-resume');
@@ -700,7 +707,17 @@ const BALL_SKINS = {
   shell: { name: 'Coquillage', emoji: '🐚', unlock: 5000 },
 };
 
-let shop = loadJSON(KEYS.SHOP, { owned: ['coco', 'lagoon'], ball: 'coco', decor: 'lagoon' });
+const TRAIL_SKINS = {
+  none: { name: 'Aucun sillage', emoji: '➖', price: 0 },
+  petals: { name: 'Pétales de frangipanier', emoji: '🌸', price: 60 },
+  embers: { name: 'Braises du volcan', emoji: '🔥', price: 100 },
+  stars: { name: 'Poussière d\'étoiles', emoji: '✨', unlock: 10000 },
+};
+
+let shop = loadJSON(KEYS.SHOP, {
+  owned: ['coco', 'lagoon', 'none'], ball: 'coco', decor: 'lagoon', trail: 'none',
+});
+if (!shop.trail) shop.trail = 'none';
 game.setCosmetics(shop);
 
 function wallet() {
@@ -718,7 +735,7 @@ function persistShop() {
 
 function shopItem(id, def, kind) {
   const scoreUnlocked = def.unlock !== undefined && cumulativeBestScore() >= def.unlock;
-  const owned = shop.owned.includes(id) || scoreUnlocked;
+  const owned = shop.owned.includes(id) || scoreUnlocked || def.price === 0;
   const equipped = shop[kind] === id;
   const div = document.createElement('div');
   div.className = 'shop-item';
@@ -774,6 +791,11 @@ function renderShop() {
   decors.innerHTML = '';
   for (const [id, def] of Object.entries(DECORS)) {
     decors.appendChild(shopItem(id, def, 'decor'));
+  }
+  const trails = $('shop-trails');
+  trails.innerHTML = '';
+  for (const [id, def] of Object.entries(TRAIL_SKINS)) {
+    trails.appendChild(shopItem(id, def, 'trail'));
   }
 }
 
@@ -879,6 +901,15 @@ function timeAgo(ts) {
   return d === 1 ? 'hier' : 'il y a ' + d + ' j';
 }
 
+function renderMissions() {
+  $('missions-list').innerHTML = game.getMissions().map((m) => {
+    return '<div class="ach-item' + (m.done ? ' done' : '') + '">'
+      + '<span class="ach-check">' + (m.done ? '✅' : '📜') + '</span>'
+      + '<span class="ach-info"><div class="ach-name">' + m.name + ' — +' + m.reward + ' ◉</div>'
+      + '<div class="ach-desc">' + (m.done ? 'Accomplie !' : m.progress + ' / ' + m.target) + '</div></span></div>';
+  }).join('');
+}
+
 function renderHistory() {
   const h = loadJSON(KEYS.HISTORY, []);
   $('history-list').innerHTML = h.length === 0
@@ -895,6 +926,7 @@ function renderHistory() {
 }
 
 function renderProgress() {
+  renderMissions();
   renderHistory();
   const c = loadJSON(KEYS.STATS, {});
   const prog = loadJSON(KEYS.PUZZLE, { stars: {} });

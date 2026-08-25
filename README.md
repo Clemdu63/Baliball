@@ -55,7 +55,9 @@ fichier audio.
   1 à 3 étoiles par niveau.
 - **🏖 Plage** — zen, sans défaite : idéal en avion.
 - **🌅 Défi du jour** — la même partie pour tout le monde, une nouvelle
-  chaque jour (graine de la date, donc jouable hors ligne).
+  chaque jour (graine de la date, donc jouable hors ligne) — avec un
+  **fantôme** : en rejouant, le score de ton meilleur run du jour
+  s'affiche manche par manche (vert si tu mènes, rouge sinon).
 - **🌀 Défi de la semaine** — la même partie sept jours durant, avec un
   **mutateur** qui change les règles : brouillard sur le haut du lagon,
   tir miroir, pluie de bonus, pierres durcies ou noix rapides.
@@ -92,9 +94,14 @@ fichier audio.
 
 ## Progression
 
+Chaque jour, **3 missions** tirées de la date (briser des pierres, faire
+un combo ×6, vaincre un Barong…) rapportent des perles — suivi sur
+l'accueil et dans l'écran Progrès, récompense créditée en pleine partie.
 Les **perles ◉** gagnées en jeu s'échangent à la **Boutique** contre des
-peaux de balle (ballon de plage, frangipanier, lampion, durian) et des
-décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant).
+peaux de balle (ballon de plage, frangipanier, lampion, durian), des
+décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant) et
+des **sillages** derrière les noix (pétales, braises, poussière
+d'étoiles).
 L'écran **Progrès** liste **Mes parties récentes** (les 20 dernières :
 mode, score, manche atteinte, il y a combien de temps) et suit les
 statistiques cumulées et 12 succès. Tous les
