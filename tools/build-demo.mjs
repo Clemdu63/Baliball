@@ -14,7 +14,7 @@
    - la fin de main.js (service worker + astuce d'installation) est coupée :
      la démo n'est pas installable. */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -78,6 +78,13 @@ const out = '<title>Baliball</title>\n'
   + body.replace(/\s*<link rel="preload"[^>]*>/, '')
   + '\n<script>\n' + js + '\n</script>\n';
 
+// ---- illustrations : inlinées en data URI (la démo n'a pas accès à art/) ----
+let final = out;
+for (const f of readdirSync(join(root, 'art')).filter((n) => n.endsWith('.webp'))) {
+  const b64 = readFileSync(join(root, 'art', f)).toString('base64');
+  final = final.split('art/' + f).join('data:image/webp;base64,' + b64);
+}
+
 const dest = process.argv[2] || join(root, 'demo.html');
-writeFileSync(dest, out);
-console.log('écrit', dest, '(' + out.length + ' octets)');
+writeFileSync(dest, final);
+console.log('écrit', dest, '(' + final.length + ' octets)');

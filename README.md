@@ -2,9 +2,13 @@
 
 Casse-briques balinais : des **noix de coco** contre des **pierres de
 temple**, dans un lagon aux eaux claires. Écrit en JavaScript pur —
-**jouable hors ligne sur iPhone** une fois installé. Tous les visuels et
-les sons (gamelan, ressac) sont générés en code : aucune image, aucun
-fichier audio.
+**jouable hors ligne sur iPhone** une fois installé. Les sons (gamelan,
+ressac) sont générés en code ; depuis la v3.0, l'accueil, les cartes de
+modes et les boss ont de **vraies illustrations peintes** (générées via
+FLUX/Replicate avec `tools/generate-art.mjs`, retouchées et embarquées
+en WebP dans `art/` — donc toujours 100 % hors ligne). Le rendu du
+plateau reste dessiné en canvas, avec un repli vectoriel pour chaque
+illustration.
 
 ## Comment jouer
 
@@ -23,11 +27,14 @@ fichier audio.
   trajectoire complète, rebonds sur les murs compris.
 - Les combos remplissent la **jauge Gamelan** : pleine, le prochain tir est
   une **fièvre** à dégâts doublés, traînée de braises comprise.
-- Toutes les 10 manches, un **boss** se dresse — un masque géant sur deux
-  rangées, avec un pouvoir toutes les 3 manches s'il survit : 🎭 le
-  **Barong** (manche 10, 40…) appelle 2 pierres blindées, 👺 **Rangda**
-  (manche 20, 50…) se régénère, 🐉 le **Naga** (manche 30, 60…) fait
-  surgir un mur de pierres. Le vaincre rapporte 1 000 pts et 15 perles.
+- Toutes les 10 manches, un des **six boss** se dresse — un masque peint
+  géant sur deux rangées, avec un pouvoir toutes les 3 manches s'il
+  survit : 🎭 le **Barong** (manche 10) appelle 2 pierres blindées,
+  👺 **Rangda** (20) se régénère, 🐉 le **Naga** (30) fait surgir un mur
+  de pierres, 🦅 **Garuda** (40) abat une pierre large, 🔥 le **Léak**
+  (50) maudit des pierres normales en blindées, 🐒 **Hanuman** (60)
+  chipe une noix de coco de ta rafale — puis le cycle recommence. Le
+  vaincre rapporte 1 000 pts et 15 perles.
 - Pierres spéciales : **toit de temple** (triangle, rebond en diagonale),
   **volcanique blindée** (1 dégât par seconde max), **mystère « ? »** (surprise
   à la casse).

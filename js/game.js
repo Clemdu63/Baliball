@@ -667,9 +667,37 @@ function bossRound(r) {
   return r >= 10 && r % 10 === 0 && mode !== 'puzzle' && !isTimed();
 }
 
-/* Trois boss se relaient : Barong (manche 10), Rangda (20), Naga (30)… */
-const BOSS_KINDS = ['barong', 'rangda', 'naga'];
-const BOSS_NAMES = { barong: '🎭 Le Barong', rangda: '👺 Rangda', naga: '🐉 Le Naga' };
+/* Six boss se relaient toutes les 10 manches, chacun son pouvoir :
+   Barong (10) appelle 2 blindées · Rangda (20) se régénère · Naga (30)
+   dresse un mur · Garuda (40) fait surgir une pierre large · le Léak (50)
+   maudit des pierres en blindées · Hanuman (60) chipe une noix. */
+const BOSS_KINDS = ['barong', 'rangda', 'naga', 'garuda', 'leyak', 'hanuman'];
+const BOSS_NAMES = {
+  barong: '🎭 Le Barong', rangda: '👺 Rangda', naga: '🐉 Le Naga',
+  garuda: '🦅 Garuda', leyak: '🔥 Le Léak', hanuman: '🐒 Hanuman',
+};
+
+/* Illustrations des masques (chargées en fond ; repli vectoriel sinon).
+   Chemins littéraux : la démo mono-fichier les remplace par des data URI. */
+const BOSS_ART_SRC = {
+  barong: 'art/boss-barong.webp',
+  rangda: 'art/boss-rangda.webp',
+  naga: 'art/boss-naga.webp',
+  garuda: 'art/boss-garuda.webp',
+  leyak: 'art/boss-leyak.webp',
+  hanuman: 'art/boss-hanuman.webp',
+};
+const BOSS_ART = {};
+for (const k of BOSS_KINDS) {
+  const img = new Image();
+  img.src = BOSS_ART_SRC[k];
+  BOSS_ART[k] = img;
+}
+
+function bossArtReady(kind) {
+  const img = BOSS_ART[kind];
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
 
 function spawnRow() {
   if (bossRound(round)) {
@@ -681,10 +709,7 @@ function spawnRow() {
     });
     if (!replaying) {
       spawnLog.push(round + ':BOSS-' + kind + hp);
-      effects.push({
-        type: 'milestone', text: BOSS_NAMES[kind] + ' apparaît !',
-        life: 1, color: '#ff8c3d',
-      });
+      effects.push({ type: 'bossIntro', kind, life: 1 });
     }
     return;
   }
@@ -916,6 +941,42 @@ function bossRoar(boss) {
   } else if (boss.bossKind === 'naga') {
     effects.push({ type: 'milestone', text: '🐉 Le Naga déferle !', life: 1, color: '#ff8c3d' });
     placeStones(side, free, 3, 'stone', Math.max(2, round));
+  } else if (boss.bossKind === 'garuda') {
+    // un battement d'ailes : une pierre large s'abat sur le lagon
+    effects.push({ type: 'milestone', text: '🦅 Garuda déchaîne les vents !', life: 1, color: '#ff8c3d' });
+    let placed = false;
+    for (let i = 0; i < free.length && !placed; i++) {
+      const [c, r] = free[i];
+      if (c + 1 < COLS && free.some(([c2, r2]) => c2 === c + 1 && r2 === r)) {
+        blocks.push({
+          col: c, row: r, hp: Math.max(2, Math.round(round * 1.5)),
+          flash: 1, seed: Math.random(), type: 'wide', orient: 0, lastHitShot: -1,
+        });
+        placed = true;
+      }
+    }
+    if (!placed) placeStones(side, free, 2, 'stone', Math.max(2, round));
+  } else if (boss.bossKind === 'leyak') {
+    // malédiction : jusqu'à 2 pierres normales deviennent blindées
+    effects.push({ type: 'milestone', text: '🔥 Le Léak maudit les pierres !', life: 1, color: '#ff8c3d' });
+    const targets = blocks.filter((x) => x.type === 'stone');
+    for (let k = 0; k < 2 && targets.length > 0; k++) {
+      const i = Math.floor(side() * targets.length);
+      const t = targets.splice(i, 1)[0];
+      t.type = 'armored';
+      t.hp = Math.max(1, Math.ceil(round / 3));
+      t.flash = 1;
+    }
+  } else if (boss.bossKind === 'hanuman') {
+    // le singe blanc chipe une noix de la rafale
+    effects.push({ type: 'milestone', text: '🐒 Hanuman chipe une noix !', life: 1, color: '#ff8c3d' });
+    if (ballCount > 1) {
+      ballCount -= 1;
+      const rc = blockRect(boss, 0);
+      floaters.push({ x: (rc.x0 + rc.x1) / 2, y: rc.y1, life: 1, text: '−1 🥥' });
+    } else {
+      placeStones(side, free, 1, 'armored', armorHp);
+    }
   } else {
     effects.push({ type: 'milestone', text: '🎭 Le Barong rugit !', life: 1, color: '#ff8c3d' });
     placeStones(side, free, 2, 'armored', armorHp);
@@ -1594,7 +1655,9 @@ function update(dt) {
     if (f.life <= 0) floaters.splice(i, 1);
   }
   for (let i = effects.length - 1; i >= 0; i--) {
-    const rate = effects[i].type === 'sword' ? 2.2 : effects[i].type === 'milestone' ? 0.55 : 1.8;
+    const rate = effects[i].type === 'sword' ? 2.2
+      : effects[i].type === 'milestone' ? 0.55
+        : effects[i].type === 'bossIntro' ? 0.38 : 1.8;
     effects[i].life -= dt * rate;
     if (effects[i].life <= 0) effects.splice(i, 1);
   }
@@ -1861,9 +1924,57 @@ const BOSS_STYLES = {
   barong: { base: '#a32b20', accent: '#ffd34d', mouth: '#5e120c', eye: '#20140a' },
   rangda: { base: '#ded5c2', accent: '#c0392b', mouth: '#6e1414', eye: '#7a1f1f' },
   naga: { base: '#1f6e4d', accent: '#ffd34d', mouth: '#0e3d2a', eye: '#101c14' },
+  garuda: { base: '#d9c7a3', accent: '#ffb648', mouth: '#8a5a1e', eye: '#3d2c12' },
+  leyak: { base: '#155e46', accent: '#9ff4e4', mouth: '#0a2e24', eye: '#101c14' },
+  hanuman: { base: '#e9ded0', accent: '#e2493c', mouth: '#7a1f1f', eye: '#20140a' },
 };
 
+/* Barre de vie et points restants, posés par-dessus le masque. */
+function drawBossHud(b, rc, T) {
+  const w = rc.x1 - rc.x0;
+  const bw = w * 0.6, bx = rc.x0 + w * 0.2, by = rc.y1 - 10;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  roundRect(bx, by, bw, 6, 3);
+  ctx.fill();
+  const frac = Math.max(0, Math.min(1, b.hp / (b.maxHp || b.hp || 1)));
+  if (frac > 0) {
+    ctx.fillStyle = frac > 0.4 ? '#7ef0d8' : '#ff8c3d';
+    roundRect(bx, by, Math.max(4, bw * frac), 6, 3);
+    ctx.fill();
+  }
+  ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(0,20,20,0.75)';
+  ctx.strokeText(String(b.hp), rc.x0 + w / 2, by - 13);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(String(b.hp), rc.x0 + w / 2, by - 13);
+}
+
 function drawBoss(b, yOff, T) {
+  const img = bossArtReady(b.bossKind || 'barong');
+  if (img) {
+    const rc = blockRect(b, yOff);
+    const w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
+    const grow = 1 + b.flash * 0.06;
+    // le masque déborde un peu de sa case : présence maximale
+    const scale = Math.min((w * 1.16) / img.naturalWidth, (h * 1.26) / img.naturalHeight) * grow;
+    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+    const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    ctx.restore();
+    drawBossHud(b, rc, T);
+    return;
+  }
+  drawBossVector(b, yOff, T);
+}
+
+function drawBossVector(b, yOff, T) {
   const st = BOSS_STYLES[b.bossKind] || BOSS_STYLES.barong;
   const rc = blockRect(b, yOff);
   const grow = b.flash * cell * 0.04;
@@ -1921,25 +2032,7 @@ function drawBoss(b, yOff, T) {
     ctx.fill();
   }
 
-  // barre de vie + points restants
-  const bw = w * 0.64, bx = x + w * 0.18, by = y + h * 0.235;
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  roundRect(bx, by, bw, 6, 3);
-  ctx.fill();
-  const frac = Math.max(0, Math.min(1, b.hp / (b.maxHp || b.hp || 1)));
-  if (frac > 0) {
-    ctx.fillStyle = frac > 0.4 ? '#7ef0d8' : '#ff8c3d';
-    roundRect(bx, by, Math.max(4, bw * frac), 6, 3);
-    ctx.fill();
-  }
-  ctx.font = '800 ' + Math.round(cell * 0.22) + 'px ' + FONT;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = T.blockTextHalo;
-  ctx.strokeText(String(b.hp), x + w / 2, y + h * 0.645);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(String(b.hp), x + w / 2, y + h * 0.645);
+  drawBossHud(b, rc, T);
 }
 
 /* Pierre de temple : bloc taillé, biseau, rainures, mousse/éclats selon le
@@ -2290,6 +2383,22 @@ function drawPowerup(p, yOff, T, t) {
   }
 }
 
+/* Fond marin peint (jour/nuit) — repli sur le dégradé si non chargé.
+   Chemins littéraux : la démo mono-fichier les remplace par des data URI. */
+const BOARD_ART_SRC = { day: 'art/board-day.webp', night: 'art/board-night.webp' };
+const BOARD_ART = {};
+for (const k of ['day', 'night']) {
+  const img = new Image();
+  img.src = BOARD_ART_SRC[k];
+  BOARD_ART[k] = img;
+}
+
+function boardArtReady() {
+  const k = document.documentElement.dataset.theme === 'dark' ? 'night' : 'day';
+  const img = BOARD_ART[k];
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 /* Les dégradés d'eau sont recréés seulement quand le thème/décor change. */
 const bgCache = { key: '', grad: null, glow: null };
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -2313,8 +2422,23 @@ function drawLagoon(rawT, T) {
       bgCache.glow = null;
     }
   }
-  ctx.fillStyle = bgCache.grad;
-  ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
+  const art = boardArtReady();
+  if (art) {
+    // illustration en couverture de la zone d'eau…
+    const zy = boardTop - 6, zh = floorY - boardTop + 6;
+    const s = Math.max(W / art.naturalWidth, zh / art.naturalHeight);
+    const sw = W / s, sh = zh / s;
+    ctx.drawImage(art, (art.naturalWidth - sw) / 2, (art.naturalHeight - sh) / 2,
+      sw, sh, 0, zy, W, zh);
+    // …unifiée par la teinte du thème et du décor équipé (boutique)
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = bgCache.grad;
+    ctx.fillRect(0, zy, W, zh);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = bgCache.grad;
+    ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
+  }
   if (bgCache.glow) {
     ctx.fillStyle = bgCache.glow;
     ctx.fillRect(0, boardTop - 6, W, 126);
@@ -2448,6 +2572,33 @@ function drawEffects(T) {
       ctx.fillStyle = e.color || '#ffd34d';
       ctx.fillText(e.text, 0, 0);
       ctx.restore();
+      ctx.globalAlpha = 1;
+    } else if (e.type === 'bossIntro') {
+      // entrée théâtrale : le masque surgit en grand, nom en dessous
+      const a = Math.min(1, e.life * 2.6);
+      const pop = 1 + Math.max(0, e.life - 0.85) * 1.6;
+      ctx.globalAlpha = a;
+      const iy = boardTop + (floorY - boardTop) * 0.34;
+      const img = bossArtReady(e.kind);
+      if (img) {
+        const dw = Math.min(W * 0.58, 250) * pop;
+        const dh = dw * img.naturalHeight / img.naturalWidth;
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.55)';
+        ctx.shadowBlur = 26;
+        ctx.drawImage(img, W / 2 - dw / 2, iy - dh / 2, dw, dh);
+        ctx.restore();
+      }
+      ctx.font = '800 ' + Math.round(cell * 0.42) + 'px ' + FONT;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(0,20,20,0.7)';
+      const label = (BOSS_NAMES[e.kind] || 'Boss') + ' apparaît !';
+      const ty2 = iy + (img ? Math.min(W * 0.58, 250) * 0.62 : 0) + cell * 0.5;
+      ctx.strokeText(label, W / 2, ty2);
+      ctx.fillStyle = '#ffd34d';
+      ctx.fillText(label, W / 2, ty2);
       ctx.globalAlpha = 1;
     } else if (e.type === 'boom') {
       const rr = (1 - e.life) * cell * 1.6 + cell * 0.3;
