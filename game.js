@@ -15,6 +15,13 @@ const COLS = 7;
 const SAVE_KEY = 'baliball.save.v1';
 const BEST_KEY = 'baliball.best.v1';
 
+// localStorage peut être bloqué (navigation privée, iframe…) : le jeu doit marcher sans
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* pas de stockage */ } },
+  remove(k) { try { localStorage.removeItem(k); } catch (e) { /* pas de stockage */ } },
+};
+
 // ---- layout ----
 let W = 0, H = 0, dpr = 1;
 let cell = 0, boardTop = 0, floorY = 0, deathRow = 8;
@@ -57,7 +64,7 @@ let timeScale = 1;
 let userFast = false;
 let flightTime = 0;
 let shiftAnim = 1;             // 0→1 : animation de descente des rangées
-let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0;
+let best = parseInt(store.get(BEST_KEY) || '0', 10) || 0;
 let particles = [];            // {x, y, vx, vy, life, color}
 let floaters = [];             // {x, y, life, text}
 
@@ -162,9 +169,9 @@ function gameOver() {
   state = 'over';
   if (round > best) {
     best = round;
-    localStorage.setItem(BEST_KEY, String(best));
+    store.set(BEST_KEY, String(best));
   }
-  localStorage.removeItem(SAVE_KEY);
+  store.remove(SAVE_KEY);
   document.getElementById('go-score').textContent = String(round);
   document.getElementById('go-best').textContent = 'Record : ' + best;
   document.getElementById('gameover').classList.remove('hidden');
@@ -180,19 +187,17 @@ function fire(angle) {
 
 // ---- sauvegarde / reprise ----
 function saveGame() {
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      round, ballCount,
-      launchFrac: launchX / W,
-      blocks: blocks.map((b) => [b.col, b.row, b.hp]),
-      bonuses: bonuses.map((bn) => [bn.col, bn.row]),
-    }));
-  } catch (e) { /* stockage indisponible : on joue sans sauvegarde */ }
+  store.set(SAVE_KEY, JSON.stringify({
+    round, ballCount,
+    launchFrac: launchX / W,
+    blocks: blocks.map((b) => [b.col, b.row, b.hp]),
+    bonuses: bonuses.map((bn) => [bn.col, bn.row]),
+  }));
 }
 
 function loadGame() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = store.get(SAVE_KEY);
     if (!raw) return false;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.blocks) || !s.round) return false;
@@ -585,7 +590,7 @@ const resumeBtn = document.getElementById('btn-resume');
 function showMenu() {
   state = 'menu';
   document.getElementById('menu-best').textContent = best > 0 ? 'Record : ' + best : '';
-  const hasSave = !!localStorage.getItem(SAVE_KEY);
+  const hasSave = !!store.get(SAVE_KEY);
   resumeBtn.style.display = hasSave ? '' : 'none';
   menuEl.classList.remove('hidden');
 }
