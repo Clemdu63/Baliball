@@ -9,16 +9,18 @@ fichier audio.
 ## Comment jouer
 
 - **Glisse le doigt** dans la direction du tir, **relâche** pour lancer les
-  noix de coco.
+  noix de coco. La ligne de visée **raccourcit au fil des manches** :
+  viser devient un vrai talent en fin de partie.
 - Chaque impact enlève 1 point de vie à une pierre ; à 0 elle vole en éclats.
 - Les petites noix cerclées donnent **+1 noix de coco** pour les tours suivants.
 - D'autres bonus flottent dans le lagon : l'**espadon** nettoie sa ligne, le
   **durian** explose les pierres voisines, le **piment** double les dégâts du
   tir, la **perle** se collectionne, la **fleur de frangipanier** renvoie la
   noix tout droit vers le haut, le **gecko** dédouble la noix qui le touche,
-  les **portails jumeaux** téléportent les noix de l'un à l'autre, et le
+  les **portails jumeaux** téléportent les noix de l'un à l'autre, le
   **lotus-bouclier** sauve la partie une fois quand une pierre atteint la
-  plage.
+  plage, et la rare **boussole marine** révèle pendant 2 tirs la
+  trajectoire complète, rebonds sur les murs compris.
 - Les combos remplissent la **jauge Gamelan** : pleine, le prochain tir est
   une **fièvre** à dégâts doublés, traînée de braises comprise.
 - Toutes les 10 manches, le **Barong** apparaît : un masque géant sur deux

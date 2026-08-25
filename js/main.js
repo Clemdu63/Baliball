@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.8.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -819,6 +819,7 @@ const LEGEND_POWERUPS = [
   ['gecko', 'Gecko', 'Dédouble la noix qui le touche, pour le reste du tir.'],
   ['portal', 'Portails jumeaux', 'La noix qui entre dans l\'un ressort de l\'autre. Ils descendent avec la marée.'],
   ['lotus', 'Lotus-bouclier', 'Sauve la partie une fois : la pierre qui atteint la plage est engloutie (2 max).'],
+  ['guide', 'Boussole marine', 'Rare : pendant 2 tirs, la visée révèle toute la trajectoire, rebonds sur les murs compris.'],
 ];
 
 const LEGEND_STONES = [

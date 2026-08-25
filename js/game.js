@@ -84,6 +84,7 @@ let ghostTrace = [];           // trace du run en cours
 let fever = 0;                 // jauge Gamelan (0..1), remplie par les combos
 let feverActive = false;       // tir « fièvre » en cours : dégâts x2
 let shieldCharges = 0;         // lotus : sauve la partie quand une pierre touche la plage
+let guideShots = 0;            // boussole : la visée révèle toute la trajectoire
 let weeklyMut = null;          // mutateur du défi de la semaine
 
 const TIDE_DURATION = 90;
@@ -272,7 +273,7 @@ const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
 
-const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower', 'gecko', 'lotus'];
+const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower', 'gecko', 'lotus', 'guide'];
 
 /* Générateur aléatoire à graine : en duel, les deux joueurs reçoivent
    exactement la même séquence de pierres et de bonus. */
@@ -298,6 +299,10 @@ export function initGame(canvasEl, h) {
   hooks = h || {};
   resize();
   window.addEventListener('resize', resize);
+  // iOS ne signale pas toujours les changements de taille (lancement,
+  // rotation, barre d'outils) : on écoute aussi le viewport visuel
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 80));
   wireInput();
   requestAnimationFrame(frame);
 }
@@ -341,6 +346,7 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   fever = 0;
   feverActive = false;
   shieldCharges = 0;
+  guideShots = 0;
   fogUntil = 0;
   ghostTrace = [];
   ghost = null;
@@ -435,7 +441,7 @@ export function drawLegendIcon(cv, kind) {
   c2.setTransform(1, 0, 0, 1, 0, 0);
   c2.clearRect(0, 0, cv.width, cv.height);
   try {
-    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower', 'gecko', 'portal', 'lotus'].includes(kind)) {
+    if (['ball', 'sword', 'durian', 'chili', 'pearl', 'flower', 'gecko', 'portal', 'lotus', 'guide'].includes(kind)) {
       cell = size * 1.35;
       boardTop = cv.height / 2 - cell / 2;
       c2.setTransform(1, 0, 0, 1, size / 2 - cell / 2, 0);
@@ -513,6 +519,12 @@ export function drawBoardSnapshot(cv, snap) {
   }
 }
 
+/* Réglage direct d'états volatils — réservé aux tests automatisés. */
+export function debugSet(o) {
+  if (o && typeof o.guide === 'number') guideShots = o.guide;
+  if (o && typeof o.fever === 'number') fever = o.fever;
+}
+
 /* État minimal exposé pour les tests automatisés. */
 export function debugState() {
   const b = blocks.find((x) => x.type === 'boss');
@@ -521,6 +533,7 @@ export function debugState() {
     timeScale, accelBtn: accelBtnRect(), spawnLog,
     fever, shield: shieldCharges, weeklyMut, fogUntil,
     ghostLen: ghost ? ghost.length : 0,
+    guideShots, aimSteps: aimSteps(),
     boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
@@ -1019,6 +1032,7 @@ function fire(angle) {
     missionAdd('fever1');
   }
   missionAdd('shots30');
+  if (guideShots > 0) guideShots -= 1;
   toLaunch = ballCount;
   launchTimer = 0;
   aim = { angle };
@@ -1092,11 +1106,15 @@ function damageBlock(b, amount, cx, cy) {
 
 const MAX_PARTICLES = 280;
 
-/* Bouton « accélérer » : apparaît sur la plage après 8 s de vol. */
+/* Bouton « accélérer » : apparaît sur la plage après 8 s de vol.
+   Toujours au-dessus de la zone de la barre iOS du bas. */
 function accelBtnRect() {
   if (state !== 'flight' || userFast || flightTime < 8) return null;
   const w = cell * 2.6, h = cell * 0.78;
-  return { x: W / 2 - w / 2, y: floorY + Math.max(8, (H - floorY - h) / 2), w, h };
+  let y = floorY + Math.max(8, (H - floorY - h) / 2);
+  y = Math.min(y, H - readSafeInset('--sab') - h - 6);
+  y = Math.max(y, floorY + 4);
+  return { x: W / 2 - w / 2, y, w, h };
 }
 
 function breakBlock(b, style, cx, cy) {
@@ -1206,7 +1224,7 @@ function saveGame() {
     round, ballCount, score, pearls,
     seed: currentSeed, ts: Date.now(),
     launchFrac: launchX / W,
-    fever, shield: shieldCharges, fogUntil,
+    fever, shield: shieldCharges, fogUntil, guide: guideShots,
     blocks: blocks.map((b) => [b.col, b.row, b.hp, b.type, b.orient,
       b.type === 'boss' ? { m: b.maxHp, r: b.roarIn } : 0]),
     powerups: powerups.map((p) => [p.col, p.row, p.kind, p.pair || 0]),
@@ -1234,6 +1252,7 @@ function loadGame(m) {
     fever = s.fever || 0;
     feverActive = false;
     shieldCharges = s.shield || 0;
+    guideShots = s.guide || 0;
     fogUntil = s.fogUntil || 0;
     weeklyMut = null;
     blocks = s.blocks.map(([col, row, hp, type, orient, extra]) => ({
@@ -1484,6 +1503,12 @@ function collidePowerups(ball, r) {
         floaters.push({ x: c.x, y: c.y, life: 1, text: '🪷' });
         sfx.flower();
         break;
+      case 'guide':
+        // boussole : les 2 prochains tirs montrent toute la trajectoire
+        guideShots = Math.min(3, guideShots + 2);
+        floaters.push({ x: c.x, y: c.y, life: 1, text: '🧭' });
+        sfx.mystery();
+        break;
     }
   }
 }
@@ -1491,6 +1516,9 @@ function collidePowerups(ball, r) {
 // ---- boucle ----
 let lastT = 0;
 function frame(t) {
+  // filet de sécurité : iOS peut changer la taille de la fenêtre sans
+  // événement resize fiable → bande noire en bas si on ne suit pas
+  if (W !== window.innerWidth || H !== window.innerHeight) resize();
   const dt = Math.min((t - lastT) / 1000 || 0, 1 / 30);
   lastT = t;
   update(dt);
@@ -2028,7 +2056,7 @@ function drawPowerup(p, yOff, T, t) {
   const ringColors = {
     ball: T.aimDot, sword: '#9fd7e8', durian: '#c9e06a',
     chili: '#ff6b4a', pearl: '#f3e7ff', flower: '#ffc7dd',
-    gecko: '#8fd45f', portal: '#b48cff', lotus: '#ff9fcc',
+    gecko: '#8fd45f', portal: '#b48cff', lotus: '#ff9fcc', guide: '#ffe28a',
   };
   ctx.strokeStyle = ringColors[p.kind] || T.aimDot;
   ctx.lineWidth = cell * 0.045;
@@ -2177,6 +2205,35 @@ function drawPowerup(p, yOff, T, t) {
         ctx.stroke();
       }
       ctx.restore();
+      break;
+    }
+    case 'guide': {
+      // boussole marine
+      ctx.fillStyle = '#f6f2ea';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#c9a97a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#e2493c';
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y - r * 0.55);
+      ctx.lineTo(c.x - r * 0.18, c.y);
+      ctx.lineTo(c.x + r * 0.18, c.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#2f8fd6';
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y + r * 0.55);
+      ctx.lineTo(c.x - r * 0.18, c.y);
+      ctx.lineTo(c.x + r * 0.18, c.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#20140a';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r * 0.09, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case 'lotus': {
@@ -2536,6 +2593,13 @@ function draw(t) {
     ctx.fillStyle = '#ff9fcc';
     ctx.fillText('🪷' + (shieldCharges > 1 ? ' x' + shieldCharges : ''), W - 14, floorY + 44);
   }
+  if (guideShots > 0 && state === 'aim') {
+    ctx.font = '800 ' + Math.round(cell * 0.24) + 'px ' + FONT;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffe28a';
+    ctx.fillText('🧭 x' + guideShots, 14, floorY + 44);
+  }
 
   drawTutorial(T);
 }
@@ -2566,21 +2630,41 @@ function drawTutorial(T) {
   });
 }
 
+/* La visée raccourcit à mesure que la partie avance : viser devient un
+   vrai talent aux grosses manches. La boussole (bonus rare) rétablit la
+   trajectoire complète, rebonds sur les murs compris. */
+function aimSteps() {
+  if (mode === 'puzzle') return 24;
+  return Math.max(8, 24 - Math.floor(round / 2));
+}
+
 function drawAimLine(angle, T) {
   const r = RADIUS();
-  const dirX = Math.cos(angle), dirY = -Math.sin(angle);
+  const guided = guideShots > 0;
+  let a = angle;
+  // sous le mutateur miroir, la boussole montre la VRAIE trajectoire
+  if (guided && mode === 'weekly' && weeklyMut === 'mirror') a = Math.PI - a;
+  let dirX = Math.cos(a), dirY = -Math.sin(a);
   let x = launchX, y = floorY - r;
   const step = cell * 0.32;
-  for (let i = 0; i < 24; i++) {
+  const steps = guided ? 64 : aimSteps();
+  for (let i = 0; i < steps; i++) {
     x += dirX * step;
     y += dirY * step;
-    if (x < r || x > W - r || y < boardTop + r) break;
+    if (guided) {
+      if (x < r) { x = r + (r - x); dirX = Math.abs(dirX); }
+      if (x > W - r) { x = (W - r) - (x - (W - r)); dirX = -Math.abs(dirX); }
+      if (y < boardTop + r) { y = boardTop + r + (boardTop + r - y); dirY = Math.abs(dirY); }
+      if (y > floorY - r) break;
+    } else if (x < r || x > W - r || y < boardTop + r) {
+      break;
+    }
     if (pointInBlock(x, y, r)) break;
-    ctx.fillStyle = T.aimDot;
+    ctx.fillStyle = guided ? '#ffe28a' : T.aimDot;
     ctx.beginPath();
     ctx.arc(x, y, Math.max(2.5, r * 0.45), 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = T.aimDotStroke;
+    ctx.strokeStyle = guided ? 'rgba(0,40,40,0.5)' : T.aimDotStroke;
     ctx.lineWidth = 1;
     ctx.stroke();
   }
