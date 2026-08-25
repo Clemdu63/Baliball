@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <title>Baliball</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="description" content="Casse-briques à balles multiples, jouable hors ligne.">
-  <meta name="theme-color" content="#101014">
+  <meta name="description" content="Casse-briques balinais : des noix de coco contre des pierres de temple, jouable hors ligne.">
+  <meta name="theme-color" content="#0c1f22">
   <!-- iOS : plein écran une fois ajouté à l'écran d'accueil -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -35,7 +35,58 @@
   <button id="btn-home" class="hidden" aria-label="Menu">⌂</button>
 
   <div id="screen-home" class="screen">
-    <div class="version">v0.2</div>
+    <div class="scene" aria-hidden="true">
+      <svg viewBox="0 0 400 870" preserveAspectRatio="xMidYMax slice">
+        <rect class="sc-sky1" x="0" y="0" width="400" height="480"></rect>
+        <rect class="sc-sky2" x="0" y="300" width="400" height="180" opacity="0.55"></rect>
+        <!-- étoiles (visibles la nuit) -->
+        <circle class="sc-star" cx="60" cy="80" r="1.6"></circle>
+        <circle class="sc-star" cx="150" cy="46" r="1.2"></circle>
+        <circle class="sc-star" cx="245" cy="95" r="1.4"></circle>
+        <circle class="sc-star" cx="330" cy="60" r="1.1"></circle>
+        <circle class="sc-star" cx="200" cy="140" r="1.2"></circle>
+        <circle class="sc-star" cx="95" cy="170" r="1.0"></circle>
+        <!-- soleil haut (jour) / bas sur l'horizon (nuit) -->
+        <circle class="sc-sun sc-sun-hi" cx="312" cy="130" r="38"></circle>
+        <circle class="sc-sun sc-sun-lo" cx="180" cy="430" r="46"></circle>
+        <!-- volcan à l'horizon -->
+        <path class="sc-volcano" d="M -30 480 L 105 295 L 150 340 L 175 315 L 300 480 Z"></path>
+        <!-- mer -->
+        <rect class="sc-sea1" x="0" y="478" width="400" height="90"></rect>
+        <rect class="sc-sea2" x="0" y="560" width="400" height="70"></rect>
+        <!-- temple meru (silhouette) -->
+        <g class="sc-sil">
+          <rect x="316" y="452" width="30" height="28"></rect>
+          <path d="M 306 452 L 356 452 L 346 438 L 316 438 Z"></path>
+          <rect x="320" y="418" width="22" height="20"></rect>
+          <path d="M 312 418 L 350 418 L 342 404 L 320 404 Z"></path>
+          <rect x="324" y="388" width="14" height="16"></rect>
+          <path d="M 318 388 L 344 388 L 337 374 L 325 374 Z"></path>
+          <rect x="328" y="362" width="6" height="12"></rect>
+          <path d="M 325 362 L 337 362 L 331 350 Z"></path>
+        </g>
+        <!-- oiseaux -->
+        <path class="sc-birds" d="M 120 210 q 7 -7 14 0 M 134 210 q 7 -7 14 0" fill="none"></path>
+        <path class="sc-birds" d="M 170 190 q 6 -6 12 0 M 182 190 q 6 -6 12 0" fill="none"></path>
+        <!-- écume -->
+        <path d="M 0 626 Q 50 620 100 626 T 200 626 T 300 626 T 400 626 L 400 634 L 0 634 Z"
+              fill="rgba(255,255,255,0.55)"></path>
+        <!-- plage -->
+        <rect class="sc-sand" x="0" y="630" width="400" height="240"></rect>
+        <!-- palmier au premier plan -->
+        <g class="sc-sil">
+          <path d="M 58 640 C 64 560 60 500 78 448 L 90 452 C 74 505 80 562 76 640 Z"></path>
+          <path d="M 84 452 C 120 428 158 430 184 452 C 150 446 116 450 88 462 Z"></path>
+          <path d="M 82 448 C 104 415 140 404 172 414 C 140 416 110 430 90 456 Z"></path>
+          <path d="M 80 448 C 70 412 46 396 18 398 C 44 408 62 424 74 456 Z"></path>
+          <path d="M 80 452 C 48 434 20 438 0 456 C 26 450 52 454 74 464 Z"></path>
+          <circle cx="82" cy="456" r="7"></circle>
+          <circle cx="93" cy="461" r="6"></circle>
+        </g>
+      </svg>
+    </div>
+
+    <div class="version">v0.3</div>
     <div class="logo" aria-label="Baliball">
       <span class="logo-ball"></span>
       <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
@@ -45,7 +96,7 @@
     <button id="btn-new">NOUVELLE PARTIE</button>
     <button id="btn-settings" class="secondary">RÉGLAGES</button>
     <p>Glisse le doigt pour viser, relâche pour tirer.<br>
-       Les briques descendent à chaque tour : ne les laisse pas atteindre le bas&nbsp;!</p>
+       Les pierres descendent à chaque tour : ne les laisse pas atteindre la plage&nbsp;!</p>
     <span id="offline-badge"></span>
     <div class="hint" id="install-hint"></div>
   </div>
@@ -57,8 +108,8 @@
       <div class="label">THÈME</div>
       <div class="segmented" id="seg-theme">
         <button data-value="auto">Auto</button>
-        <button data-value="light">Clair</button>
-        <button data-value="dark">Sombre</button>
+        <button data-value="light">Jour</button>
+        <button data-value="dark">Nuit</button>
       </div>
     </div>
 
@@ -71,7 +122,15 @@
     </div>
 
     <div class="setting">
-      <div class="label">VITESSE DES BALLES</div>
+      <div class="label">RESSAC (AMBIANCE)</div>
+      <div class="segmented" id="seg-ambience">
+        <button data-value="true">Activé</button>
+        <button data-value="false">Coupé</button>
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">VITESSE DES NOIX DE COCO</div>
       <div class="segmented" id="seg-speed">
         <button data-value="false">Normale</button>
         <button data-value="true">Rapide</button>
@@ -86,8 +145,8 @@
     <div class="big-score" id="over-round">1</div>
     <p id="over-best"></p>
     <div class="stats">
-      <div class="row"><span>Briques cassées</span><b id="stat-broken">0</b></div>
-      <div class="row"><span>Balles accumulées</span><b id="stat-balls">1</b></div>
+      <div class="row"><span>Pierres brisées</span><b id="stat-broken">0</b></div>
+      <div class="row"><span>Noix de coco accumulées</span><b id="stat-balls">1</b></div>
       <div class="row"><span>Tirs</span><b id="stat-shots">0</b></div>
     </div>
     <button id="btn-retry" style="margin-top:8px">REJOUER</button>

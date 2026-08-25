@@ -16,6 +16,7 @@ export const store = {
 const DEFAULTS = {
   theme: 'auto',   // auto | light | dark
   sound: true,
+  ambience: true,  // ressac en fond
   fast: false,     // vitesse des balles
 };
 

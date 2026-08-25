@@ -21,7 +21,7 @@ télécharger, l'app reste minuscule et 100 % hors ligne.
 
 ---
 
-## Lot 1 — Identité Bali (v0.3) 🥥
+## Lot 1 — Identité Bali (v0.3) 🥥 (livré ✅)
 
 Le lot le plus important : tout l'habillage passe au thème Bali.
 

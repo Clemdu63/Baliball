@@ -2,7 +2,7 @@
 
 import { settings, persistSettings } from './storage.js';
 import { setThemeMode } from './theme.js';
-import { initAudio } from './audio.js';
+import { initAudio, syncAmbience } from './audio.js';
 import * as game from './game.js';
 
 const $ = (id) => document.getElementById(id);
@@ -91,7 +91,8 @@ function bindSegmented(containerId, key, apply) {
 }
 
 bindSegmented('seg-theme', 'theme', () => setThemeMode(settings.theme));
-bindSegmented('seg-sound', 'sound');
+bindSegmented('seg-sound', 'sound', syncAmbience);
+bindSegmented('seg-ambience', 'ambience', syncAmbience);
 bindSegmented('seg-speed', 'fast');
 
 $('btn-settings-back').addEventListener('click', () => {

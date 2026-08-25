@@ -1,77 +1,81 @@
 #!/usr/bin/env python3
-"""Génère les icônes PNG de Baliball (à lancer depuis la racine du dépôt).
+"""Génère les icônes PNG de Baliball, thème Bali (à lancer depuis la racine).
 
 Usage : python3 tools/gen_icons.py
 Dépendance : pip install pillow
 """
 import os
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "icons")
 
-BG = (16, 16, 20)
-GREEN = (139, 213, 44)
-DARK_GREEN = (51, 168, 46)
+WATER_TOP = (47, 174, 159)
+WATER_BOTTOM = (167, 236, 220)
+SAND = (240, 224, 182)
+SILHOUETTE = (18, 74, 68)
+COCO_BASE = (122, 82, 48)
+COCO_DARK = (85, 54, 28)
+COCO_LIGHT = (163, 121, 78)
 WHITE = (255, 255, 255)
 
-FONT_CANDIDATES = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/System/Library/Fonts/Helvetica.ttc",
-    "/Library/Fonts/Arial Bold.ttf",
-]
 
-
-def load_font(size):
-    for path in FONT_CANDIDATES:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except OSError:
-                continue
-    return ImageFont.load_default()
+def lerp(a, b, t):
+    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
 def draw_icon(size, margin_ratio):
-    """margin_ratio : marge de sécurité (plus grande pour l'icône maskable)."""
-    img = Image.new("RGB", (size, size), BG)
+    img = Image.new("RGB", (size, size), WATER_TOP)
     d = ImageDraw.Draw(img)
+
+    # dégradé du lagon
+    for y in range(size):
+        d.line([(0, y), (size, y)], fill=lerp(WATER_TOP, WATER_BOTTOM, y / size))
 
     m = int(size * margin_ratio)
     inner = size - 2 * m
-    # trois briques en haut
-    gap = inner * 0.06
-    bw = (inner - 2 * gap) / 3
-    y0 = m + inner * 0.08
-    font = load_font(int(bw * 0.5))
-    for i, (color, label) in enumerate([(GREEN, "1"), (DARK_GREEN, "2"), (GREEN, "1")]):
-        x0 = m + i * (bw + gap)
-        d.rounded_rectangle(
-            [x0, y0, x0 + bw, y0 + bw], radius=int(bw * 0.14), fill=color
-        )
-        bbox = d.textbbox((0, 0), label, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        d.text(
-            (x0 + (bw - tw) / 2 - bbox[0], y0 + (bw - th) / 2 - bbox[1]),
-            label,
-            font=font,
-            fill=WHITE,
-        )
 
-    # balle en bas avec traînée de visée
-    ball_r = inner * 0.11
-    bx = size / 2
-    by = m + inner * 0.82
-    for i in range(4):
-        t = (i + 1) / 5.0
-        dot_r = ball_r * 0.28
-        dx = bx + inner * 0.28 * t
-        dy = by - inner * 0.30 * t
-        d.ellipse(
-            [dx - dot_r, dy - dot_r, dx + dot_r, dy + dot_r],
-            fill=(255, 255, 255, 160),
-        )
-    d.ellipse([bx - ball_r, by - ball_r, bx + ball_r, by + ball_r], fill=WHITE)
+    # plage en bas (arc doux)
+    beach_top = m + int(inner * 0.78)
+    d.ellipse([-size * 0.3, beach_top, size * 1.3, size * 2], fill=SAND)
+    # écume
+    d.arc([-size * 0.3, beach_top - size * 0.012, size * 1.3, size * 2],
+          180, 360, fill=WHITE, width=max(2, size // 90))
+
+    # temple meru en silhouette (droite)
+    tx = m + int(inner * 0.66)
+    base_w = int(inner * 0.26)
+    ty = beach_top + int(inner * 0.02)
+    tiers = 4
+    for i in range(tiers):
+        w = int(base_w * (1 - i * 0.2))
+        h = int(inner * 0.075)
+        x0 = tx + (base_w - w) // 2
+        y0 = ty - (i + 1) * int(h * 1.35)
+        d.rectangle([x0, y0, x0 + w, y0 + h], fill=SILHOUETTE)
+        d.polygon([
+            (x0 - w * 0.14, y0), (x0 + w * 1.14, y0),
+            (x0 + w * 0.86, y0 - h * 0.8), (x0 + w * 0.14, y0 - h * 0.8),
+        ], fill=SILHOUETTE)
+
+    # noix de coco au centre avec anneau d'écume
+    cx = m + int(inner * 0.38)
+    cy = m + int(inner * 0.45)
+    r = int(inner * 0.23)
+    ring = int(r * 1.35)
+    d.ellipse([cx - ring, cy - ring, cx + ring, cy + ring],
+              outline=WHITE, width=max(3, size // 60))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=COCO_BASE,
+              outline=COCO_DARK, width=max(2, size // 80))
+    # reflet
+    hr = int(r * 0.45)
+    d.ellipse([cx - int(r * 0.55) - hr // 2, cy - int(r * 0.55) - hr // 2,
+               cx - int(r * 0.55) + hr, cy - int(r * 0.55) + hr], fill=COCO_LIGHT)
+    # les trois yeux
+    er = max(2, int(r * 0.13))
+    for ex, ey in [(-0.2, -0.05), (0.1, -0.25), (0.18, 0.12)]:
+        px, py = cx + int(r * ex), cy + int(r * ey)
+        d.ellipse([px - er, py - er, px + er, py + er], fill=COCO_DARK)
 
     return img
 
@@ -79,10 +83,10 @@ def draw_icon(size, margin_ratio):
 def main():
     os.makedirs(OUT, exist_ok=True)
     specs = [
-        ("icon-180.png", 180, 0.10),
-        ("icon-192.png", 192, 0.10),
-        ("icon-512.png", 512, 0.10),
-        ("icon-512-maskable.png", 512, 0.18),
+        ("icon-180.png", 180, 0.06),
+        ("icon-192.png", 192, 0.06),
+        ("icon-512.png", 512, 0.06),
+        ("icon-512-maskable.png", 512, 0.16),
     ]
     for name, size, margin in specs:
         img = draw_icon(size, margin)

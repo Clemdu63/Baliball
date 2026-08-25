@@ -2,30 +2,58 @@
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
 
-  /* thème clair (plateau clair, entourage sombre) */
-  --page: #101014;
-  --overlay: rgba(16, 16, 20, 0.86);
-  --text: #ffffff;
-  --muted: #c9c9c9;
-  --hint: #8a8a90;
-  --accent: #8bd52c;
-  --accent-text: #14210a;
+  /* jour : lagon en pleine lumière */
+  --page: #0c1f22;
+  --overlay: rgba(8, 30, 32, 0.88);
+  --text: #fdf6e3;
+  --muted: #d8ccab;
+  --hint: #9caf9f;
+  --accent: #12a086;
+  --accent-text: #06281f;
   --danger: #e0447a;
-  --line: #55555c;
-  --chip: rgba(255, 255, 255, 0.08);
+  --line: #4d6360;
+  --chip: rgba(255, 255, 255, 0.09);
+
+  /* paysage de l'accueil (jour) */
+  --scene-sky1: #bfe9ef;
+  --scene-sky2: #eef9f0;
+  --scene-sun: #ffe9a8;
+  --scene-sea1: #2fae9f;
+  --scene-sea2: #a7ecdc;
+  --scene-sand: #f0e0b6;
+  --scene-silhouette: #14554e;
+  --scene-volcano: #3f7a6e;
+  --scene-star: transparent;
+  --logo-color: #0d4b43;
+  --home-text: #305650;
+  --home-hint: #6d8378;
 }
 
 :root[data-theme="dark"] {
-  --page: #08080a;
-  --overlay: rgba(5, 5, 8, 0.88);
-  --text: #f2f2ee;
-  --muted: #b9b9bf;
-  --hint: #77777e;
-  --accent: #52d332;
-  --accent-text: #0c1a06;
+  /* nuit : coucher de soleil sur le lagon */
+  --page: #070a12;
+  --overlay: rgba(6, 8, 18, 0.9);
+  --text: #f6ead0;
+  --muted: #cbbd9e;
+  --hint: #84806f;
+  --accent: #f5a24b;
+  --accent-text: #2b1704;
   --danger: #f75f92;
-  --line: #3a3a42;
-  --chip: rgba(255, 255, 255, 0.07);
+  --line: #45435a;
+  --chip: rgba(255, 255, 255, 0.08);
+
+  --scene-sky1: #241a4e;
+  --scene-sky2: #ff8a5c;
+  --scene-sun: #ffb648;
+  --scene-sea1: #123047;
+  --scene-sea2: #2c7a80;
+  --scene-sand: #8d7c5c;
+  --scene-silhouette: #120f26;
+  --scene-volcano: #1d1836;
+  --scene-star: rgba(255, 245, 220, 0.9);
+  --logo-color: #ffe9b8;
+  --home-text: #e8d9b0;
+  --home-hint: #a99a78;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -85,11 +113,18 @@ button {
   color: var(--accent-text);
   letter-spacing: 1px;
   cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
 }
 
 button.secondary {
-  background: transparent;
-  border: 2px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+  border: none;
+  color: #234;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="dark"] button.secondary {
+  background: rgba(255, 255, 255, 0.12);
   color: var(--muted);
 }
 
@@ -98,7 +133,7 @@ button.secondary {
   bottom: calc(18px + var(--sab));
   left: 20px; right: 20px;
   font-size: 13px;
-  color: var(--hint);
+  color: var(--home-hint);
   line-height: 1.5;
 }
 
@@ -106,7 +141,24 @@ button.secondary {
   display: inline-block;
   margin-top: 4px;
   font-size: 12px;
-  color: var(--accent);
+  font-weight: 700;
+  color: var(--home-text);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+:root[data-theme="dark"] #offline-badge {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#offline-badge:empty { display: none; }
+
+.hint { text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3); }
+
+:root[data-theme="dark"] .hint {
+  color: var(--home-text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .version {
@@ -115,11 +167,65 @@ button.secondary {
   right: 18px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--hint);
+  color: var(--home-hint);
   letter-spacing: 1px;
 }
 
-/* ---- logo animé ---- */
+/* ---- accueil : paysage balinais ---- */
+#screen-home {
+  background: var(--scene-sky1);
+  color: var(--home-text);
+  justify-content: flex-start;
+  padding-top: calc(56px + var(--sat));
+  gap: 16px;
+}
+
+#screen-home p {
+  color: var(--home-text);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  padding: 10px 14px;
+  max-width: 330px;
+}
+
+:root[data-theme="dark"] #screen-home p {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#screen-home p:empty { display: none; }
+
+#screen-home .scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#screen-home .scene svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sc-sky1 { fill: var(--scene-sky1); }
+.sc-sky2 { fill: var(--scene-sky2); }
+.sc-sun { fill: var(--scene-sun); }
+.sc-sea1 { fill: var(--scene-sea1); }
+.sc-sea2 { fill: var(--scene-sea2); }
+.sc-sand { fill: var(--scene-sand); }
+.sc-sil { fill: var(--scene-silhouette); }
+.sc-volcano { fill: var(--scene-volcano); }
+.sc-star { fill: var(--scene-star); }
+.sc-birds { stroke: var(--scene-silhouette); stroke-width: 1.6; opacity: 0.7; }
+
+/* soleil haut le jour, posé sur l'horizon la nuit */
+.sc-sun-hi { opacity: 1; }
+.sc-sun-lo { opacity: 0; }
+:root[data-theme="dark"] .sc-sun-hi { opacity: 0; }
+:root[data-theme="dark"] .sc-sun-lo { opacity: 1; }
+
+/* ---- logo animé : la noix de coco rebondit sur les lettres ---- */
 .logo {
   position: relative;
   display: flex;
@@ -128,7 +234,12 @@ button.secondary {
   font-size: 44px;
   font-weight: 800;
   letter-spacing: 2px;
-  color: var(--accent);
+  color: var(--logo-color);
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.25);
+}
+
+:root[data-theme="dark"] .logo {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
 }
 
 .logo .lt {
@@ -148,9 +259,10 @@ button.secondary {
   position: absolute;
   top: 22px;
   left: -6%;
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
   border-radius: 50%;
-  background: var(--text);
+  background: radial-gradient(circle at 32% 28%, #a3794e, #7a5230 55%, #55361c 100%);
+  box-shadow: inset -1px -2px 3px rgba(0, 0, 0, 0.35);
   animation: ball-travel 2.8s infinite linear;
 }
 
@@ -256,6 +368,7 @@ button.secondary {
   background: transparent;
   color: var(--muted);
   letter-spacing: 0;
+  box-shadow: none;
 }
 
 .segmented button.active {
@@ -271,11 +384,12 @@ button.secondary {
   width: 38px; height: 38px;
   padding: 0;
   border-radius: 50%;
-  background: var(--chip);
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4ead0;
   font-size: 17px;
   line-height: 38px;
   z-index: 5;
+  box-shadow: none;
 }
 
 #btn-home.hidden { display: none; }

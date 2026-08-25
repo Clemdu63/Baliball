@@ -1,19 +1,24 @@
-# Baliball 🎮
+# Baliball 🥥
 
-Casse-briques à balles multiples (inspiré des jeux type « Ballz »), écrit en
-JavaScript pur — **jouable hors ligne sur iPhone** une fois installé.
+Casse-briques balinais : des **noix de coco** contre des **pierres de
+temple**, dans un lagon aux eaux claires. Écrit en JavaScript pur —
+**jouable hors ligne sur iPhone** une fois installé. Tous les visuels et
+les sons (gamelan, ressac) sont générés en code : aucune image, aucun
+fichier audio.
 
 ## Comment jouer
 
-- **Glisse le doigt** dans la direction du tir, **relâche** pour lancer les balles.
-- Chaque impact enlève 1 point de vie à une brique ; à 0 elle explose.
-- Les pastilles **○** donnent **+1 balle** pour les tours suivants.
+- **Glisse le doigt** dans la direction du tir, **relâche** pour lancer les
+  noix de coco.
+- Chaque impact enlève 1 point de vie à une pierre ; à 0 elle vole en éclats.
+- Les petites noix cerclées donnent **+1 noix de coco** pour les tours suivants.
 - À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
-  la partie est perdue quand une brique atteint la ligne du bas.
-- Pendant le vol des balles, **touche l'écran** pour accélérer.
+  la partie est perdue quand une pierre atteint la plage.
+- Pendant le vol, **touche l'écran** pour accélérer.
 - La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
   (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
-- Dans **Réglages** : thème clair/sombre/auto, sons, vitesse des balles.
+- Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
+  vitesse des noix de coco.
 
 ## Installation sur iPhone (jeu hors ligne)
 

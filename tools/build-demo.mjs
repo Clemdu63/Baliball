@@ -3,11 +3,16 @@
 
    Usage : node tools/build-demo.mjs [sortie.html]
 
-   Les modules sont concaténés en un seul script classique : les lignes
-   `import` sont retirées et les préfixes `export` supprimés — les modules
-   n'ont volontairement aucun nom de premier niveau en double. La fin de
-   main.js (service worker + astuce d'installation) est coupée : la démo
-   n'est pas installable. */
+   Tout est dérivé des sources réelles :
+   - le corps de la page vient d'index.html (script module retiré) ;
+   - style.css est inliné ;
+   - les modules js/ sont concaténés en un script classique (lignes `import`
+     retirées, préfixes `export` supprimés — aucun nom de premier niveau en
+     double entre modules) ;
+   - l'objet `game` (import d'espace de noms de main.js) est reconstruit à
+     partir des fonctions exportées de game.js ;
+   - la fin de main.js (service worker + astuce d'installation) est coupée :
+     la démo n'est pas installable. */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +22,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ORDER = ['storage', 'theme', 'audio', 'game', 'main'];
 const CUT_MARKER = '// service worker : hors ligne';
 
+const read = (p) => readFileSync(join(root, p), 'utf8');
+
+// ---- scripts ----
 let js = '';
 for (const name of ORDER) {
-  let src = readFileSync(join(root, 'js', name + '.js'), 'utf8');
+  let src = read(join('js', name + '.js'));
   if (name === 'main') {
     const cut = src.indexOf(CUT_MARKER);
     if (cut === -1) throw new Error('marqueur de coupe introuvable dans main.js');
@@ -30,17 +38,27 @@ for (const name of ORDER) {
     .replace(/^export /gm, '');
   js += '\n// ---- js/' + name + '.js ----\n' + src;
   if (name === 'game') {
-    // main.js importe le moteur en espace de noms (`import * as game`) :
-    // on recrée l'objet équivalent une fois les fonctions à plat
-    js += '\nconst game = { initGame, newGame, resumeGame, hasSave, getBest, toMenu, isPlaying };\n';
+    const names = [...read(join('js', 'game.js')).matchAll(/^export function (\w+)/gm)]
+      .map((m) => m[1]);
+    js += '\nconst game = { ' + names.join(', ') + ' };\n';
   }
 }
+js += '\ndocument.getElementById(\'install-hint\').textContent = '
+  + '\'Version démo en ligne — la version installable et jouable hors ligne est sur GitHub Pages.\';\n';
 
-const css = readFileSync(join(root, 'style.css'), 'utf8');
-const head = readFileSync(join(root, 'tools', 'demo-head.html'), 'utf8')
-  .replace('<!--STYLE-->', '<style>\n' + css + '</style>');
+// ---- page ----
+const index = read('index.html');
+const bodyMatch = index.match(/<body>([\s\S]*)<\/body>/);
+const themeMatch = index.match(/<script>[\s\S]*?<\/script>/);
+if (!bodyMatch || !themeMatch) throw new Error('structure index.html inattendue');
+const body = bodyMatch[1].replace(/\s*<script type="module"[^>]*><\/script>/, '');
 
-const out = head + '\n<script>\n' + js + '\n</script>\n';
+const out = '<title>Baliball</title>\n'
+  + themeMatch[0] + '\n'
+  + '<style>\n' + read('style.css') + '</style>\n'
+  + body
+  + '\n<script>\n' + js + '\n</script>\n';
+
 const dest = process.argv[2] || join(root, 'demo.html');
 writeFileSync(dest, out);
 console.log('écrit', dest, '(' + out.length + ' octets)');

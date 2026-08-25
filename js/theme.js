@@ -1,56 +1,86 @@
-/* Thèmes du plateau (canvas) + synchronisation du thème CSS (data-theme). */
+/* Thèmes Bali : lagon en plein jour (clair) et coucher de soleil/nuit (sombre).
+   Les couleurs du plateau canvas vivent ici ; les écrans HTML suivent via
+   data-theme sur <html> (voir style.css). */
 
 export const THEMES = {
-  light: {
-    page: '#101014',
-    board: '#e9e7df',
-    hud: '#2b2b28',
-    hudSub: '#8a8a85',
-    ball: '#ffffff',
-    ballStroke: 'rgba(0,0,0,0.15)',
+  day: {
+    name: 'day',
+    page: '#0c1f22',                    // contour de l'écran
+    waterTop: '#2fae9f',                // eau au loin
+    waterBottom: '#a7ecdc',             // eau claire près de la plage
+    waterGlow: null,
+    caustic: 'rgba(255,255,255,0.13)',
+    sparkle: 'rgba(255,255,255,0.55)',
+    sand: '#f0e0b6',
+    sandDark: '#e0cc97',
+    sandText: '#8a6f4d',
+    foam: 'rgba(255,255,255,0.85)',
+    tideFoam: 'rgba(255,255,255,0.5)',
+    fish: 'rgba(13,74,82,0.22)',
+    palm: 'rgba(12,80,64,0.28)',
+    hud: '#f4ead0',
+    hudSub: 'rgba(244,234,208,0.55)',
+    blockText: '#ffffff',
+    blockTextHalo: 'rgba(40,30,10,0.45)',
+    floater: '#ffffff',
+    ghost: 'rgba(80,52,26,0.4)',
     aimDot: '#ffffff',
-    aimDotStroke: 'rgba(0,0,0,0.12)',
-    danger: 'rgba(224,68,122,0.25)',
-    blockText: '#ffffff',
-    bonus: '#ffffff',
-    bonusHalo: 'rgba(0,0,0,0.15)',
-    floater: '#33a82e',
-    ghost: 'rgba(43,43,40,0.5)',
-    palette: ['#43b929', '#8bd52c', '#f0a63c', '#1f7fe0', '#7a4de0', '#e0447a'],
+    aimDotStroke: 'rgba(0,60,60,0.15)',
+    coconut: { base: '#7a5230', dark: '#55361c', light: '#a3794e' },
+    stones: [
+      { kind: 'sand', base: '#dccfae', edge: '#ac9b72', groove: 'rgba(90,75,45,0.22)' },
+      { kind: 'moss', base: '#c9c096', edge: '#968c62', groove: 'rgba(70,70,35,0.22)', moss: '#63a84b' },
+      { kind: 'volcanic', base: '#6e6a66', edge: '#454140', groove: 'rgba(0,0,0,0.25)', speck: '#383532' },
+      { kind: 'gold', base: '#e2b451', edge: '#a87f28', groove: 'rgba(120,80,10,0.25)', shine: 'rgba(255,255,255,0.4)' },
+    ],
   },
-  dark: {
-    page: '#08080a',
-    board: '#17171c',
-    hud: '#e8e8e4',
-    hudSub: '#6f6f76',
-    ball: '#ffffff',
-    ballStroke: 'rgba(255,255,255,0.14)',
-    aimDot: '#e8e8e4',
-    aimDotStroke: 'rgba(255,255,255,0.1)',
-    danger: 'rgba(247,95,146,0.4)',
+  night: {
+    name: 'night',
+    page: '#070a12',
+    waterTop: '#123047',
+    waterBottom: '#2c7a80',
+    waterGlow: 'rgba(255,138,92,0.16)',  // reflet du couchant en haut de l'eau
+    caustic: 'rgba(255,255,255,0.06)',
+    sparkle: 'rgba(255,236,190,0.7)',    // reflets de lune
+    sand: '#8d7c5c',
+    sandDark: '#77684c',
+    sandText: '#e8d9b0',
+    foam: 'rgba(255,255,255,0.55)',
+    tideFoam: 'rgba(255,255,255,0.35)',
+    fish: 'rgba(190,225,235,0.14)',
+    palm: 'rgba(0,0,0,0.35)',
+    hud: '#f4e6c8',
+    hudSub: 'rgba(244,230,200,0.5)',
     blockText: '#ffffff',
-    bonus: '#e8e8e4',
-    bonusHalo: 'rgba(255,255,255,0.12)',
-    floater: '#52d332',
-    ghost: 'rgba(232,232,228,0.45)',
-    palette: ['#52d332', '#a8e93e', '#ffb648', '#3b96f5', '#9a6ef5', '#f75f92'],
+    blockTextHalo: 'rgba(0,0,0,0.5)',
+    floater: '#ffe9b8',
+    ghost: 'rgba(255,240,210,0.45)',
+    aimDot: '#f2ead2',
+    aimDotStroke: 'rgba(0,0,0,0.2)',
+    coconut: { base: '#6b4527', dark: '#472c15', light: '#8f6a42' },
+    stones: [
+      { kind: 'sand', base: '#b2a17b', edge: '#84744f', groove: 'rgba(60,48,25,0.3)' },
+      { kind: 'moss', base: '#9aa06f', edge: '#6a7448', groove: 'rgba(40,50,20,0.3)', moss: '#4f9040' },
+      { kind: 'volcanic', base: '#55514d', edge: '#33302d', groove: 'rgba(0,0,0,0.3)', speck: '#262421' },
+      { kind: 'gold', base: '#d3a13c', edge: '#96701f', groove: 'rgba(110,70,5,0.3)', shine: 'rgba(255,255,255,0.35)' },
+    ],
   },
 };
 
 let mode = 'auto';
-let current = THEMES.light;
+let current = THEMES.day;
 const mq = window.matchMedia('(prefers-color-scheme: dark)');
 
 function resolved() {
-  if (mode === 'dark') return 'dark';
-  if (mode === 'light') return 'light';
-  return mq.matches ? 'dark' : 'light';
+  if (mode === 'dark') return 'night';
+  if (mode === 'light') return 'day';
+  return mq.matches ? 'night' : 'day';
 }
 
 function apply() {
   const name = resolved();
   current = THEMES[name];
-  document.documentElement.dataset.theme = name;
+  document.documentElement.dataset.theme = name === 'night' ? 'dark' : 'light';
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = current.page;
 }
@@ -62,6 +92,13 @@ export function setThemeMode(m) {
 
 export function getTheme() {
   return current;
+}
+
+/* Palier de pierre selon les PV : grès clair → moussue → volcanique → dorée,
+   puis le cycle recommence pour les très grosses valeurs. */
+export function stoneStyle(hp) {
+  const stones = current.stones;
+  return stones[Math.floor((hp - 1) / 4) % stones.length];
 }
 
 mq.addEventListener('change', () => {
