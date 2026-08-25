@@ -450,7 +450,7 @@ function draw() {
     if (remaining > 0) {
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(state === 'flight' ? launchX : launchX, floorY - r, r * 1.15, 0, Math.PI * 2);
+      ctx.arc(launchX, floorY - r, r * 1.15, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.2)';
       ctx.lineWidth = 1;
