@@ -51,6 +51,7 @@
   --lg-chip-text: #114b44;
   --lg-pane: rgba(255, 255, 255, 0.42);
   --lg-pane-text: #123f39;
+  --lg-glow: rgba(34, 211, 197, 0.5);
 }
 
 :root[data-theme="dark"] {
@@ -86,13 +87,14 @@
   --home-hint: #a99a78;
 
   /* accueil « liquid glass » : dégradé couchant (nuit) */
-  --lg1: rgba(255, 138, 92, 0.62);
-  --lg2: rgba(198, 91, 143, 0.52);
-  --lg3: rgba(124, 92, 255, 0.55);
+  --lg1: rgba(255, 138, 92, 0.74);
+  --lg2: rgba(198, 91, 143, 0.62);
+  --lg3: rgba(124, 92, 255, 0.66);
   --lg-chip: linear-gradient(160deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.1));
   --lg-chip-text: #ffffff;
   --lg-pane: rgba(10, 14, 30, 0.44);
   --lg-pane-text: #f6ead0;
+  --lg-glow: rgba(255, 138, 92, 0.55);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -193,13 +195,14 @@ button:focus-visible {
 }
 
 .hint {
-  position: absolute;
-  bottom: calc(18px + var(--sab));
-  left: 20px; right: 20px;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--home-hint);
-  line-height: 1.5;
+  line-height: 1.45;
+  max-width: 330px;
+  pointer-events: none;
 }
+
+.hint:empty { display: none; }
 
 #offline-badge {
   display: inline-block;
@@ -240,8 +243,95 @@ button:focus-visible {
   background: var(--scene-sky1);
   color: var(--home-text);
   justify-content: flex-start;
-  padding-top: calc(56px + var(--sat));
-  gap: 16px;
+  padding-top: calc(30px + var(--sat));
+  padding-bottom: calc(16px + var(--sab));
+  gap: 12px;
+}
+
+/* espaceurs : logo en haut, CTA posé sur la mer ouverte, dock en bas —
+   les points forts du décor (volcan, île, lune) restent dégagés */
+.home-flex { flex: 1.35 1 0; min-height: 8px; }
+.home-flex-low { flex: 0.42 1 0; }
+
+.home-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  animation: home-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.05s backwards;
+}
+
+.tagline {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--lg-pane-text);
+  opacity: 0.85;
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.2);
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+}
+
+@keyframes home-in {
+  from { opacity: 0; transform: translateY(16px); }
+}
+
+/* record : simple ligne discrète sous la tagline, sans verre */
+.home-top #home-best {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lg-pane-text);
+  opacity: 0.75;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  animation: none;
+}
+
+/* missions : petite pastille de verre posée au-dessus du dock */
+#home-missions {
+  font-size: 12.5px;
+  padding: 7px 16px !important;
+  border-radius: 999px !important;
+}
+
+/* illustration de fond (jour/nuit) avec très lente respiration */
+.scene-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  animation: kenburns 38s ease-in-out infinite alternate;
+}
+
+@keyframes kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+.scene-art-night { display: none; }
+:root[data-theme="dark"] .scene-art-day { display: none; }
+:root[data-theme="dark"] .scene-art-night { display: block; }
+
+.scene-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(6, 20, 22, 0.14),
+    rgba(0, 0, 0, 0) 22%,
+    rgba(0, 0, 0, 0) 62%,
+    rgba(6, 20, 22, 0.3) 100%);
 }
 
 #screen-home p {
@@ -597,14 +687,64 @@ button:focus-visible {
 }
 
 #btn-play {
-  font-size: 22px;
-  letter-spacing: 2.5px;
-  padding: 16px 66px;
+  font-size: 23px;
+  letter-spacing: 3px;
+  padding: 18px 76px;
   border-radius: 999px;
+  animation:
+    home-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.22s backwards,
+    lg-glow 5.4s ease-in-out 1.4s infinite;
 }
 
-#btn-resume, #btn-rejoin {
+/* reflet liquide qui balaie le verre toutes les ~6 s */
+#btn-play::after {
+  content: '';
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  width: 30%;
+  left: -45%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0) , rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+  animation: lg-shimmer 6s ease-in-out 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes lg-shimmer {
+  0%, 64% { left: -45%; }
+  86%, 100% { left: 118%; }
+}
+
+@keyframes lg-glow {
+  0%, 100% {
+    box-shadow:
+      0 10px 26px rgba(0, 10, 12, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -8px 18px rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 10px 30px rgba(0, 10, 12, 0.3),
+      0 0 36px var(--lg-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -8px 18px rgba(255, 255, 255, 0.12);
+  }
+}
+
+#screen-home #btn-resume, #screen-home #btn-rejoin {
   border-radius: 999px;
+  font-size: 15px;
+  letter-spacing: 1.5px;
+  padding: 11px 38px;
+  background: var(--lg-pane);
+  color: var(--lg-pane-text);
+  text-shadow: none;
+  animation: home-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.18s backwards;
+}
+
+#screen-home p {
+  animation: home-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.14s backwards;
 }
 
 /* panneaux de texte : mêmes lamelles de verre, plus discrètes */
@@ -627,10 +767,21 @@ button:focus-visible {
   padding: 3px 10px;
 }
 
-/* ---- accueil : chips d'accès rapide (verre clair) ---- */
+/* ---- accueil : dock de verre (façon iOS) ---- */
 .home-row {
   display: flex;
-  gap: 10px;
+  gap: 2px;
+  background: var(--lg-pane);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-top-color: rgba(255, 255, 255, 0.65);
+  border-radius: 30px;
+  padding: 8px 10px;
+  box-shadow:
+    0 14px 34px rgba(0, 10, 12, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  animation: home-in 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) 0.32s backwards;
 }
 
 #screen-home .home-row button {
@@ -638,24 +789,44 @@ button:focus-visible {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 76px;
+  width: 74px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.3px;
-  padding: 10px 0 8px;
-  border-radius: 18px;
-  background: var(--lg-chip);
-  color: var(--lg-chip-text);
+  padding: 9px 0 7px;
+  border-radius: 20px;
+  background: transparent;
+  border: none;
+  color: var(--lg-pane-text);
   text-shadow: none;
-  box-shadow:
-    0 6px 16px rgba(0, 10, 12, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+#screen-home .home-row button::before { display: none; }
+
+#screen-home .home-row button:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
 }
 
 .home-row .chip-ico {
-  font-size: 21px;
+  font-size: 22px;
   line-height: 1.1;
 }
+
+/* animations coupées si demandé (système ou Réglages) */
+@media (prefers-reduced-motion: reduce) {
+  .scene-art, #btn-play, #btn-play::after,
+  .home-top, .home-row, #screen-home p,
+  #btn-resume, #btn-rejoin { animation: none !important; }
+}
+
+body.calm .scene-art, body.calm #btn-play, body.calm #btn-play::after,
+body.calm .home-top, body.calm .home-row, body.calm #screen-home p,
+body.calm #btn-resume, body.calm #btn-rejoin { animation: none !important; }
 
 /* ---- boutique & progrès ---- */
 .shop-scroll {

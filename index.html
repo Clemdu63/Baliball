@@ -108,26 +108,33 @@
           <circle cx="93" cy="461" r="6"></circle>
         </g>
       </svg>
+      <!-- fond minimal peint (jour/nuit) au-dessus de la scène SVG de repli -->
+      <img class="scene-art scene-art-day" src="art/menu-day.webp" alt="" aria-hidden="true">
+      <img class="scene-art scene-art-night" src="art/menu-night.webp" alt="" aria-hidden="true">
+      <div class="scene-scrim" aria-hidden="true"></div>
     </div>
 
-    <div class="version">v3.0.0</div>
-    <div class="logo" aria-label="Baliball">
-      <span class="logo-ball"></span>
-      <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
+    <div class="version">v3.1.0</div>
+    <div class="home-top">
+      <div class="logo" aria-label="Baliball">
+        <span class="logo-ball"></span>
+        <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
+      </div>
+      <p class="tagline">Le casse-briques du lagon</p>
+      <p id="home-best"></p>
     </div>
-    <p id="home-best"></p>
-    <p id="home-missions"></p>
+    <div class="home-flex" aria-hidden="true"></div>
     <button id="btn-resume" style="display:none">REPRENDRE</button>
     <button id="btn-rejoin" style="display:none">🔁 REJOINDRE LE TOURNOI</button>
     <button id="btn-play">JOUER</button>
+    <div class="home-flex home-flex-low" aria-hidden="true"></div>
+    <p id="home-missions"></p>
     <div class="home-row">
       <button id="btn-shop" class="secondary"><span class="chip-ico">🛍</span>Boutique</button>
       <button id="btn-progress" class="secondary"><span class="chip-ico">🏆</span>Progrès</button>
       <button id="btn-legend" class="secondary"><span class="chip-ico">📖</span>Légende</button>
       <button id="btn-settings" class="secondary"><span class="chip-ico">⚙️</span>Réglages</button>
     </div>
-    <p>Glisse le doigt pour viser, relâche pour tirer.<br>
-       Les pierres descendent à chaque tour : ne les laisse pas atteindre la plage&nbsp;!</p>
     <span id="offline-badge"></span>
     <div class="hint" id="install-hint"></div>
   </div>

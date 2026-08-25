@@ -45,6 +45,34 @@ const JOBS = {
         + STYLE,
     },
   ],
+  menu: [
+    {
+      id: 'menu-day', model: 'ultra', aspect: '9:16', n: 2, seed: 12100,
+      prompt: 'Premium minimalist mobile game menu background, vertical, in the '
+        + 'flat vector style of Alto\'s Odyssey and Monument Valley: a serene '
+        + 'tropical dawn over a perfectly calm sea, silky smooth gradient sky from '
+        + 'pale cream to gentle turquoise, ONE distant volcano silhouette in soft '
+        + 'muted teal, a tiny Balinese meru temple silhouette on a small headland, '
+        + 'one elegant palm tree silhouette at the very edge of frame, a small '
+        + 'soft sun disc, HUGE empty negative space in the center of the frame, '
+        + 'ultra-clean flat shapes, NO texture, NO grain, NO noise, no characters, '
+        + 'no text, soft pastel palette, breathtaking simplicity, Apple Design '
+        + 'Award aesthetic, flat 2D vector illustration',
+    },
+    {
+      id: 'menu-night', model: 'ultra', aspect: '9:16', n: 2, seed: 12200,
+      prompt: 'Premium minimalist mobile game menu background, vertical, in the '
+        + 'flat vector style of Alto\'s Odyssey and Monument Valley: a tranquil '
+        + 'tropical nightfall over a perfectly calm sea, silky smooth gradient sky '
+        + 'from deep indigo to warm dusk orange at the horizon, ONE dark volcano '
+        + 'silhouette, a tiny Balinese meru temple silhouette with a single warm '
+        + 'lantern light, one elegant palm silhouette at the very edge of frame, a '
+        + 'large soft low moon, sparse tiny stars, subtle moon glint line on the '
+        + 'water, HUGE empty negative space in the center, ultra-clean flat '
+        + 'shapes, NO texture, NO grain, NO noise, no characters, no text, '
+        + 'Apple Design Award aesthetic, flat 2D vector illustration',
+    },
+  ],
   board: [
     {
       id: 'board-day', model: 'ultra', aspect: '9:16', n: 2, seed: 8100,
