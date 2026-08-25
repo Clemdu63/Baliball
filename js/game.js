@@ -1533,7 +1533,8 @@ function drawPowerup(p, yOff, T, t) {
   const r = cell * 0.115;
   switch (p.kind) {
     case 'ball':
-      drawCoconut(c.x, c.y, cell * 0.105, T);
+      // la bulle « +1 » montre la peau équipée (étoile de mer, coquillage…)
+      drawBall(c.x, c.y, cell * 0.105, T);
       break;
     case 'sword': {
       // espadon stylisé
@@ -2027,6 +2028,10 @@ function wireInput() {
     if (state === 'aim') aim = null;
   });
 
-  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  // bloque le rebond/défilement de la page pendant le jeu seulement :
+  // les écrans (boutique, progrès…) doivent pouvoir défiler au doigt
+  document.addEventListener('touchmove', (e) => {
+    if (e.target === canvas) e.preventDefault();
+  }, { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 }
