@@ -1,84 +1,136 @@
-# Feuille de route Baliball
+# Feuille de route Baliball 🌴
 
-Chaque version est jouable, hors ligne, et déployée automatiquement.
-Incrémenter `CACHE_VERSION` dans `sw.js` à chaque livraison.
+**Baliball = Bali.** Le thème unique du jeu, c'est Bali et l'Indonésie :
+lagon aux eaux claires, noix de coco, temples, jungle, volcans, gamelan.
+Chaque lot est livrable : à la fin du lot, le jeu est jouable, hors ligne,
+et déployé (penser à incrémenter `CACHE_VERSION` dans `sw.js`).
 
-## v0.1 — Base (livrée ✅)
+Tous les visuels sont dessinés en code (canvas/SVG/CSS) : pas d'images à
+télécharger, l'app reste minuscule et 100 % hors ligne.
 
-Jeu type Ballz : visée au doigt, balles multiples, briques qui descendent,
-pastilles +1 balle, sauvegarde/reprise, record, PWA installable hors ligne.
+---
 
-## v0.2 — Interface & thèmes (livrée ✅)
+## Déjà livré
 
-- **Mode sombre** : suivi automatique du réglage système + bascule manuelle
-  dans un menu Réglages (choix mémorisé). Thème sombre = plateau anthracite,
-  briques éclatantes, balle blanche ; thème clair = actuel.
-- **Écran d'accueil retravaillé** : logo animé (balle qui rebondit sur les
-  lettres), transitions entre écrans, écran de fin avec statistiques de la
-  partie (briques cassées, balles accumulées, meilleure manche).
-- **Menu Réglages** : thème, sons on/off, vitesse des balles (normal/rapide).
-- **Sons** : générés en WebAudio (aucun fichier audio → toujours hors ligne,
-  poids nul) — rebond, casse, bonus, game over.
-- **Refactor technique** : découper `game.js` en modules ES natifs
-  (moteur, rendu, écrans, stockage) — sans étape de build, la PWA reste
-  servie telle quelle.
+- **v0.1 — Base** : jeu type Ballz complet (visée, balles multiples,
+  briques qui descendent, +1 balle, sauvegarde/reprise, record), PWA
+  installable et jouable hors ligne, déploiement GitHub Pages.
+- **v0.2 — Fondations interface** : modules ES, écrans (accueil, réglages,
+  fin de partie avec stats), mode sombre, sons WebAudio, vitesse réglable,
+  bouton menu en jeu.
 
-## v0.3 — Bonus & briques spéciales
+---
 
-Nouvelles cases sur le plateau (en plus de ○ +1 balle) :
+## Lot 1 — Identité Bali (v0.3) 🥥
 
-- **⚡ Laser** : détruit toute la ligne ou la colonne au passage.
-- **💣 Bombe** : inflige des dégâts aux briques adjacentes.
-- **✚ Dégâts x2** : les balles font 2 dégâts pendant ce tour.
-- **● Pièces** : monnaie accumulée (utilisée en v0.6).
-- **Briques triangles** : demi-briques, rebond en diagonale.
-- **Briques blindées** : n'encaissent qu'1 dégât par tour, quelle que soit
-  la pluie de balles.
+Le lot le plus important : tout l'habillage passe au thème Bali.
 
-Score en points (distinct de la manche) : chaque PV enlevé rapporte,
-multiplicateurs pour les gros combos d'un même tir.
+**Plateau = lagon**
+- Fond : dégradé d'eaux turquoise claires, reflets/caustiques animés
+  discrets, sable clair en bas (la zone de lancement = la plage).
+- Décor vivant : poissons qui traversent en fond, feuilles de palmier
+  dans les coins, petites vagues sur la ligne de sable.
+- Ligne de danger : ligne d'écume/marée plutôt que pointillés roses.
 
-## v0.4 — Modes de jeu
+**Objets du jeu**
+- La balle = **noix de coco** (dessinée : sphère brune, fibres, 3 yeux).
+- Briques = **pierres de temple** balinais : pierre volcanique grise,
+  mousse verte, sculptures ; la couleur/l'usure varie avec les PV
+  (pierre claire → moussue → volcanique → dorée pour les grosses valeurs).
+- Pastille +1 balle = petite noix de coco flottante (ou fleur d'hibiscus).
+- Particules de casse : éclats de pierre + poussière.
 
-Choix du mode sur l'écran d'accueil, chacun avec son record :
+**Ambiance**
+- Thème clair = lagon en plein jour ; thème sombre = **coucher de soleil /
+  nuit** (eau sombre, ciel orangé-violet, lampions) — le réglage existant
+  bascule entre les deux.
+- Sons retravaillés façon **gamelan** (percussions métalliques douces,
+  pentatonique) + petit ressac en fond sonore (optionnel, coupable).
+- Écran d'accueil : paysage balinais dessiné (silhouette de temple,
+  palmiers, mer, volcan), logo « BALIBALL » avec la noix de coco qui
+  rebondit dessus.
+- Nouvelle icône d'app (noix de coco sur fond lagon + temple).
+
+## Lot 2 — Bonus & briques spéciales (v0.4) 🌶️
+
+Nouvelles cases sur le plateau, toutes dans le thème :
+
+- **Espadon** ⟶ : traverse et détruit toute la ligne (ou la colonne).
+- **Durian explosif** : inflige des dégâts à toutes les briques adjacentes
+  (le fruit qui pique !).
+- **Piment (sambal)** : les balles font dégâts ×2 jusqu'à la fin du tour.
+- **Perles** : monnaie ramassée en jeu (dépensée au Lot 5).
+- **Fleur de frangipanier** : la première balle qui la touche repart
+  verticalement vers le haut (tir gratuit).
+
+Briques spéciales :
+- **Toit de temple** (triangle) : demi-brique, renvoie en diagonale.
+- **Pierre volcanique** (blindée) : max 1 dégât par tour, quelle que soit
+  la pluie de noix de coco.
+- **Brique mystère** : contient un bonus aléatoire révélé à la casse.
+
+Et un vrai **score en points** (distinct de la manche) : points par PV
+enlevé, multiplicateur de combo quand un même tir casse beaucoup de
+briques, affiché sur l'écran de fin + record de score.
+
+## Lot 3 — Modes de jeu (v0.5) 🏝️
+
+Sélecteur de mode sur l'accueil, records séparés par mode :
 
 - **Classique** : le mode actuel.
-- **Contre-la-montre** : 90 secondes, tirs illimités sans attendre la fin du
-  tour précédent, casser un max de briques.
-- **Puzzle** : ~30 niveaux fixes conçus à la main, nombre de tirs limité,
-  1 à 3 étoiles selon la performance.
-- **Zen** : sans game over, les briques du bas disparaissent — pour jouer
-  détendu (en avion ✈️).
+- **Marée montante** (contre-la-montre) : 90 secondes, on retire
+  l'attente — nouveau tir dès que la première balle retombe ; casser un
+  max avant la fin.
+- **Temples** (puzzle) : ~30 niveaux fixes dessinés à la main (formes de
+  temples, statues, poissons), nombre de tirs limité, 1 à 3 étoiles.
+- **Plage** (zen) : pas de game over, les briques du bas s'effacent —
+  pour jouer détendu en avion ✈️.
 
-## v0.5 — Multijoueur local
+## Lot 4 — Multijoueur local (v0.6) 🤝
 
-Sur un seul iPhone (une PWA Safari n'a pas accès au Bluetooth/réseau local,
-donc le 2-appareils hors ligne n'est pas faisable en web — voir Notes) :
+Sur un seul iPhone (une PWA Safari n'a pas accès au Bluetooth/réseau
+local : le 2-appareils hors ligne n'est pas possible en web — voir Notes) :
 
-- **Tour par tour (d'abord)** : 2 joueurs, même graine aléatoire → séquence
-  de briques identique pour les deux ; chacun joue sa partie, celui qui
-  survit le plus de manches gagne. Simple, fidèle au gameplay, robuste.
-- **Duel écran partagé (ensuite)** : écran coupé en deux tête-bêche, chacun
-  vise depuis son bord avec un temps de visée limité ; casser une grosse
-  brique envoie une rangée chez l'adversaire.
+- **Duel de plage (tour par tour)** : 2 joueurs, même graine aléatoire →
+  séquence de briques identique pour les deux ; chacun joue sa série,
+  celui qui tient le plus de manches gagne. Écran de passage de téléphone
+  entre les tours, tableau comparatif à la fin.
+- **Duel écran partagé** (ensuite) : écran coupé en deux tête-bêche,
+  temps de visée limité ; casser une grosse brique envoie une rangée
+  chez l'adversaire.
 
-## v0.6 — Progression & finitions
+## Lot 5 — Progression & boutique (v0.7) 🐚
 
-- **Défis quotidiens** : partie générée par la graine du jour (déterministe →
-  fonctionne hors ligne), comparaison du score au retour en ligne.
-- **Boutique à pièces** : skins de balles, thèmes de couleurs supplémentaires.
-- **Succès** et statistiques cumulées.
+- **Défi du jour** : partie générée par la graine du jour (déterministe,
+  donc jouable hors ligne), même défi pour tout le monde.
+- **Boutique aux perles** (les perles du Lot 2) :
+  - skins de balle : noix de coco, ballon de plage, fleur, lampion, durian ;
+  - décors de plateau : lagon, rizières en terrasses, volcan Agung,
+    temple d'Uluwatu au coucher du soleil ;
+  - traînées de balle (écume, pétales…).
+- **Succès** (casser 1 000 briques, manche 50, 100 balles…) et
+  statistiques cumulées.
 - **Tutoriel** intégré à la première partie.
+
+## Lot 6 — v1.0 ✨
+
+- Peaufinage général : transitions, vibrations là où c'est possible,
+  performances (beaucoup de balles + décor animé), accessibilité
+  (contrastes, reduced motion).
+- Partage du score en image générée (canvas → photo).
+- Revue complète sur iPhone réel (encoche, safe areas, coupures d'app).
+- Si l'envie d'aller sur l'App Store ou du multi 2-appareils se confirme :
+  empaqueter le même code avec Capacitor (décision à ce moment-là).
+
+---
 
 ## Notes techniques
 
 - Pas de framework ni de build : HTML/CSS/JS natifs, modules ES.
-- Tout doit fonctionner hors ligne : pas de police externe, pas de CDN,
-  pas d'appel réseau requis en jeu.
-- La sauvegarde (`localStorage`) est versionnée (`baliball.save.v1`) :
-  prévoir la migration quand le format change.
-- Multijoueur 2 appareils : impossible proprement en PWA Safari (pas de
-  Web Bluetooth/réseau local). Si on le veut un jour, il faudra empaqueter
-  le même code en app native (Capacitor) — décision à prendre plus tard.
-- Tests : scripts Playwright (parties automatiques) à faire tourner avant
-  chaque livraison.
+- Tout fonctionne hors ligne : aucun fichier image/son externe, tout est
+  dessiné et synthétisé en code.
+- Sauvegarde versionnée (`baliball.save.v1`) : migrer les formats quand
+  ils évoluent (score, perles, modes → nouvelles clés).
+- Multijoueur 2 appareils : impossible proprement en PWA Safari ; passer
+  par une app native (Capacitor) si on le veut un jour.
+- Tests Playwright (parties automatiques + captures) avant chaque livraison.
