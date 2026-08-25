@@ -21,6 +21,28 @@ fichier audio.
   à la casse).
 - Le **score** grimpe avec des multiplicateurs de combo quand un même tir
   brise plusieurs pierres.
+
+## Modes de jeu
+
+- **🥥 Classique** — les pierres descendent, tiens bon le plus longtemps
+  possible (sauvegarde et reprise automatiques).
+- **🌊 Marée montante** — 90 secondes chrono, tirs enchaînés, la marée
+  nettoie le bas du plateau.
+- **🛕 Temples** — 24 grilles fixes à libérer en un nombre de tirs limité,
+  1 à 3 étoiles par niveau.
+- **🏖 Plage** — zen, sans défaite : idéal en avion.
+- **🌅 Défi du jour** — la même partie pour tout le monde, une nouvelle
+  chaque jour (graine de la date, donc jouable hors ligne).
+- **🤝 Duel de plage** — 2 joueurs sur un seul téléphone, exactement les
+  mêmes pierres pour chacun.
+
+## Progression
+
+Les **perles ◉** gagnées en jeu s'échangent à la **Boutique** contre des
+peaux de balle (ballon de plage, frangipanier, lampion, durian) et des
+décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant).
+L'écran **Progrès** suit les statistiques cumulées et 12 succès. Le score
+d'une partie se **partage en image** générée hors ligne.
 - À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
   la partie est perdue quand une pierre atteint la plage.
 - Pendant le vol, **touche l'écran** pour accélérer.
@@ -73,8 +95,9 @@ mise à jour.
 |---|---|
 | `index.html` | Page et écrans (accueil, réglages, fin de partie) |
 | `style.css` | Styles, thèmes clair/sombre, animations |
-| `js/main.js` | Écrans, réglages, démarrage |
+| `js/main.js` | Écrans, modes, boutique, réglages, démarrage |
 | `js/game.js` | Moteur du jeu (physique, rendu canvas, sauvegarde) |
+| `js/levels.js` | Les 24 niveaux du mode Temples |
 | `js/theme.js` | Thèmes du plateau (couleurs canvas + CSS) |
 | `js/audio.js` | Sons générés en WebAudio |
 | `js/storage.js` | Accès stockage et réglages |

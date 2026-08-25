@@ -346,6 +346,7 @@ game.initGame($('game'), {
     const retry = $('btn-retry');
     retry.dataset.mode = s.mode;
     retry.dataset.level = String(s.level || 0);
+    lastOver = s;
     show('screen-over');
   },
   onPuzzleWin(s) {
@@ -369,6 +370,97 @@ $('btn-retry').addEventListener('click', (e) => {
 $('btn-over-home').addEventListener('click', () => {
   refreshHome();
   show('screen-home');
+});
+
+// ---- partage du score (image générée hors ligne) ----
+let lastOver = null;
+
+const MODE_LABELS = {
+  classic: 'Mode classique', tide: 'Marée montante', puzzle: 'Temples',
+  zen: 'Plage', daily: 'Défi du jour', duel: 'Duel de plage',
+};
+
+function shareCardBlob(s) {
+  const c = document.createElement('canvas');
+  c.width = 720;
+  c.height = 900;
+  const x = c.getContext('2d');
+  // ciel → mer → plage
+  const sky = x.createLinearGradient(0, 0, 0, 520);
+  sky.addColorStop(0, '#bfe9ef');
+  sky.addColorStop(1, '#eef9f0');
+  x.fillStyle = sky;
+  x.fillRect(0, 0, 720, 520);
+  x.fillStyle = '#ffe9a8';
+  x.beginPath();
+  x.arc(570, 150, 70, 0, Math.PI * 2);
+  x.fill();
+  x.fillStyle = '#3f7a6e';
+  x.beginPath();
+  x.moveTo(-40, 520); x.lineTo(200, 240); x.lineTo(290, 340);
+  x.lineTo(340, 290); x.lineTo(560, 520);
+  x.closePath();
+  x.fill();
+  const sea = x.createLinearGradient(0, 520, 0, 700);
+  sea.addColorStop(0, '#2fae9f');
+  sea.addColorStop(1, '#a7ecdc');
+  x.fillStyle = sea;
+  x.fillRect(0, 520, 720, 180);
+  x.fillStyle = '#f0e0b6';
+  x.fillRect(0, 700, 720, 200);
+  x.fillStyle = 'rgba(255,255,255,0.8)';
+  x.fillRect(0, 696, 720, 6);
+  // noix de coco
+  x.fillStyle = '#7a5230';
+  x.beginPath(); x.arc(360, 620, 46, 0, Math.PI * 2); x.fill();
+  x.strokeStyle = '#55361c'; x.lineWidth = 6; x.stroke();
+  x.fillStyle = '#a3794e';
+  x.beginPath(); x.arc(344, 604, 18, 0, Math.PI * 2); x.fill();
+  // textes
+  x.textAlign = 'center';
+  x.fillStyle = '#0d4b43';
+  x.font = '800 64px -apple-system, sans-serif';
+  x.fillText('BALIBALL', 360, 110);
+  x.font = '700 30px -apple-system, sans-serif';
+  x.fillStyle = '#305650';
+  x.fillText(MODE_LABELS[s.mode] || '', 360, 170);
+  x.font = '800 150px -apple-system, sans-serif';
+  x.fillStyle = '#0d4b43';
+  x.fillText(String(s.score), 360, 330);
+  x.font = '700 34px -apple-system, sans-serif';
+  x.fillStyle = '#305650';
+  x.fillText(s.mode === 'puzzle' ? 'niveau ' + (s.level + 1) : 'manche ' + s.round, 360, 390);
+  x.font = '600 26px -apple-system, sans-serif';
+  x.fillStyle = '#8a6f4d';
+  x.fillText(new Date().toLocaleDateString('fr-FR'), 360, 780);
+  x.fillText('clemdu63.github.io/Baliball', 360, 830);
+  return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
+}
+
+$('btn-share').addEventListener('click', async () => {
+  if (!lastOver) return;
+  try {
+    const blob = await shareCardBlob(lastOver);
+    const file = new File([blob], 'baliball.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: 'Baliball',
+        text: 'Mon score sur Baliball 🥥',
+      });
+    } else if (navigator.share) {
+      await navigator.share({
+        title: 'Baliball',
+        text: 'J\'ai fait ' + lastOver.score + ' pts sur Baliball 🥥 !',
+      });
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'baliball.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+  } catch (e) { /* partage annulé */ }
 });
 
 $('btn-win-next').addEventListener('click', (e) => {

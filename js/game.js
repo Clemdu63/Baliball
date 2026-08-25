@@ -516,6 +516,8 @@ function damageBlock(b, amount, cx, cy) {
   return false;
 }
 
+const MAX_PARTICLES = 280;
+
 function breakBlock(b, style, cx, cy) {
   const idx = blocks.indexOf(b);
   if (idx === -1) return;
@@ -525,7 +527,7 @@ function breakBlock(b, style, cx, cy) {
   if (brokenThisShot > 1) {
     score += 25 * (brokenThisShot - 1); // bonus de combo
   }
-  for (let p = 0; p < 9; p++) {
+  for (let p = 0; p < 9 && particles.length < MAX_PARTICLES; p++) {
     const a = (p / 9) * Math.PI * 2;
     particles.push({
       x: cx, y: cy,
@@ -800,9 +802,9 @@ function frame(t) {
 function update(dt) {
   if (shiftAnim < 1) shiftAnim = Math.min(1, shiftAnim + dt * 5);
 
-  // poissons du décor
+  // poissons du décor (immobiles si l'utilisateur préfère moins d'animations)
   fishTimer -= dt;
-  if (fishTimer <= 0 && fishes.length < 3) {
+  if (fishTimer <= 0 && fishes.length < 3 && !reduceMotion.matches) {
     const dir = Math.random() < 0.5 ? 1 : -1;
     const span = boardTop + 30;
     fishes.push({
@@ -1243,19 +1245,31 @@ function drawPowerup(p, yOff, T, t) {
   }
 }
 
-/* Décor du lagon : eau, reflets, poissons, palmes, plage. */
-function drawLagoon(t, T) {
-  const grad = ctx.createLinearGradient(0, boardTop, 0, floorY);
-  grad.addColorStop(0, T.waterTop);
-  grad.addColorStop(1, T.waterBottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
+/* Les dégradés d'eau sont recréés seulement quand le thème/décor change. */
+const bgCache = { key: '', grad: null, glow: null };
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  if (T.waterGlow) {
-    const g2 = ctx.createLinearGradient(0, boardTop, 0, boardTop + 120);
-    g2.addColorStop(0, T.waterGlow);
-    g2.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g2;
+/* Décor du lagon : eau, reflets, poissons, palmes, plage. */
+function drawLagoon(rawT, T) {
+  const t = reduceMotion.matches ? 0 : rawT;
+  const key = T.waterTop + T.waterBottom + (T.waterGlow || '') + W + 'x' + boardTop + ':' + floorY;
+  if (bgCache.key !== key) {
+    bgCache.key = key;
+    bgCache.grad = ctx.createLinearGradient(0, boardTop, 0, floorY);
+    bgCache.grad.addColorStop(0, T.waterTop);
+    bgCache.grad.addColorStop(1, T.waterBottom);
+    if (T.waterGlow) {
+      bgCache.glow = ctx.createLinearGradient(0, boardTop, 0, boardTop + 120);
+      bgCache.glow.addColorStop(0, T.waterGlow);
+      bgCache.glow.addColorStop(1, 'rgba(0,0,0,0)');
+    } else {
+      bgCache.glow = null;
+    }
+  }
+  ctx.fillStyle = bgCache.grad;
+  ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
+  if (bgCache.glow) {
+    ctx.fillStyle = bgCache.glow;
     ctx.fillRect(0, boardTop - 6, W, 126);
   }
 
@@ -1323,7 +1337,8 @@ function palmFrond(x0, y0, dir, t) {
   ctx.restore();
 }
 
-function drawBeach(t, T) {
+function drawBeach(rawT, T) {
+  const t = reduceMotion.matches ? 0 : rawT;
   ctx.fillStyle = T.sand;
   ctx.fillRect(0, floorY, W, H - floorY);
   ctx.fillStyle = T.sandDark;

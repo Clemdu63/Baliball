@@ -112,7 +112,7 @@ local : le 2-appareils hors ligne n'est pas possible en web — voir Notes) :
   statistiques cumulées.
 - **Tutoriel** intégré à la première partie.
 
-## Lot 6 — v1.0 ✨
+## Lot 6 — v1.0 ✨ (livré ✅)
 
 - Peaufinage général : transitions, vibrations là où c'est possible,
   performances (beaucoup de balles + décor animé), accessibilité
