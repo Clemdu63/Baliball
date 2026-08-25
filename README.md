@@ -21,6 +21,15 @@ fichier audio.
   à la casse).
 - Le **score** grimpe avec des multiplicateurs de combo quand un même tir
   brise plusieurs pierres.
+- À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
+  la partie est perdue quand une pierre atteint la plage.
+- Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.
+- En jeu : **⟲** recommence la partie (avec confirmation), **⌂** revient au
+  menu ; l'écran **Légende** rappelle l'effet de chaque bonus et pierre.
+- La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
+  (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
+- Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
+  vitesse des noix de coco.
 
 ## Modes de jeu
 
@@ -49,15 +58,6 @@ L'écran **Progrès** suit les statistiques cumulées et 12 succès. Tous les
 se **débloquent au score** (étoile de mer à 2 500, coquillage à 5 000,
 décor Bioluminescence à 8 000). Le score d'une partie se **partage en
 image** générée hors ligne.
-- À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
-  la partie est perdue quand une pierre atteint la plage.
-- Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.
-- En jeu : **⟲** recommence la partie (avec confirmation), **⌂** revient au
-  menu ; l'écran **Légende** rappelle l'effet de chaque bonus et pierre.
-- La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
-  (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
-- Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
-  vitesse des noix de coco.
 
 ## Installation sur iPhone (jeu hors ligne)
 
