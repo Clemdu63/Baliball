@@ -1239,6 +1239,9 @@ function fire(angle) {
   if (puzzle) puzzle.shotsLeft -= 1;
   lastFiredAngle = angle;
   sfx.launch();
+  // dans le geste du toucher : le tic du lancer passe même quand iOS
+  // exige une activation utilisateur récente
+  buzz(12);
 }
 
 let lastFiredAngle = null;
@@ -1300,24 +1303,36 @@ function damageBlock(b, amount, cx, cy) {
 
 const MAX_PARTICLES = 280;
 
-/* Vibrations. Android : navigator.vibrate (motifs réels). iOS n'expose
-   pas cette API, mais depuis iOS 17.4 basculer un <input switch> natif
-   déclenche le retour haptique du système : on bascule un interrupteur
-   invisible — détournement assumé, sans effet ailleurs. */
-let hapticSwitch = null;
-
+/* Vibrations. Android : navigator.vibrate (motifs réels). iOS ne
+   l'expose pas ; depuis iOS 17.4, actionner le label d'un
+   <input switch> natif déclenche l'haptique du système. Montage
+   éprouvé tel quel : un label jetable dans <head>, cliqué puis retiré
+   — display:none n'empêche pas le retour haptique. Selon la version
+   d'iOS, l'effet peut exiger un toucher récent de l'utilisateur. */
 function iosTick() {
   try {
-    if (!hapticSwitch) {
-      hapticSwitch = document.createElement('input');
-      hapticSwitch.type = 'checkbox';
-      hapticSwitch.setAttribute('switch', '');
-      hapticSwitch.style.cssText =
-        'position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none;';
-      document.body.appendChild(hapticSwitch);
-    }
-    hapticSwitch.click();
+    const label = document.createElement('label');
+    label.ariaHidden = 'true';
+    label.style.display = 'none';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('switch', '');
+    label.appendChild(input);
+    document.head.appendChild(label);
+    label.click();
+    document.head.removeChild(label);
   } catch (e) { /* pas d'haptique */ }
+}
+
+/* Test direct depuis les Réglages — lancé DANS le geste du toucher,
+   et sans passer par le réglage : il doit sonder le matériel. */
+export function hapticTest() {
+  try {
+    if (navigator.vibrate) { navigator.vibrate([30, 80, 30, 80, 60]); return; }
+    iosTick();
+    setTimeout(iosTick, 130);
+    setTimeout(iosTick, 260);
+  } catch (e) { /* pas de vibreur */ }
 }
 
 function buzz(pattern) {

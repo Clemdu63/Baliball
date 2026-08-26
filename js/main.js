@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.4.2';
+const APP_VERSION = '3.4.3';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -1420,6 +1420,14 @@ bindSegmented('seg-lefty', 'lefty', applyAccessibility);
 bindSegmented('seg-calm', 'calm', applyAccessibility);
 bindSegmented('seg-haptics', 'haptics');
 bindSegmented('seg-haptics-bounce', 'hapticsBounce');
+
+$('btn-haptic-test').addEventListener('click', () => {
+  game.hapticTest();
+  $('haptic-hint').textContent = 'Trois tics envoyés. Rien senti sur iPhone ? '
+    + 'Vérifie Réglages → Sons et vibrations → « Haptique du système » activée. '
+    + 'Certaines versions d\'iOS ne vibrent que pendant un toucher : en jeu, '
+    + 'le tic accompagne alors surtout le lancer.';
+});
 applyAccessibility();
 
 // code d'équipage (classement entre amis sur les défis)
