@@ -13,7 +13,7 @@ import { getTheme, stoneStyle, DECORS } from './theme.js';
 import { initAudio, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 
-const COLS = 7;
+const COLS = 9;
 const FONT = "'Baloo 2', -apple-system, sans-serif";
 
 let canvas = null;
@@ -23,6 +23,7 @@ let hooks = {};
 // ---- layout ----
 let W = 0, H = 0, dpr = 1;
 let cell = 0, boardTop = 0, floorY = 0, deathRow = 8;
+let ceilY = 0;   // plafond des rebonds : un couloir libre au-dessus de la grille
 
 function readSafeInset(name) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -38,7 +39,10 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   cell = W / COLS;
-  boardTop = readSafeInset('--sat') + 58;
+  ceilY = readSafeInset('--sat') + 58;
+  // la grille commence une cellule sous le plafond : les noix peuvent
+  // toujours filer AU-DESSUS de la rangée du haut et y rebondir
+  boardTop = ceilY + cell;
   floorY = H - readSafeInset('--sab') - 66;
   deathRow = Math.max(4, Math.floor((floorY - boardTop) / cell) - 1);
 }
@@ -544,7 +548,7 @@ export function debugSet(o) {
   if (o && typeof o.fever === 'number') fever = o.fever;
   if (o && typeof o.spawnBoss === 'string' && BOSS_KINDS.includes(o.spawnBoss)) {
     blocks.push({
-      col: 2, row: 0, hp: 60, maxHp: 60, roarIn: 1, bossKind: o.spawnBoss,
+      col: Math.floor((COLS - 3) / 2), row: 0, hp: 60, maxHp: 60, roarIn: 1, bossKind: o.spawnBoss,
       flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
     });
   }
@@ -597,20 +601,26 @@ function powerupCenter(p, yOffset) {
 function loadLevel(def) {
   blocks = [];
   powerups = [];
+  // grilles dessinées sur 7 colonnes : centrées sur le plateau élargi
+  const gw = Math.max(...def.grid.map((r) => r.length));
+  const off = Math.max(0, Math.floor((COLS - gw) / 2));
   const addStone = (col, row, hp, type, orient = 0) => {
-    blocks.push({ col, row, hp, flash: 0, seed: Math.random(), type, orient, lastHitShot: -1 });
+    blocks.push({ col: col + off, row, hp, flash: 0, seed: Math.random(), type, orient, lastHitShot: -1 });
+  };
+  const addPowerup = (col, row, kind) => {
+    powerups.push({ col: col + off, row, kind });
   };
   def.grid.forEach((rowStr, row) => {
-    for (let col = 0; col < COLS; col++) {
+    for (let col = 0; col < rowStr.length; col++) {
       const ch = rowStr[col] || '.';
       if (ch === '.') continue;
       // symboles spéciaux d'abord : « o » est un bonus, pas une pierre a-v
-      if (ch === 'o') powerups.push({ col, row, kind: 'ball' });
-      else if (ch === '*') powerups.push({ col, row, kind: 'pearl' });
-      else if (ch === 'F') powerups.push({ col, row, kind: 'flower' });
-      else if (ch === 'D') powerups.push({ col, row, kind: 'durian' });
-      else if (ch === 'C') powerups.push({ col, row, kind: 'chili' });
-      else if (ch === 'W') powerups.push({ col, row, kind: 'sword' });
+      if (ch === 'o') addPowerup(col, row, 'ball');
+      else if (ch === '*') addPowerup(col, row, 'pearl');
+      else if (ch === 'F') addPowerup(col, row, 'flower');
+      else if (ch === 'D') addPowerup(col, row, 'durian');
+      else if (ch === 'C') addPowerup(col, row, 'chili');
+      else if (ch === 'W') addPowerup(col, row, 'sword');
       else if (ch === 'X') addStone(col, row, 2, 'armored');
       else if (ch === 'Y') addStone(col, row, 3, 'armored');
       else if (ch >= 'P' && ch <= 'S') addStone(col, row, 2, 'tri', ch.charCodeAt(0) - 80);
@@ -735,7 +745,8 @@ function spawnRow() {
     const mult = 4.5 + 3.5 * difficulty();
     const hp = Math.max(30, Math.round(round * mult * (unlockCount() >= 5 ? 1.3 : 1)));
     blocks.push({
-      col: 2, row: 0, hp, maxHp: hp, roarIn: round < 30 ? 4 : 3, bossKind: kind,
+      col: Math.floor((COLS - 3) / 2), row: 0, hp, maxHp: hp,
+      roarIn: round < 30 ? 4 : 3, bossKind: kind,
       flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
     });
     if (!replaying) {
@@ -766,14 +777,16 @@ function spawnRow() {
     used.add(c + 1);
   }
 
-  const cols = [0, 1, 2, 3, 4, 5, 6].filter((c) => !used.has(c));
+  const cols = Array.from({ length: COLS }, (_, i) => i).filter((c) => !used.has(c));
   for (let i = cols.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  // tempête (80 000) : une pierre de plus par rangée (rangées légères au début)
+  // tempête (80 000) : une pierre de plus par rangée (rangées légères au
+  // début ; sur 9 colonnes, 2-4 pierres puis 3-6 laissent l'espace qui
+  // rend les tirs visés intéressants)
   const n = Math.min(cols.length - 1,
-    2 + Math.floor(rng() * (round < 12 ? 3 : 4)) + (lvl >= 4 ? 1 : 0));
+    (round < 12 ? 2 : 3) + Math.floor(rng() * (round < 12 ? 3 : 4)) + (lvl >= 4 ? 1 : 0));
   // blindées : rares au début (3 %), elles se multiplient vers les manches 40-50
   const armoredChance = lvl >= 5 ? 0.2 : 0.03 + 0.09 * difficulty();
   for (let i = 0; i < n; i++) {
@@ -1582,7 +1595,7 @@ function stepBall(ball, dist) {
     // bords du lagon
     if (ball.x < r) { ball.x = r; ball.vx = Math.abs(ball.vx); sfx.wall(); }
     if (ball.x > W - r) { ball.x = W - r; ball.vx = -Math.abs(ball.vx); sfx.wall(); }
-    if (ball.y < boardTop + r) { ball.y = boardTop + r; ball.vy = Math.abs(ball.vy); sfx.wall(); }
+    if (ball.y < ceilY + r) { ball.y = ceilY + r; ball.vy = Math.abs(ball.vy); sfx.wall(); }
     // la noix retombe sur la plage
     if (ball.y > floorY - r && ball.vy > 0) {
       ball.dead = true;
@@ -2714,14 +2727,15 @@ const calmMode = () => reduceMotion.matches || settings.calm;
 /* Décor du lagon : eau, reflets, poissons, palmes, plage. */
 function drawLagoon(rawT, T) {
   const t = calmMode() ? 0 : rawT;
-  const key = T.waterTop + T.waterBottom + (T.waterGlow || '') + W + 'x' + boardTop + ':' + floorY;
+  // l'eau couvre aussi le couloir de rebond au-dessus de la grille
+  const key = T.waterTop + T.waterBottom + (T.waterGlow || '') + W + 'x' + ceilY + ':' + floorY;
   if (bgCache.key !== key) {
     bgCache.key = key;
-    bgCache.grad = ctx.createLinearGradient(0, boardTop, 0, floorY);
+    bgCache.grad = ctx.createLinearGradient(0, ceilY, 0, floorY);
     bgCache.grad.addColorStop(0, T.waterTop);
     bgCache.grad.addColorStop(1, T.waterBottom);
     if (T.waterGlow) {
-      bgCache.glow = ctx.createLinearGradient(0, boardTop, 0, boardTop + 120);
+      bgCache.glow = ctx.createLinearGradient(0, ceilY, 0, ceilY + 120);
       bgCache.glow.addColorStop(0, T.waterGlow);
       bgCache.glow.addColorStop(1, 'rgba(0,0,0,0)');
     } else {
@@ -2731,7 +2745,7 @@ function drawLagoon(rawT, T) {
   const art = boardArtReady();
   if (art) {
     // illustration en couverture de la zone d'eau…
-    const zy = boardTop - 6, zh = floorY - boardTop + 6;
+    const zy = ceilY - 6, zh = floorY - ceilY + 6;
     const s = Math.max(W / art.naturalWidth, zh / art.naturalHeight);
     const sw = W / s, sh = zh / s;
     ctx.drawImage(art, (art.naturalWidth - sw) / 2, (art.naturalHeight - sh) / 2,
@@ -2743,11 +2757,11 @@ function drawLagoon(rawT, T) {
     ctx.globalAlpha = 1;
   } else {
     ctx.fillStyle = bgCache.grad;
-    ctx.fillRect(0, boardTop - 6, W, floorY - boardTop + 6);
+    ctx.fillRect(0, ceilY - 6, W, floorY - ceilY + 6);
   }
   if (bgCache.glow) {
     ctx.fillStyle = bgCache.glow;
-    ctx.fillRect(0, boardTop - 6, W, 126);
+    ctx.fillRect(0, ceilY - 6, W, 126);
   }
 
   ctx.strokeStyle = T.caustic;
@@ -2791,8 +2805,8 @@ function drawLagoon(rawT, T) {
   }
 
   ctx.fillStyle = T.palm;
-  palmFrond(-6, boardTop + 6, 1, t);
-  palmFrond(W + 6, boardTop + 10, -1, t);
+  palmFrond(-6, ceilY + 6, 1, t);
+  palmFrond(W + 6, ceilY + 10, -1, t);
 }
 
 function palmFrond(x0, y0, dir, t) {
@@ -2953,12 +2967,12 @@ function draw(t) {
   // mutateur brouillard (hebdo), brume d'événement (tournoi) ou de boss
   if ((mode === 'weekly' && weeklyMut === 'fog') || round < fogUntil) {
     const fh = boardTop + cell * 3;
-    const fg = ctx.createLinearGradient(0, boardTop, 0, fh + cell);
+    const fg = ctx.createLinearGradient(0, ceilY, 0, fh + cell);
     fg.addColorStop(0, 'rgba(216,236,238,0.95)');
     fg.addColorStop(0.7, 'rgba(216,236,238,0.85)');
     fg.addColorStop(1, 'rgba(216,236,238,0)');
     ctx.fillStyle = fg;
-    ctx.fillRect(0, boardTop - 6, W, fh - boardTop + cell + 6);
+    ctx.fillRect(0, ceilY - 6, W, fh - ceilY + cell + 6);
   }
 
   for (const p of particles) {
@@ -3031,30 +3045,30 @@ function draw(t) {
     const mm = Math.floor(tideTime / 60);
     const ss = String(Math.floor(tideTime % 60)).padStart(2, '0');
     ctx.fillStyle = tideTime <= 10 ? '#ff5a4e' : T.hud;
-    ctx.fillText(mm + ':' + ss, 14, boardTop - 26);
+    ctx.fillText(mm + ':' + ss, 14, ceilY - 26);
     ctx.fillStyle = T.hud;
   } else if (mode === 'puzzle') {
-    ctx.fillText('NIVEAU ' + (puzzle.idx + 1), 14, boardTop - 26);
+    ctx.fillText('NIVEAU ' + (puzzle.idx + 1), 14, ceilY - 26);
   } else {
     const label = 'MANCHE ' + round;
-    ctx.fillText(label, 14, boardTop - 26);
+    ctx.fillText(label, 14, ceilY - 26);
     // fantôme du défi du jour : le score du meilleur run à cette manche
     if (mode === 'daily' && ghost && ghost[round] != null) {
       const gw = ctx.measureText(label).width;
       ctx.font = '700 ' + Math.round(cell * 0.19) + 'px ' + FONT;
       ctx.fillStyle = score >= ghost[round] ? '#7ef0d8' : '#ff8c8c';
-      ctx.fillText('👻 ' + ghost[round], 20 + gw, boardTop - 26);
+      ctx.fillText('👻 ' + ghost[round], 20 + gw, ceilY - 26);
       ctx.fillStyle = T.hud;
       ctx.font = '800 ' + Math.round(cell * 0.34) + 'px ' + FONT;
     }
   }
   ctx.textAlign = 'center';
   ctx.font = '800 ' + Math.round(cell * 0.3) + 'px ' + FONT;
-  ctx.fillText(String(score), W / 2, boardTop - 26);
+  ctx.fillText(String(score), W / 2, ceilY - 26);
 
   // jauge Gamelan : les combos la remplissent, pleine = tir de fièvre
   if (mode !== 'puzzle') {
-    const gy = boardTop - 9;
+    const gy = ceilY - 9;
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     roundRect(14, gy, W - 28, 5, 2.5);
     ctx.fill();
@@ -3072,9 +3086,9 @@ function draw(t) {
   ctx.font = '700 ' + Math.round(cell * 0.22) + 'px ' + FONT;
   ctx.textAlign = 'right';
   if (mode === 'puzzle') {
-    ctx.fillText('TIRS ' + puzzle.shotsLeft, W - 58, boardTop - 26);
+    ctx.fillText('TIRS ' + puzzle.shotsLeft, W - 58, ceilY - 26);
   } else {
-    ctx.fillText('◉ ' + pearls, W - 58, boardTop - 26);
+    ctx.fillText('◉ ' + pearls, W - 58, ceilY - 26);
   }
 
   const ab = accelBtnRect();
@@ -3168,7 +3182,7 @@ function drawAimLine(angle, T) {
     if (guided) {
       if (x < r) { x = r + (r - x); dirX = Math.abs(dirX); }
       if (x > W - r) { x = (W - r) - (x - (W - r)); dirX = -Math.abs(dirX); }
-      if (y < boardTop + r) { y = boardTop + r + (boardTop + r - y); dirY = Math.abs(dirY); }
+      if (y < ceilY + r) { y = ceilY + r + (ceilY + r - y); dirY = Math.abs(dirY); }
       if (y > floorY - r) break;
     } else if (x < r || x > W - r || y < boardTop + r) {
       break;

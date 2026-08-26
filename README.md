@@ -58,6 +58,10 @@ illustration.
   arrivent à la manche pour préserver l'identité des grilles.
 - À chaque manche, une nouvelle rangée apparaît et tout descend d'un cran :
   la partie est perdue quand une pierre atteint la plage.
+- Le plateau fait **9 colonnes**, et un **couloir reste toujours libre**
+  au-dessus de la rangée du haut : une noix bien visée peut y filer,
+  rebondir entre le haut de l'écran et les pierres, et les pilonner par
+  le dessus — les tirs en cloche valent souvent mieux que les tirs rasants.
 - Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.
 - En jeu : **⟲** recommence la partie (avec confirmation), **⌂** revient au
   menu ; l'écran **Légende** rappelle l'effet de chaque bonus et pierre.
