@@ -5,9 +5,10 @@ import { setThemeMode, DECORS } from './theme.js';
 import { initAudio, syncAmbience, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
+import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.5.2';
+const APP_VERSION = '3.6.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -156,6 +157,7 @@ function startCountdown(seed, opts) {
   counting = true;
   initAudio();
   game.setTournamentOptions(opts || { fast: settings.fast, target: null });
+  game.setPlayerHandicap(net ? myHandicap : false);
   show('screen-countdown');
   let n = 3;
   $('countdown-num').textContent = String(n);
@@ -197,6 +199,14 @@ $('btn-offline-back').addEventListener('click', () => show('screen-tournoi'));
 $('btn-offline-create').addEventListener('click', () => {
   tournoiCode = newTournoiCode();
   $('tournoi-code').textContent = tournoiCode;
+  const cv = $('host-qr');
+  let ok = false;
+  try {
+    if (location.protocol.startsWith('http')) {
+      ok = drawQR(cv, location.origin + location.pathname + '#o=' + tournoiCode);
+    }
+  } catch (e) { ok = false; }
+  cv.style.display = ok ? '' : 'none';
   show('screen-tournoi-host');
 });
 $('btn-host-back').addEventListener('click', () => show('screen-offline-menu'));
@@ -239,6 +249,18 @@ function teardownNet(announce) {
 
 /* Réactions émojis en direct pendant la partie. */
 const EMOJIS = ['😂', '🔥', '🥥', '💀', '👏', '🤙', '😱'];
+
+/* Messages rapides : phrases prédéfinies seulement (aucun texte libre). */
+const QUICK_MSGS = ['GG !', 'Encore une ?', 'Tu vas voir 😈', 'Pause 2 min',
+  'Bien joué 👏', 'Aïe aïe aïe…'];
+
+/* Sabotage amical : trois effets possibles, tirés au sort à l'envoi. */
+const WAVE_KINDS = ['stone', 'fog', 'steal'];
+const WAVE_TOASTS = {
+  stone: (n) => '🌊 « ' + n + ' » t\'envoie une vague !',
+  fog: (n) => '🌫 « ' + n + ' » souffle la brume sur ton lagon !',
+  steal: (n) => '🐒 « ' + n + ' » lâche un singe voleur chez toi !',
+};
 
 function syncEmojiButton() {
   const on = !!(net && net.game && game.getMode() === 'tournament' && game.isPlaying());
@@ -296,10 +318,33 @@ function tickerRefresh() {
 
 function renderLobby() {
   if (!net) return;
-  $('lobby-players').innerHTML = [...net.roster.values()]
-    .map((p) => '<div class="row"><span>' + (p.name === net.name ? p.name + ' (toi)' : p.name)
-      + '</span><b>prêt</b></div>')
+  const rivals = loadJSON(KEYS.RIVALS, {});
+  $('lobby-players').innerHTML = [...net.roster.entries()]
+    .map(([uid, p]) => {
+      const me = uid === myUid;
+      const r = !me && rivals[uid];
+      const duel = r ? '🤜🤛 ' + r.w + '–' + r.l : 'prêt';
+      return '<div class="row"><span>' + escHtml(p.name) + (me ? ' (toi)' : '')
+        + (p.help ? ' 🤝' : '') + '</span><b>' + (me ? 'prêt' : duel) + '</b></div>';
+    })
     .join('');
+  // une partie est en cours sans nous ? proposer de la regarder
+  const running = net.game && !game.isPlaying()
+    && [...net.roster.values()].some((p) => !p.over && p.round > 0);
+  $('btn-lobby-watch').classList.toggle('hidden', !running);
+}
+
+function renderLobbyQR() {
+  const cv = $('lobby-qr');
+  const hint = $('lobby-qr-hint');
+  let ok = false;
+  try {
+    if (net && location.protocol.startsWith('http')) {
+      ok = drawQR(cv, location.origin + location.pathname + '#t=' + net.code);
+    }
+  } catch (e) { ok = false; }
+  cv.style.display = ok ? '' : 'none';
+  hint.style.display = ok ? '' : 'none';
 }
 
 function renderStandings() {
@@ -333,7 +378,107 @@ function renderStandings() {
   } else {
     banner.classList.add('hidden');
   }
+  renderEndCredits();
   syncSeriesButton();
+}
+
+/* Rivalités 🤜🤛 : à la fin de chaque partie en ligne complète, chaque
+   téléphone note ses face-à-face (victoire = mon score dépasse le sien).
+   Purement local, affiché au salon quand l'adversaire revient. */
+function recordRivalries() {
+  if (!net || !net.game || net.rivalsDone === net.game) return;
+  // participants seulement : un retardataire resté au salon ne compte pas
+  const entries = [...net.roster.entries()]
+    .filter(([, p]) => p.over || p.round > 0 || p.score > 0);
+  if (entries.length < 2 || entries.some(([, p]) => !p.over)) return;
+  const mine = net.roster.get(myUid);
+  if (!mine) return;
+  net.rivalsDone = net.game;
+  const rivals = loadJSON(KEYS.RIVALS, {});
+  for (const [uid, p] of entries) {
+    if (uid === myUid || p.score === mine.score) continue;
+    const r = rivals[uid] || { name: p.name, w: 0, l: 0 };
+    r.name = p.name;
+    if (mine.score > p.score) r.w += 1;
+    else r.l += 1;
+    rivals[uid] = r;
+  }
+  store.set(KEYS.RIVALS, JSON.stringify(rivals));
+}
+
+/* Générique de fin : courbes de score par manche, esquissées au fil des
+   messages reçus (points épars pour les autres, complets pour soi). */
+function trackCurve(uid, round, score) {
+  if (!net || !net.game || !round) return;
+  if (net.curvesGame !== net.game) {
+    net.curvesGame = net.game;
+    net.curves = {};
+  }
+  const c = net.curves[uid] = net.curves[uid] || {};
+  c[round] = Math.max(c[round] || 0, score || 0);
+}
+
+const CURVE_COLORS = ['#ffd34d', '#7ef0d8', '#ff8c8c', '#b9a7ff', '#7fc4ff', '#ffb648'];
+
+function renderEndCredits() {
+  const cv = $('standings-chart');
+  const box = $('standings-mentions');
+  const entries = net
+    ? [...net.roster.entries()].filter(([, p]) => p.over || p.round > 0 || p.score > 0)
+    : [];
+  const done = entries.length >= 2 && entries.every(([, p]) => p.over)
+    && net.curves && net.curvesGame === net.game;
+  cv.style.display = done ? '' : 'none';
+  box.style.display = done ? '' : 'none';
+  if (!done) return;
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, cv.width, cv.height);
+  const pad = 16;
+  const maxRound = Math.max(2, ...entries.map(([, p]) => p.round || 0));
+  const maxScore = Math.max(1, ...entries.map(([, p]) => p.score || 0));
+  const px = (r) => pad + ((r - 1) / (maxRound - 1)) * (cv.width - pad * 2);
+  const py = (s) => cv.height - 24 - (s / maxScore) * (cv.height - 52);
+  c.lineWidth = 4;
+  c.lineJoin = 'round';
+  c.font = '700 17px ' + getComputedStyle(document.body).fontFamily;
+  entries.forEach(([uid, p], i) => {
+    const pts = Object.entries(net.curves[uid] || {})
+      .map(([r, s]) => [parseInt(r, 10), s]);
+    pts.push([Math.max(1, p.round || 1), p.score || 0]);
+    pts.sort((a, b) => a[0] - b[0]);
+    c.strokeStyle = CURVE_COLORS[i % CURVE_COLORS.length];
+    c.beginPath();
+    c.moveTo(px(1), py(0));
+    for (const [r, s] of pts) c.lineTo(px(r), py(s));
+    c.stroke();
+  });
+  c.textBaseline = 'top';
+  let lx = pad;
+  entries.forEach(([uid, p], i) => {
+    c.fillStyle = CURVE_COLORS[i % CURVE_COLORS.length];
+    const label = '● ' + (uid === myUid ? 'Toi' : p.name);
+    c.textAlign = 'left';
+    c.fillText(label, lx, 6);
+    lx += c.measureText(label).width + 14;
+  });
+  // mentions de la soirée
+  const name = (uid, p) => (uid === myUid ? 'Toi' : escHtml(p.name));
+  const mentions = [];
+  const marathon = entries.slice().sort((a, b) => (b[1].round || 0) - (a[1].round || 0))[0];
+  mentions.push(['🏹 Marathonien', name(...marathon) + ' — manche ' + (marathon[1].round || 0)]);
+  const first = entries.slice().sort((a, b) => (a[1].overAt || 0) - (b[1].overAt || 0))[0];
+  if (first[1].overAt) mentions.push(['🩸 Premier sur la plage', name(...first)]);
+  const winner = rosterSorted()[0];
+  const mid = Math.max(1, Math.round(maxRound / 2));
+  const winMid = (net.curves[winner[0]] || {})[mid];
+  const ledMid = entries.some(([uid]) => uid !== winner[0]
+    && ((net.curves[uid] || {})[mid] || 0) > (winMid || 0));
+  if (winMid !== undefined && ledMid) {
+    mentions.push(['📈 Remontada', name(...winner) + ' — mené·e à mi-course, gagnant·e à l\'arrivée']);
+  }
+  box.innerHTML = mentions
+    .map(([k, v]) => '<div class="row"><span>' + k + '</span><b>' + v + '</b></div>')
+    .join('');
 }
 
 /* Soirée en manches : quand tous les joueurs ont terminé la partie en
@@ -401,6 +546,14 @@ function onNetMsg(d, age) {
       spawnEmojiFloat(d.name, d.e);
       sfx.pearl();
     }
+  } else if (d.t === 'quick') {
+    if (d.uid !== myUid && age < 20 && QUICK_MSGS[d.i] !== undefined) {
+      toast('💬 « ' + d.name + ' » : ' + QUICK_MSGS[d.i]);
+      sfx.pearl();
+    }
+  } else if (d.t === 'help') {
+    upsert(d.uid, { name: d.name, help: !!d.on });
+    renderLobby();
   } else if (d.t === 'start') {
     if (age < 20 && !counting && !(game.getMode() === 'tournament' && game.isPlaying())) {
       net.game = d.game;
@@ -414,22 +567,45 @@ function onNetMsg(d, age) {
       }
       lastLeaderUid = null;
       startCountdown(d.seed, d.opts);
+    } else if (age >= 20 && !counting
+      && !(game.getMode() === 'tournament' && game.isPlaying())) {
+      // partie lancée avant notre arrivée : on l'adopte sans la jouer,
+      // pour suivre les scores et regarder en spectateur
+      net.game = d.game;
+      net.raceWinner = null;
+      net.seriesWinner = null;
+      net.series = d.series
+        ? { n: d.series.n, of: d.series.of, pts: d.series.pts || {}, closed: {} }
+        : null;
+      net.opts = d.opts || net.opts || null;
+      for (const p of net.roster.values()) {
+        p.score = 0; p.round = 0; p.over = false;
+      }
+      lastLeaderUid = null;
     }
   } else if (d.t === 'wave') {
-    // sabotage amical : un combo adverse fait surgir une pierre blindée
+    // sabotage amical : un combo adverse déclenche un des trois effets
     if (d.game === net.game && d.uid !== myUid && age < 15
       && game.getMode() === 'tournament' && game.isPlaying()) {
-      game.dropSurpriseStone();
-      toast('🌊 « ' + d.name + ' » t\'envoie une vague !');
+      const kind = WAVE_KINDS.includes(d.kind) ? d.kind : 'stone';
+      game.applySabotage(kind);
+      toast(WAVE_TOASTS[kind](d.name));
     }
   } else if (d.t === 'score') {
     if (d.game !== net.game) return;
     upsert(d.uid, { name: d.name, score: d.score, round: d.round, board: d.board });
+    trackCurve(d.uid, d.round, d.score);
     tickerRefresh();
     if (spectateUid === d.uid) renderSpectate();
+    if (!$('screen-lobby').classList.contains('hidden')) renderLobby();
   } else if (d.t === 'over') {
     if (d.game !== net.game) return;
-    upsert(d.uid, { name: d.name, score: d.score, round: d.round, over: true, board: d.board || (net.roster.get(d.uid) || {}).board });
+    upsert(d.uid, {
+      name: d.name, score: d.score, round: d.round, over: true,
+      overAt: (net.roster.get(d.uid) || {}).overAt || Date.now(),
+      board: d.board || (net.roster.get(d.uid) || {}).board,
+    });
+    trackCurve(d.uid, d.round, d.score);
     if (spectateUid === d.uid) {
       // le joueur observé vient de terminer : petit message puis retour au classement
       toast('« ' + d.name + ' » a terminé — retour au classement');
@@ -453,6 +629,8 @@ function onNetMsg(d, age) {
     }
     tickerRefresh();
     maybeCloseSeriesGame();
+    recordRivalries();
+    if (!$('screen-standings').classList.contains('hidden')) renderStandings();
   }
 }
 
@@ -475,8 +653,29 @@ function enterLobby(code, name) {
     }
   });
   netPublish(code, { t: 'join', uid: myUid, name });
+  if (myHandicap) netPublish(code, { t: 'help', uid: myUid, name, on: true });
+  renderLobbyQR();
   show('screen-lobby');
 }
+
+$('btn-lobby-watch').addEventListener('click', () => {
+  renderStandings();
+  show('screen-standings');
+});
+
+// coup de pouce 🤝 : un choix par joueur, annoncé aux autres
+let myHandicap = false;
+$('seg-handicap').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  myHandicap = btn.dataset.value === 'true';
+  for (const b of $('seg-handicap').querySelectorAll('button')) {
+    b.classList.toggle('active', b.dataset.value === String(myHandicap));
+  }
+  if (net) netPublish(net.code, { t: 'help', uid: myUid, name: net.name, on: myHandicap });
+  upsert(myUid, { help: myHandicap });
+  renderLobby();
+});
 
 $('btn-rejoin').addEventListener('click', () => {
   initAudio();
@@ -596,6 +795,15 @@ function sendEmoji(emoji) {
   netPublish(net.code, { t: 'emoji', uid: myUid, name: net.name, e: emoji });
 }
 
+/* Messages rapides : mêmes règles d'envoi que les émojis. */
+function sendQuick(i) {
+  if (!net || QUICK_MSGS[i] === undefined) return;
+  if (Date.now() - lastEmojiSent < 2500) return;
+  lastEmojiSent = Date.now();
+  toast('💬 Toi : ' + QUICK_MSGS[i]);
+  netPublish(net.code, { t: 'quick', uid: myUid, name: net.name, i });
+}
+
 $('btn-emoji').addEventListener('click', () => {
   $('emoji-bar').classList.toggle('hidden');
 });
@@ -603,11 +811,16 @@ $('emoji-bar').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
   $('emoji-bar').classList.add('hidden');
-  sendEmoji(btn.dataset.e);
+  if (btn.dataset.q !== undefined) sendQuick(parseInt(btn.dataset.q, 10));
+  else sendEmoji(btn.dataset.e);
 });
 document.querySelector('.spectate-emojis').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (btn) sendEmoji(btn.dataset.e);
+});
+document.querySelector('.spectate-quick').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) sendQuick(parseInt(btn.dataset.q, 10));
 });
 
 // quitter la page en plein salon : on prévient les autres
@@ -666,6 +879,7 @@ $('btn-standings-lobby').addEventListener('click', () => {
   net.seriesWinner = null;
   $('lobby-status').textContent = 'Prêts pour une revanche ?';
   renderLobby();
+  renderLobbyQR();
   show('screen-lobby');
 });
 $('btn-standings-home').addEventListener('click', () => {
@@ -1155,13 +1369,16 @@ game.initGame($('game'), {
   onTurnEnd(s) {
     if (!net || !net.game || s.mode !== 'tournament') return;
     upsert(myUid, { score: s.score, round: s.round });
+    trackCurve(myUid, s.round, s.score);
     tickerRefresh();
-    // sabotage amical : un combo ×5 envoie une vague chez les adversaires
+    // sabotage amical : un combo ×5 envoie un effet surprise chez les autres
     if (net.opts && net.opts.sabotage && s.combo >= 5
       && Date.now() - lastWaveSent > 15000) {
       lastWaveSent = Date.now();
-      netPublish(net.code, { t: 'wave', uid: myUid, name: net.name, game: net.game });
-      toast('😈 Combo ×' + s.combo + ' : tu envoies une vague !');
+      const kind = WAVE_KINDS[Math.floor(Math.random() * WAVE_KINDS.length)];
+      netPublish(net.code, { t: 'wave', uid: myUid, name: net.name, game: net.game, kind });
+      toast('😈 Combo ×' + s.combo + ' : tu envoies '
+        + (kind === 'fog' ? 'la brume' : kind === 'steal' ? 'un singe voleur' : 'une vague') + ' !');
     }
     if (Date.now() - net.lastPub > 5000) {
       net.lastPub = Date.now();
@@ -1185,7 +1402,8 @@ game.initGame($('game'), {
       store.remove(KEYS.TOUR_NET);
       if (net && net.game) {
         // en ligne : publication du résultat + classement en direct
-        upsert(myUid, { score: s.score, round: s.round, over: true });
+        upsert(myUid, { score: s.score, round: s.round, over: true, overAt: Date.now() });
+        trackCurve(myUid, s.round, s.score);
         if (s.reason === 'race' && !net.raceWinner) net.raceWinner = 'Toi';
         netPublish(net.code, {
           t: 'over', uid: myUid, name: net.name, game: net.game,
@@ -1195,6 +1413,7 @@ game.initGame($('game'), {
         syncEmojiButton();
         $('live-ticker').classList.add('hidden');
         maybeCloseSeriesGame();
+        recordRivalries();
         renderStandings();
         show('screen-standings');
         return;
@@ -1453,7 +1672,8 @@ $('crew-code').addEventListener('input', () => {
 // ---- sauvegarde & transfert : un code compact à copier sur l'autre tél ----
 const EXPORT_KEYS = [KEYS.PEARLS, KEYS.SHOP, KEYS.STATS, KEYS.PUZZLE, KEYS.BEST,
   KEYS.BEST_SCORE, KEYS.TIDE_BEST, KEYS.NAME, KEYS.SETTINGS, KEYS.DAILY,
-  KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY, KEYS.CREW, KEYS.WELCOME];
+  KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY, KEYS.CREW, KEYS.WELCOME,
+  KEYS.RIVALS];
 
 function checksum(s) {
   let sum = 0;
@@ -1602,6 +1822,27 @@ if (!store.get(KEYS.WELCOME) && !store.get(KEYS.TUTO)) {
   show('screen-welcome');
 } else {
   show('screen-home');
+}
+
+/* Arrivée par QR scanné : #t=CODE ouvre le salon en ligne prérempli,
+   #o=CODE la partie hors ligne. */
+const hashJoin = (location.hash || '').match(/^#([to])=([A-Z0-9]{4})$/i);
+if (hashJoin) {
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* rien */ }
+  const code = hashJoin[2].toUpperCase();
+  if (validCode(code)) {
+    store.set(KEYS.WELCOME, '1'); // pas de diapos entre l'ami et le salon
+    if (hashJoin[1].toLowerCase() === 't') {
+      $('player-name').value = store.get(KEYS.NAME) || '';
+      $('online-code').value = code;
+      $('online-error').textContent = '📷 Salon « ' + code + ' » scanné — choisis ton pseudo et rejoins !';
+      show('screen-online-setup');
+    } else {
+      $('join-code').value = code;
+      $('join-error').textContent = '📷 Code « ' + code + ' » scanné !';
+      show('screen-tournoi-join');
+    }
+  }
 }
 
 // accès de debug pour les tests automatisés

@@ -116,17 +116,30 @@ illustration.
     le monde dès qu'un joueur gagne — ou survie ; vitesse commune ;
     **soirée en manches Best of 3** : points cumulés 3/2/1 à chaque
     manche, manche suivante lancée depuis le classement, podium final de
-    la soirée ; **sabotage amical** : un combo ×5 envoie une vague qui
-    fait surgir une pierre blindée chez les adversaires ; **Chaos 🌪** :
-    un événement commun toutes les 3 manches au lieu de 5), podium
+    la soirée ; **sabotage amical** : un combo ×5 envoie un effet
+    surprise chez les adversaires — vague de pierre blindée, brume d'une
+    manche ou singe voleur de noix ; **Chaos 🌪** : un événement commun
+    toutes les 3 manches au lieu de 5 ; **coup de pouce 🤝** : chaque
+    joueur peut s'accorder +2 noix et un lotus, annoncé aux autres —
+    idéal pour jouer avec un débutant), un **QR code de salon** à
+    scanner pour rejoindre sans taper le code, des **messages rapides**
+    💬 (« GG ! », « Encore une ? »…) en plus des émojis, les
+    **rivalités 🤜🤛** mémorisées sur chaque téléphone (« Contre
+    Marvin : 7–4 », affiché au salon), et en fin de partie un
+    **générique de soirée** : courbes de score superposées manche par
+    manche et mentions (Marathonien, Premier sur la plage,
+    Remontada). Un retardataire qui rejoint le salon en pleine partie
+    peut suivre le **classement en direct** et regarder les autres en
+    spectateur, puis entre dans la manche suivante. Podium
     et bannière de victoire, classement en direct après sa défaite — avec
     **mode spectateur** : un éliminé peut observer le plateau de n'importe
     quel joueur encore en vie (👁 depuis le classement), mis à jour à
     chaque tir, et lui envoyer des émojis. Retour au salon pour la revanche. S'appuie sur le service public gratuit
     [ntfy.sh](https://ntfy.sh) (aucun compte) ; Internet requis pendant la
     partie.
-  - **Hors ligne** : un code de 4 lettres = la même partie pour tous,
-    et on compare les scores à la fin. Zéro connexion.
+  - **Hors ligne** : un code de 4 lettres = la même partie pour tous
+    (QR à scanner là aussi), et on compare les scores à la fin. Zéro
+    connexion.
   - **Reconnexion** : app fermée par erreur, page rechargée, réseau coupé ?
     Un bouton **🔁 Reprendre le tournoi** apparaît sur l'accueil (pendant
     2 h) et remet dans la partie exactement là où elle en était — même
@@ -204,6 +217,7 @@ mise à jour.
 | `js/levels.js` | Les 48 niveaux du mode Temples |
 | `js/theme.js` | Thèmes du plateau (couleurs canvas + CSS) |
 | `js/net.js` | Tournoi en ligne : pub/sub minimal sur ntfy.sh |
+| `js/qr.js` | Générateur de QR codes (salons à scanner), sans dépendance |
 | `js/audio.js` | Sons générés en WebAudio |
 | `js/storage.js` | Accès stockage et réglages |
 | `sw.js` | Service worker : cache hors ligne |

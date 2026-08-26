@@ -1311,3 +1311,49 @@ input#crew-code {
   letter-spacing: 6px;
   font-size: 18px;
 }
+
+/* ---- v3.6 : QR de salon, messages rapides, générique de fin ---- */
+.lobby-qr {
+  width: 132px;
+  height: 132px;
+  border-radius: 12px;
+  image-rendering: pixelated;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.lobby-qr-hint { font-size: 12.5px; }
+
+#emoji-bar { flex-direction: column; border-radius: 22px; align-items: flex-start; }
+
+.emoji-row { display: flex; gap: 6px; }
+
+.quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 308px;
+}
+
+#emoji-bar .quick-row button,
+.spectate-quick button {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: none;
+}
+
+.spectate-quick { justify-content: center; }
+
+.spectate-quick button { background: var(--chip); color: var(--text); }
+
+#standings-chart {
+  width: min(320px, 86vw);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}

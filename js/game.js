@@ -328,6 +328,15 @@ export function initGame(canvasEl, h) {
   requestAnimationFrame(frame);
 }
 
+/* Coup de pouce 🤝 choisi au salon : quelques noix et un lotus d'avance,
+   pour jouer avec un débutant sans que ce soit plié. N'affecte que le
+   plateau local — le flux de rangées partagé reste identique. */
+let playerHandicap = false;
+
+export function setPlayerHandicap(on) {
+  playerHandicap = !!on;
+}
+
 export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   mode = m;
   spawnLog = [];
@@ -396,6 +405,11 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   if (mode === 'weekly') {
     const m2 = MUTATORS.find((x) => x.id === weeklyMut);
     if (m2) effects.push({ type: 'milestone', text: m2.name, life: 1, color: '#7ef0d8' });
+  }
+  if (mode === 'tournament' && playerHandicap) {
+    ballCount += 2;
+    shieldCharges = Math.min(2, shieldCharges + 1);
+    effects.push({ type: 'milestone', text: '🤝 Coup de pouce : +2 🥥 et un lotus !', life: 1, color: '#ffc7dd' });
   }
   state = 'aim';
   saveGame();
@@ -682,6 +696,29 @@ function placeStones(rand, free, n, type, hp) {
     });
     n -= 1;
   }
+}
+
+/* Sabotage reçu d'un adversaire : trois effets possibles. */
+export function applySabotage(kind) {
+  if (state !== 'aim' && state !== 'flight') return false;
+  if (kind === 'fog') {
+    fogUntil = Math.max(fogUntil, round + 1);
+    effects.push({ type: 'milestone', text: '🌫 Brume adverse !', life: 1, color: '#9fd7e8' });
+    sfx.boom();
+    buzz(30);
+    return true;
+  }
+  if (kind === 'steal') {
+    if (ballCount > 1) {
+      ballCount -= 1;
+      floaters.push({ x: launchX, y: floorY - cell * 0.6, life: 1, text: '−1 🥥' });
+    }
+    effects.push({ type: 'milestone', text: '🐒 Singe voleur adverse !', life: 1, color: '#ffb648' });
+    sfx.boom();
+    buzz(30);
+    return true;
+  }
+  return dropSurpriseStone();
 }
 
 export function dropSurpriseStone() {

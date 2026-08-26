@@ -41,13 +41,23 @@
   <div id="emoji-floats"></div>
   <button id="btn-emoji" class="hidden" aria-label="Réactions">😀</button>
   <div id="emoji-bar" class="hidden">
-    <button data-e="😂">😂</button>
-    <button data-e="🔥">🔥</button>
-    <button data-e="🥥">🥥</button>
-    <button data-e="💀">💀</button>
-    <button data-e="👏">👏</button>
-    <button data-e="🤙">🤙</button>
-    <button data-e="😱">😱</button>
+    <div class="emoji-row">
+      <button data-e="😂">😂</button>
+      <button data-e="🔥">🔥</button>
+      <button data-e="🥥">🥥</button>
+      <button data-e="💀">💀</button>
+      <button data-e="👏">👏</button>
+      <button data-e="🤙">🤙</button>
+      <button data-e="😱">😱</button>
+    </div>
+    <div class="quick-row">
+      <button data-q="0">GG !</button>
+      <button data-q="1">Encore une ?</button>
+      <button data-q="2">Tu vas voir 😈</button>
+      <button data-q="3">Pause 2 min</button>
+      <button data-q="4">Bien joué 👏</button>
+      <button data-q="5">Aïe aïe aïe…</button>
+    </div>
   </div>
 
   <div id="screen-home" class="screen">
@@ -116,7 +126,7 @@
       <div class="scene-scrim" aria-hidden="true"></div>
     </div>
 
-    <div class="version">v3.5.2</div>
+    <div class="version">v3.6.0</div>
     <div class="home-top">
       <div class="logo" aria-label="Baliball">
         <span class="logo-ball"></span>
@@ -259,8 +269,11 @@
   <div id="screen-lobby" class="screen hidden">
     <div class="settings-title">SALON</div>
     <div class="tournoi-code" id="lobby-code">BALI</div>
+    <canvas id="lobby-qr" class="lobby-qr" width="240" height="240"></canvas>
+    <p class="lobby-qr-hint" id="lobby-qr-hint">📷 Un scan de l'appareil photo = direction le salon</p>
     <p id="lobby-status">Connexion au salon…</p>
     <div class="stats" id="lobby-players"></div>
+    <button id="btn-lobby-watch" class="secondary hidden">👁 PARTIE EN COURS — REGARDER</button>
     <div class="setting">
       <div class="label">OBJECTIF (APPLIQUÉ PAR CELUI QUI LANCE)</div>
       <div class="segmented" id="seg-goal">
@@ -298,6 +311,13 @@
         <button data-value="true">Oui</button>
       </div>
     </div>
+    <div class="setting">
+      <div class="label">COUP DE POUCE 🤝 — POUR TOI SEULEMENT</div>
+      <div class="segmented" id="seg-handicap">
+        <button data-value="false" class="active">Non</button>
+        <button data-value="true">+2 noix &amp; 1 lotus</button>
+      </div>
+    </div>
     <button id="btn-lobby-start" style="margin-top:8px">LANCER LA PARTIE POUR TOUS</button>
     <button id="btn-lobby-back" class="secondary">QUITTER LE SALON</button>
   </div>
@@ -312,8 +332,14 @@
       <button data-e="🥥">🥥</button>
       <button data-e="💀">💀</button>
       <button data-e="👏">👏</button>
-    <button data-e="🤙">🤙</button>
-    <button data-e="😱">😱</button>
+      <button data-e="🤙">🤙</button>
+      <button data-e="😱">😱</button>
+    </div>
+    <div class="quick-row spectate-quick">
+      <button data-q="0">GG !</button>
+      <button data-q="1">Encore une ?</button>
+      <button data-q="2">Tu vas voir 😈</button>
+      <button data-q="4">Bien joué 👏</button>
     </div>
     <button id="btn-spectate-back" class="secondary">CLASSEMENT</button>
   </div>
@@ -323,6 +349,8 @@
     <div id="standings-banner" class="standings-banner hidden">🏆</div>
     <p id="standings-me"></p>
     <div class="stats" id="standings-list"></div>
+    <canvas id="standings-chart" width="640" height="230" style="display:none"></canvas>
+    <div class="stats" id="standings-mentions" style="display:none"></div>
     <button id="btn-standings-lobby" style="margin-top:8px">RETOUR AU SALON</button>
     <button id="btn-standings-home" class="secondary">MENU</button>
   </div>
@@ -339,7 +367,8 @@
   <div id="screen-tournoi-host" class="screen hidden">
     <div class="settings-title">CODE DE LA PARTIE</div>
     <div class="tournoi-code" id="tournoi-code">BALI</div>
-    <p>Dicte ce code aux autres joueurs : le même code donne
+    <canvas id="host-qr" class="lobby-qr" width="240" height="240"></canvas>
+    <p>Dicte ce code aux autres joueurs — ou fais-le scanner : le même code donne
        <strong>exactement la même partie</strong>.<br>
        Chacun joue jusqu'à sa défaite, puis on compare les scores.</p>
     <button id="btn-host-go" style="margin-top:8px">JOUER</button>
