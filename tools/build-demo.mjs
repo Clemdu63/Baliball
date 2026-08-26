@@ -56,7 +56,11 @@ js += '\ndocument.getElementById(\'install-hint\').textContent = '
   + '\'Version démo en ligne — la version installable et jouable hors ligne est sur GitHub Pages.\';\n'
   + '// le bac à sable de la démo ne permet ni partage, ni téléchargement, ni réseau\n'
   + 'document.getElementById(\'btn-share\').style.display = \'none\';\n'
-  + 'document.getElementById(\'btn-tournoi-online\').style.display = \'none\';\n';
+  + 'document.getElementById(\'btn-tournoi-online\').style.display = \'none\';\n'
+  + '// le QR pointerait vers l\u2019URL privee de la demo : masque\n'
+  + 'document.getElementById(\'host-qr\').style.display = \'none\';\n'
+  + 'document.getElementById(\'lobby-qr\').style.display = \'none\';\n'
+  + 'document.getElementById(\'lobby-qr-hint\').style.display = \'none\';\n';
 
 // ---- page ----
 const index = read('index.html');

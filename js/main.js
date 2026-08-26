@@ -8,10 +8,10 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.7.0';
+const APP_VERSION = '3.8.0';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
+const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
   'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
   'screen-tournoi', 'screen-online-setup', 'screen-lobby', 'screen-standings',
   'screen-offline-menu', 'screen-tournoi-host', 'screen-tournoi-join',
@@ -23,14 +23,32 @@ function show(id) {
   for (const s of SCREENS) $(s).classList.toggle('hidden', s !== id);
   $('btn-home').classList.add('hidden');
   $('btn-restart').classList.add('hidden');
+  $('btn-mute').classList.add('hidden');
 }
 
 function showGame() {
   for (const s of SCREENS) $(s).classList.add('hidden');
   $('btn-home').classList.remove('hidden');
   $('btn-restart').classList.remove('hidden');
+  $('btn-mute').classList.remove('hidden');
+  syncMuteIcon();
   if (typeof syncEmojiButton === 'function') syncEmojiButton();
 }
+
+/* Couper/remettre le son sans quitter la partie. */
+function syncMuteIcon() {
+  $('btn-mute').textContent = settings.sound ? '🔊' : '🔇';
+}
+
+$('btn-mute').addEventListener('click', () => {
+  settings.sound = !settings.sound;
+  persistSettings();
+  syncAmbience();
+  syncMuteIcon();
+  for (const btn of $('seg-sound').querySelectorAll('button')) {
+    btn.classList.toggle('active', btn.dataset.value === String(settings.sound));
+  }
+});
 
 /* Derniers paramètres de partie : sert à REJOUER et à RECOMMENCER
    (indispensable pour rejouer la même graine en Défi du jour / Tournoi). */
@@ -43,14 +61,41 @@ function startGame(mode, level = 0, seed = null) {
   showGame();
 }
 
+/* Niveaux de joueur : XP dérivée des statistiques cumulées — donc
+   rétroactive, sans nouveau compteur à entretenir. */
+const PLAYER_TITLES = [
+  [1, 'Pêcheur du lagon'], [3, 'Cueilleur de noix'], [5, 'Surfeur du récif'],
+  [8, 'Danseur de gamelan'], [11, 'Gardien du temple'], [14, 'Dompteur de marées'],
+  [17, 'Chasseur de masques'], [20, 'Esprit du volcan'], [24, 'Légende de Bali'],
+  [28, 'Panthéon vivant'],
+];
+
+function playerLevel() {
+  const c = loadJSON(KEYS.STATS, {});
+  const xp = Math.round((c.bricksBroken || 0) + 15 * (c.gamesPlayed || 0)
+    + 2 * (c.pearlsEarned || 0) + (c.bestScore || 0) / 50);
+  const lvl = Math.min(40, Math.floor(Math.sqrt(xp / 60)) + 1);
+  const title = PLAYER_TITLES.filter(([n]) => lvl >= n).pop()[1];
+  const cur = 60 * (lvl - 1) * (lvl - 1);
+  const next = 60 * lvl * lvl;
+  return {
+    lvl, title, xp,
+    toNext: Math.max(0, next - xp),
+    frac: Math.max(0, Math.min(1, (xp - cur) / Math.max(1, next - cur))),
+  };
+}
+
 function refreshHome() {
   const best = game.getBest();
   const bestScore = game.getBestScore();
   const tideBest = parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0;
   const parts = [];
-  if (best > 0) parts.push('Classique : manche ' + best + ' · ' + bestScore + ' pts');
+  const p = playerLevel();
+  if (p.xp > 0) parts.push('⭐ Niv. ' + p.lvl + ' · ' + p.title);
+  if (best > 0) parts.push('manche ' + best + ' · ' + bestScore + ' pts');
   if (tideBest > 0) parts.push('Marée : ' + tideBest + ' pts');
   $('home-best').textContent = parts.join(' — ');
+  $('btn-crew').style.display = crewCode() ? '' : 'none';
 
   const missions = game.getMissions();
   const doneCount = missions.filter((m) => m.done).length;
@@ -272,8 +317,13 @@ function spawnEmojiFloat(name, emoji) {
   const div = document.createElement('div');
   div.className = 'emoji-float';
   div.style.left = (15 + Math.random() * 60) + '%';
-  div.innerHTML = '<span class="emoji-big">' + emoji + '</span><span class="emoji-who">'
-    + name + '</span>';
+  const big = document.createElement('span');
+  big.className = 'emoji-big';
+  big.textContent = emoji;
+  const who = document.createElement('span');
+  who.className = 'emoji-who';
+  who.textContent = name;
+  div.append(big, who);
   $('emoji-floats').appendChild(div);
   setTimeout(() => div.remove(), 2600);
 }
@@ -324,7 +374,9 @@ function renderLobby() {
       const me = uid === myUid;
       const r = !me && rivals[uid];
       const duel = r ? '🤜🤛 ' + r.w + '–' + r.l : 'prêt';
+      const lvl = me ? playerLevel().lvl : p.lvl;
       return '<div class="row"><span>' + escHtml(p.name) + (me ? ' (toi)' : '')
+        + (lvl ? ' <span class="dim">⭐' + (lvl | 0) + '</span>' : '')
         + (p.help ? ' 🤝' : '') + '</span><b>' + (me ? 'prêt' : duel) + '</b></div>';
     })
     .join('');
@@ -360,7 +412,7 @@ function renderStandings() {
       ? ' · soirée : ' + (net.series.pts[uid] || 0) + ' pt' + ((net.series.pts[uid] || 0) > 1 ? 's' : '')
       : '';
     return '<div class="row' + (me ? ' standing-row-me' : '') + '"><span>'
-      + (medals[i] || (i + 1) + '.') + ' ' + p.name + (me ? ' (toi)' : '') + watch
+      + (medals[i] || (i + 1) + '.') + ' ' + escHtml(p.name) + (me ? ' (toi)' : '') + watch
       + '</span><b>' + p.score + ' pts · ' + (p.over ? 'terminé' : 'en jeu 🎮') + serie + '</b></div>';
   }).join('');
   const mine = net.roster.get(myUid);
@@ -395,6 +447,11 @@ function recordRivalries() {
   if (!mine) return;
   net.rivalsDone = net.game;
   const rivals = loadJSON(KEYS.RIVALS, {});
+  // anti-doublon persistant : l'historique ntfy rejoue les fins de partie
+  // quand on revient dans un salon — chaque partie ne compte qu'une fois
+  const counted = Array.isArray(rivals._games) ? rivals._games : [];
+  if (counted.includes(net.game)) return;
+  rivals._games = [...counted, net.game].slice(-20);
   for (const [uid, p] of entries) {
     if (uid === myUid || p.score === mine.score) continue;
     const r = rivals[uid] || { name: p.name, w: 0, l: 0 };
@@ -525,14 +582,17 @@ function syncSeriesButton() {
 
 function onNetMsg(d, age) {
   if (!net || !d || !d.t) return;
+  // pseudo borné dès la réception : l'émetteur ne le tronque pas pour nous
+  if (typeof d.name === 'string') d.name = d.name.slice(0, 12);
+  else d.name = '?';
   if (d.t === 'join') {
     if (age > 300) return; // vieux message rejoué : joueur sûrement parti
-    upsert(d.uid, { name: d.name });
+    upsert(d.uid, { name: d.name, lvl: d.lvl });
     renderLobby();
     // se ré-annoncer pour que les arrivants voient tout le monde
     if (d.uid !== myUid && age < 10 && Date.now() - net.lastAnnounce > 15000) {
       net.lastAnnounce = Date.now();
-      netPublish(net.code, { t: 'join', uid: myUid, name: net.name });
+      netPublish(net.code, { t: 'join', uid: myUid, name: net.name, lvl: playerLevel().lvl });
     }
   } else if (d.t === 'leave') {
     if (d.uid === myUid) return;
@@ -552,6 +612,7 @@ function onNetMsg(d, age) {
       sfx.pearl();
     }
   } else if (d.t === 'help') {
+    if (age > 300) return; // vieux message rejoué : joueur sûrement parti
     upsert(d.uid, { name: d.name, help: !!d.on });
     renderLobby();
   } else if (d.t === 'start') {
@@ -658,7 +719,7 @@ function enterLobby(code, name) {
         : 'Connexion au salon instable…';
     }
   });
-  netPublish(code, { t: 'join', uid: myUid, name });
+  netPublish(code, { t: 'join', uid: myUid, name, lvl: playerLevel().lvl });
   if (myHandicap) netPublish(code, { t: 'help', uid: myUid, name, on: true });
   renderLobbyQR();
   show('screen-lobby');
@@ -700,7 +761,7 @@ $('btn-rejoin').addEventListener('click', () => {
     };
     upsert(myUid, { name: ctx.name });
     net.stop = netSubscribe(ctx.code, onNetMsg, () => {});
-    netPublish(ctx.code, { t: 'join', uid: myUid, name: ctx.name });
+    netPublish(ctx.code, { t: 'join', uid: myUid, name: ctx.name, lvl: playerLevel().lvl });
     game.setTournamentOptions(ctx.opts || { fast: false, target: null });
   }
   if (game.resumeGame('tournament')) {
@@ -1205,7 +1266,10 @@ function renderProgress() {
   const c = loadJSON(KEYS.STATS, {});
   const prog = loadJSON(KEYS.PUZZLE, { stars: {} });
   const stars = Object.values(prog.stars || {}).reduce((a, b) => a + b, 0);
+  const plvl = playerLevel();
   const rows = [
+    ['⭐ Niveau ' + plvl.lvl + ' — ' + plvl.title,
+      plvl.toNext > 0 ? plvl.toNext + ' XP avant le niv. ' + (plvl.lvl + 1) : 'MAX'],
     ['Parties jouées', c.gamesPlayed || 0],
     ['Pierres brisées', c.bricksBroken || 0],
     ['Tirs', c.shotsFired || 0],
@@ -1347,6 +1411,83 @@ function renderCrewBoard() {
     + (rows.length <= 1 ? '<div class="row"><span class="dim">En attente des scores de l\'équipage…</span></div>' : '');
   $('crew-board').classList.remove('hidden');
 }
+
+/* ---- écran Équipage : podiums du jour et de la semaine à la demande ---- */
+let crewView = null;   // {code, dKey, wKey, best: {clé → Map(uid → {name, score})}, stop}
+
+function teardownCrewView() {
+  if (crewView && crewView.stop) crewView.stop();
+  crewView = null;
+}
+
+function crewBoardRow(uid, r, i) {
+  const medals = ['🥇', '🥈', '🥉'];
+  return '<div class="row"><span>' + (medals[i] || '&nbsp;' + (i + 1) + '.') + ' '
+    + escHtml(r.name) + (uid === myUid ? ' (toi)' : '') + '</span><b>' + r.score + '</b></div>';
+}
+
+function renderCrewScreen() {
+  if (!crewView) return;
+  const board = (id, key, emptyTxt) => {
+    const rows = [...(crewView.best[key] || new Map()).entries()]
+      .sort((a, b) => b[1].score - a[1].score).slice(0, 8);
+    $(id).innerHTML = rows.length
+      ? rows.map(([uid, r], i) => crewBoardRow(uid, r, i)).join('')
+      : '<div class="row"><span class="dim">' + emptyTxt + '</span></div>';
+  };
+  board('crew-daily', crewView.dKey, 'Personne n\'a encore joué le défi du jour.');
+  board('crew-weekly', crewView.wKey, 'Personne n\'a encore joué cette semaine.');
+}
+
+function crewCollect(key, uid, name, score) {
+  const b = crewView.best[key] = crewView.best[key] || new Map();
+  const prev = b.get(uid);
+  const sc = Math.max(0, score | 0);
+  if (!prev || sc > prev.score) b.set(uid, { name: String(name || 'Sans nom').slice(0, 12), score: sc });
+}
+
+$('btn-crew').addEventListener('click', () => {
+  const code = crewCode();
+  if (!code) return;
+  teardownCrewView();
+  crewView = {
+    code, best: {}, stop: null,
+    dKey: 'd' + dailySeed(),
+    wKey: 'w' + game.weeklyInfo().seed,
+  };
+  $('crew-title-code').textContent = code;
+  $('crew-screen-status').textContent = 'Connexion à l\'équipage…';
+  // mes records locaux d'abord : visibles même si le réseau traîne
+  const myName = (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Toi';
+  const daily = loadJSON(KEYS.DAILY, {});
+  const dToday = new Date();
+  const dKeyDate = dToday.getFullYear() + '-' + String(dToday.getMonth() + 1).padStart(2, '0')
+    + '-' + String(dToday.getDate()).padStart(2, '0');
+  if (daily.date === dKeyDate && daily.score > 0) crewCollect(crewView.dKey, myUid, myName, daily.score);
+  const weekly = loadJSON(KEYS.WEEKLY, {});
+  if ('w' + weekly.week === crewView.wKey && weekly.score > 0) {
+    crewCollect(crewView.wKey, myUid, myName, weekly.score);
+  }
+  crewView.stop = netSubscribe('crew-' + code, (m) => {
+    if (!crewView || !m || m.t !== 'best' || !m.uid) return;
+    if (m.key !== crewView.dKey && m.key !== crewView.wKey) return;
+    crewCollect(m.key, m.uid, m.name, m.score);
+    renderCrewScreen();
+  }, (st) => {
+    if (!crewView) return;
+    $('crew-screen-status').textContent = st === 'ok'
+      ? 'En direct — le meilleur score de chacun sur les défis.'
+      : 'Connexion instable… (Internet requis ici)';
+  }, '12h');
+  renderCrewScreen();
+  show('screen-crew');
+});
+
+$('btn-crew-back').addEventListener('click', () => {
+  teardownCrewView();
+  refreshHome();
+  show('screen-home');
+});
 
 function crewPublish(s) {
   teardownCrew();

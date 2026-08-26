@@ -64,7 +64,11 @@ illustration.
   le dessus — les tirs en cloche valent souvent mieux que les tirs rasants.
 - Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.
 - En jeu : **⟲** recommence la partie (avec confirmation), **⌂** revient au
-  menu ; l'écran **Légende** rappelle l'effet de chaque bonus et pierre.
+  menu, **🔊/🔇** coupe ou remet le son sans quitter ; l'écran **Légende**
+  rappelle l'effet de chaque bonus et pierre.
+- Sur **iPad, ordinateur ou écran couché** assez haut, le plateau garde ses
+  proportions de téléphone et se centre avec des bandes latérales — le jeu
+  reste jouable ; un téléphone couché met simplement la partie en pause.
 - La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
   (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
 - Au tout premier lancement, **trois diapos de bienvenue** illustrées
@@ -101,7 +105,9 @@ illustration.
 - **⚓ Équipage** — un code de 4 lettres choisi entre amis (dans
   Réglages) : à la fin d'un Défi du jour ou de la semaine, l'écran de
   fin affiche le **podium de l'équipage** (meilleur score de chacun, via
-  ntfy.sh — Internet requis à ce moment-là seulement).
+  ntfy.sh — Internet requis à ce moment-là seulement). Un bouton **⚓**
+  sur l'accueil ouvre l'écran Équipage : les podiums du jour et de la
+  semaine, consultables à tout moment.
 - **📡 Tournoi entre amis** — chacun sur son téléphone, la même partie
   classique (infinie) pour tout le monde, en deux variantes :
   - **Événements communs** : toutes les 5 manches (hors manches à Barong),
@@ -152,6 +158,11 @@ illustration.
 
 ## Progression
 
+Chaque partie fait grimper ton **niveau de joueur** (XP dérivée des
+statistiques cumulées, donc rétroactive) avec des **titres balinais** —
+Pêcheur du lagon, Gardien du temple, Légende de Bali… — affichés sur
+l'accueil, dans l'écran Progrès et à côté de ton pseudo dans les salons
+de tournoi (⭐).
 Chaque jour, **3 missions** tirées de la date (briser des pierres, faire
 un combo ×6, vaincre un Barong…) rapportent des perles — suivi sur
 l'accueil et dans l'écran Progrès, récompense créditée en pleine partie.

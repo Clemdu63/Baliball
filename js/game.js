@@ -24,6 +24,13 @@ let hooks = {};
 let W = 0, H = 0, dpr = 1;
 let cell = 0, boardTop = 0, floorY = 0, deathRow = 8;
 let ceilY = 0;   // plafond des rebonds : un couloir libre au-dessus de la grille
+let offX = 0;    // iPad / paysage : plateau plafonné en largeur et centré
+
+/* Paysage injouable : seulement quand l'écran couché est trop bas
+   (téléphone) — un iPad couché garde assez de hauteur pour jouer. */
+function flatBlocked() {
+  return window.innerWidth > H && H < 600;
+}
 
 function readSafeInset(name) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -32,12 +39,18 @@ function readSafeInset(name) {
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 3);
-  W = window.innerWidth;
   H = window.innerHeight;
+  // écrans larges (iPad, paysage, ordinateur) : le plateau garde des
+  // proportions de téléphone et se centre, bandes latérales neutres —
+  // sauf téléphone couché (pause) : plein écran pour le message
+  W = flatBlocked() ? window.innerWidth
+    : Math.min(window.innerWidth, Math.round(H * 0.55));
+  offX = Math.round((window.innerWidth - W) / 2);
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
+  canvas.style.marginLeft = offX + 'px';
   cell = W / COLS;
   ceilY = readSafeInset('--sat') + 58;
   // la grille commence une cellule sous le plafond : les noix peuvent
@@ -527,7 +540,9 @@ export function drawBoardSnapshot(cv, snap) {
   const oldCtx = ctx, oldCell = cell, oldBoardTop = boardTop;
   const T = themed();
   ctx = c2;
-  cell = cv.width / COLS;
+  // un plateau plein fait ~15 rangées : la cellule s'adapte pour que le
+  // bas ne soit jamais coupé, la grille reste centrée
+  cell = Math.min(cv.width / COLS, cv.height / 15);
   boardTop = 0;
   try {
     c2.setTransform(1, 0, 0, 1, 0, 0);
@@ -540,6 +555,7 @@ export function drawBoardSnapshot(cv, snap) {
     c2.fillRect(0, cv.height - cell * 0.4, cv.width, cell * 0.4);
     c2.fillStyle = T.foam;
     c2.fillRect(0, cv.height - cell * 0.4, cv.width, 2.5);
+    c2.setTransform(1, 0, 0, 1, Math.round((cv.width - cell * COLS) / 2), 0);
     for (const [col, row, hp, type, orient] of (snap && snap.blocks) || []) {
       drawStone({
         col, row, hp,
@@ -1888,10 +1904,10 @@ function frame(t) {
 }
 
 function update(dt) {
-  // téléphone couché : le plateau n'a plus de sens en paysage, on met le
-  // jeu en pause plutôt que de laisser la marée « tuer » la partie avec
-  // une géométrie d'écran fausse
-  if (W > H) return;
+  // téléphone couché : le plateau n'a plus de sens en paysage bas, on met
+  // le jeu en pause plutôt que de laisser la marée « tuer » la partie
+  // avec une géométrie d'écran fausse
+  if (flatBlocked()) return;
   if (shiftAnim < 1) shiftAnim = Math.min(1, shiftAnim + dt * 5);
 
   // poissons du décor (immobiles si l'utilisateur préfère moins d'animations)
@@ -3008,7 +3024,7 @@ function draw(t) {
   ctx.fillStyle = T.page;
   ctx.fillRect(0, 0, W, H);
 
-  if (W > H) {
+  if (flatBlocked()) {
     // paysage : partie en pause, invitation à remettre le téléphone droit
     ctx.fillStyle = T.hud;
     ctx.textAlign = 'center';
@@ -3297,23 +3313,24 @@ function wireInput() {
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     initAudio();
-    if (W > H) return; // paysage : jeu en pause
+    if (flatBlocked()) return; // paysage bas : jeu en pause
+    const x = e.clientX - offX;
     if (state === 'flight') {
       const b = accelBtnRect();
-      if (b && e.clientX >= b.x && e.clientX <= b.x + b.w
+      if (b && x >= b.x && x <= b.x + b.w
         && e.clientY >= b.y && e.clientY <= b.y + b.h) {
         userFast = true;
       }
       return;
     }
     if (state !== 'aim') return;
-    aim = { sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, valid: false, angle: Math.PI / 2 };
+    aim = { sx: x, sy: e.clientY, cx: x, cy: e.clientY, valid: false, angle: Math.PI / 2 };
   });
 
   canvas.addEventListener('pointermove', (e) => {
     e.preventDefault();
     if (state !== 'aim' || !aim || aim.sx === undefined) return;
-    aim.cx = e.clientX;
+    aim.cx = e.clientX - offX;
     aim.cy = e.clientY;
     const dx = aim.cx - aim.sx, dy = aim.cy - aim.sy;
     if (Math.hypot(dx, dy) < 14) { aim.valid = false; return; }
