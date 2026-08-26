@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.8.1';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -277,6 +277,7 @@ let lastLeaderUid = null;
 let lobbyOpts = { target: null, fast: false, series: 1, sabotage: false, chaos: false, versus: false };
 let lastEmojiSent = 0;
 let lastWaveSent = 0;
+let lastAtkSent = 0;
 
 function teardownNet(announce) {
   if (net && announce) {
@@ -838,6 +839,15 @@ bindLobbyOpt('seg-series', 'series', (v) => parseInt(v, 10));
 bindLobbyOpt('seg-sabotage', 'sabotage', (v) => v === 'true');
 bindLobbyOpt('seg-chaos', 'chaos', (v) => v === 'true');
 bindLobbyOpt('seg-versus', 'versus', (v) => v === 'true');
+
+// Versus actif = sabotage ignoré : le réglage se grise pour le dire
+function syncVersusConflict() {
+  const seg = $('seg-sabotage');
+  seg.classList.toggle('seg-off', lobbyOpts.versus);
+  for (const b of seg.querySelectorAll('button')) b.disabled = lobbyOpts.versus;
+}
+$('seg-versus').addEventListener('click', syncVersusConflict);
+syncVersusConflict();
 
 $('btn-lobby-start').addEventListener('click', () => {
   if (!net) return;
@@ -1520,8 +1530,12 @@ game.initGame($('game'), {
     upsert(myUid, { score: s.score, round: s.round });
     trackCurve(myUid, s.round, s.score);
     tickerRefresh();
-    // mode Versus ⚔️ : chaque combo ×3+ attaque tous les adversaires
-    if (net.opts && net.opts.versus && s.combo >= 3) {
+    // mode Versus ⚔️ : un combo ×3+ attaque tous les adversaires — au
+    // plus une attaque toutes les 8 s, sinon la fin de partie (combos
+    // permanents) devient une pluie ininterrompue
+    if (net.opts && net.opts.versus && s.combo >= 3
+      && Date.now() - lastAtkSent > 8000) {
+      lastAtkSent = Date.now();
       const p = s.combo >= 7 ? 3 : s.combo >= 5 ? 2 : 1;
       netPublish(net.code, { t: 'atk', uid: myUid, name: net.name, game: net.game, p });
       toast('⚔️ Combo ×' + s.combo + ' : attaque ×' + p + ' envoyée !');

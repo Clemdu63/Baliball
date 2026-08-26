@@ -1381,3 +1381,6 @@ body.lefty #btn-mute { right: auto; left: 102px; }
 .home-row { flex-wrap: wrap; justify-content: center; }
 
 #crew-daily .dim, #crew-weekly .dim { color: var(--muted); font-weight: 500; }
+
+/* option de salon neutralisée par une autre (sabotage sous Versus) */
+.segmented.seg-off { opacity: 0.4; pointer-events: none; }
