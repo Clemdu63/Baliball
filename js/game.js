@@ -93,12 +93,25 @@ const TIDE_DURATION = 90;
    En Tournoi et Défi du jour (parties à graine partagée), les paliers se
    déclenchent à la manche pour que tous les joueurs gardent la même grille. */
 const LATE_TIERS = [
-  { at: 10000, round: 15, name: '🪨 Pierres larges !' },
-  { at: 30000, round: 22, name: '⚪ Pierres rondes !' },
-  { at: 50000, round: 28, name: '🌊 Grande marée !' },
-  { at: 80000, round: 32, name: '⚡ Tempête sur le lagon !' }, // rangées denses
-  { at: 100000, round: 35, name: '🔥 Pierres ardentes !' },
+  { at: 10000, round: 20, name: '🪨 Pierres larges !' },
+  { at: 30000, round: 30, name: '⚪ Pierres rondes !' },
+  { at: 50000, round: 38, name: '🌊 Grande marée !' },
+  { at: 80000, round: 44, name: '⚡ Tempête sur le lagon !' }, // rangées denses
+  { at: 100000, round: 50, name: '🔥 Pierres ardentes !' },
 ];
+
+/* Courbe de difficulté : le début doit être simple et satisfaisant,
+   c'est vers les manches 40-50 que le lagon se déchaîne.
+   0 jusqu'à la manche 25, puis montée linéaire jusqu'à 1 à la manche 50. */
+function difficulty() {
+  return Math.max(0, Math.min(1, (round - 25) / 25));
+}
+
+/* PV des pierres blindées : lents à monter et plafonnés — chaque PV
+   coûte ~1,2 s de pilonnage, au-delà de 6 c'était un mur infranchissable. */
+function armorHpFor() {
+  return Math.max(1, Math.min(6, Math.ceil(round / 8)));
+}
 let nextTier = 0;
 
 const isSeeded = () => mode === 'tournament' || mode === 'daily' || mode === 'weekly';
@@ -665,7 +678,7 @@ export function dropSurpriseStone() {
   if (state !== 'aim' && state !== 'flight') return false;
   const free = freeCells();
   if (!free.length) return false;
-  placeStones(Math.random, free, 1, 'armored', Math.max(1, Math.ceil(round / 3)));
+  placeStones(Math.random, free, 1, 'armored', armorHpFor());
   effects.push({ type: 'milestone', text: '🌊 Vague adverse !', life: 1, color: '#7ef0d8' });
   sfx.boom();
   return true;
@@ -718,9 +731,11 @@ function bossArtReady(kind) {
 function spawnRow() {
   if (bossRound(round)) {
     const kind = BOSS_KINDS[(Math.floor(round / 10) - 1) % BOSS_KINDS.length];
-    const hp = Math.max(20, Math.round(round * 8 * (unlockCount() >= 5 ? 1.3 : 1)));
+    // premiers boss abordables (~2 manches), les tardifs redoutables
+    const mult = 4.5 + 3.5 * difficulty();
+    const hp = Math.max(30, Math.round(round * mult * (unlockCount() >= 5 ? 1.3 : 1)));
     blocks.push({
-      col: 2, row: 0, hp, maxHp: hp, roarIn: 3, bossKind: kind,
+      col: 2, row: 0, hp, maxHp: hp, roarIn: round < 30 ? 4 : 3, bossKind: kind,
       flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
     });
     if (!replaying) {
@@ -756,19 +771,21 @@ function spawnRow() {
     const j = Math.floor(rng() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  // tempête (80 000) : une pierre de plus par rangée
-  const n = Math.min(cols.length - 1, 2 + Math.floor(rng() * 4) + (lvl >= 4 ? 1 : 0));
-  const armoredChance = lvl >= 5 ? 0.2 : 0.10; // pierres ardentes : blindées plus fréquentes
+  // tempête (80 000) : une pierre de plus par rangée (rangées légères au début)
+  const n = Math.min(cols.length - 1,
+    2 + Math.floor(rng() * (round < 12 ? 3 : 4)) + (lvl >= 4 ? 1 : 0));
+  // blindées : rares au début (3 %), elles se multiplient vers les manches 40-50
+  const armoredChance = lvl >= 5 ? 0.2 : 0.03 + 0.09 * difficulty();
   for (let i = 0; i < n; i++) {
     const roll = rng();
     let type = 'stone';
-    if (roll < armoredChance && round >= 4) type = 'armored';
+    if (roll < armoredChance && round >= 8) type = 'armored';
     else if (roll < armoredChance + 0.14 && round >= 2) type = 'tri';
     else if (roll < armoredChance + 0.20 && round >= 3) type = 'mystery';
     else if (lvl >= 2 && roll < armoredChance + 0.42) type = 'round'; // palier 2
     const hp = type === 'armored'
-      ? Math.max(1, Math.ceil(round / 3))
-      : Math.max(1, Math.round((rng() < 0.18 ? round * 2 : round) * hpMult));
+      ? armorHpFor()
+      : Math.max(1, Math.round(round * (rng() < 0.18 && round >= 12 ? 2 : 1) * hpMult));
     blocks.push({
       col: cols[i], row: 0, hp, flash: 0, seed: Math.random(), type,
       orient: type === 'tri' ? Math.floor(rng() * 4) : 0,
@@ -933,7 +950,7 @@ function endTurn() {
   if (boss) {
     boss.roarIn = (boss.roarIn || 3) - 1;
     if (boss.roarIn <= 0) {
-      boss.roarIn = 3;
+      boss.roarIn = round < 30 ? 4 : 3;
       if (bossRoar(boss)) return; // séisme fatal : la partie vient de finir
     }
   }
@@ -955,7 +972,7 @@ function bossRoar(boss) {
     ? mulberry32((currentSeed ^ Math.imul(round, 2654435761)) >>> 0)
     : Math.random;
   const free = freeCells();
-  const armorHp = Math.max(1, Math.ceil(round / 3));
+  const armorHp = armorHpFor();
   sfx.bossVoice(boss.bossKind);
   if (boss.bossKind === 'rangda') {
     const heal = Math.min(boss.maxHp - boss.hp, Math.max(4, Math.ceil(round / 2)));
@@ -992,7 +1009,7 @@ function bossRoar(boss) {
       const i = Math.floor(side() * targets.length);
       const t = targets.splice(i, 1)[0];
       t.type = 'armored';
-      t.hp = Math.max(1, Math.ceil(round / 3));
+      t.hp = armorHpFor();
       t.flash = 1;
     }
   } else if (boss.bossKind === 'hanuman') {

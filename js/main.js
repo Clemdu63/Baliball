@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.4.1';
+const APP_VERSION = '3.4.2';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
