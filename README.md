@@ -37,7 +37,10 @@ illustration.
   **séisme** qui fait tout descendre d'un cran, 🌊 **Dewi Danu** (80)
   noie le lagon dans la brume, 👹 le **Raksasa** (90) **dévore tous les
   bonus** du plateau — puis le cycle recommence. Le vaincre rapporte
-  1 000 pts et 15 perles.
+  1 000 pts et 15 perles. Chaque boss a sa **voix** (rugissement,
+  grondement tellurique, cris d'aigle… tout en synthèse WebAudio) — et
+  si l'un d'eux met fin à ta partie, son masque trône sur l'écran de fin
+  et sur la carte de partage (« Terrassé par 🎭 Le Barong »).
 - Le **gong 🥁** (bonus rare) résonne dans tout le lagon : toutes les
   pierres perdent 1 PV d'un coup.
 - Tous les 25 crans de manche, une pluie de perles (+10 ◉) célèbre le cap.
@@ -60,9 +63,13 @@ illustration.
   menu ; l'écran **Légende** rappelle l'effet de chaque bonus et pierre.
 - La partie en cours est sauvegardée automatiquement : tu peux fermer l'app
   (ou revenir au menu avec le bouton ⌂) et **reprendre** plus tard, même hors ligne.
+- Au tout premier lancement, **trois diapos de bienvenue** illustrées
+  présentent le jeu (visée, boss, défis) — passables d'un geste.
 - Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
   vitesse des noix de coco, **mode gaucher** (boutons en jeu à gauche),
-  **réduction des animations**, et **sauvegarde & transfert** — un code
+  **réduction des animations**, **vibrations** (sur les téléphones qui
+  les permettent : coup de boss, apparition, défaite), le **code
+  d'équipage** (voir Défis), et **sauvegarde & transfert** — un code
   compact à copier/partager (AirDrop, iMessage…) pour retrouver toute sa
   progression sur un autre téléphone, sans aucun serveur.
 
@@ -72,9 +79,11 @@ illustration.
   possible (sauvegarde et reprise automatiques).
 - **🌊 Marée montante** — 90 secondes chrono, tirs enchaînés, la marée
   nettoie le bas du plateau.
-- **🛕 Temples** — 24 grilles fixes à libérer en un nombre de tirs limité,
-  1 à 3 étoiles par niveau.
-- **🏖 Plage** — zen, sans défaite : idéal en avion.
+- **🛕 Temples** — 48 grilles fixes à libérer en un nombre de tirs limité,
+  1 à 3 étoiles par niveau — des Jumeaux au Panthéon.
+- **🏖 Plage** — zen, sans défaite : idéal en avion. Chaque pierre brisée
+  joue la **note suivante d'une mélodie de gamelan** : casser devient un
+  morceau de musique.
 - **🌅 Défi du jour** — la même partie pour tout le monde, une nouvelle
   chaque jour (graine de la date, donc jouable hors ligne) — avec un
   **fantôme** : en rejouant, le score de ton meilleur run du jour
@@ -82,6 +91,10 @@ illustration.
 - **🌀 Défi de la semaine** — la même partie sept jours durant, avec un
   **mutateur** qui change les règles : brouillard sur le haut du lagon,
   tir miroir, pluie de bonus, pierres durcies ou noix rapides.
+- **⚓ Équipage** — un code de 4 lettres choisi entre amis (dans
+  Réglages) : à la fin d'un Défi du jour ou de la semaine, l'écran de
+  fin affiche le **podium de l'équipage** (meilleur score de chacun, via
+  ntfy.sh — Internet requis à ce moment-là seulement).
 - **📡 Tournoi entre amis** — chacun sur son téléphone, la même partie
   classique (infinie) pour tout le monde, en deux variantes :
   - **Événements communs** : toutes les 5 manches (hors manches à Barong),
@@ -126,7 +139,10 @@ des **sillages** derrière les noix (pétales, braises, poussière
 d'étoiles).
 L'écran **Progrès** liste **Mes parties récentes** (les 20 dernières :
 mode, score, manche atteinte, il y a combien de temps), trace la
-**courbe des scores**, et suit les statistiques cumulées et 12 succès. Tous les
+**courbe des scores**, et suit les statistiques cumulées — globales et
+**par mode de jeu** (records et parties de chaque mode) — ainsi que
+15 succès, dont le **panthéon des boss** : vaincre les 9 masques
+différents débloque le sillage exclusif 🎭 **Esprits du panthéon**. Tous les
 1 000 points, une célébration marque le palier — et certains cosmétiques
 se **débloquent au score** (étoile de mer à 2 500, coquillage à 5 000,
 décor Bioluminescence à 8 000). Le score d'une partie se **partage en
@@ -178,7 +194,7 @@ mise à jour.
 | `style.css` | Styles, thèmes clair/sombre, animations |
 | `js/main.js` | Écrans, modes, boutique, réglages, démarrage |
 | `js/game.js` | Moteur du jeu (physique, rendu canvas, sauvegarde) |
-| `js/levels.js` | Les 24 niveaux du mode Temples |
+| `js/levels.js` | Les 48 niveaux du mode Temples |
 | `js/theme.js` | Thèmes du plateau (couleurs canvas + CSS) |
 | `js/net.js` | Tournoi en ligne : pub/sub minimal sur ntfy.sh |
 | `js/audio.js` | Sons générés en WebAudio |

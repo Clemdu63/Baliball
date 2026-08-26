@@ -109,4 +109,100 @@ export const LEVELS = [
   { name: 'Le grand temple',
     grid: ['...f...', '..PfQ..', '.PfffQ.', '.fffff.', '.fX?Xf.', '.fffff.'],
     balls: 10, shots: 13, stars: [10, 12] },
+  /* ---- Temples 25-48 : la seconde vallee ---- */
+  { name: 'Les jumeaux',
+    grid: ['66...66', '66.o.66', '.......', '..8.8..', '...C...'],
+    balls: 4, shots: 6, stars: [4, 5] },
+
+  { name: 'Escalier celeste',
+    grid: ['9......', '99.....', '999..o.', '9999...', '99999..'],
+    balls: 5, shots: 7, stars: [5, 6] },
+
+  { name: 'Le gong cache',
+    grid: ['.XXXXX.', '.X...X.', '.X.?.X.', '.X...X.', '.XXXXX.'],
+    balls: 4, shots: 8, stars: [6, 7] },
+
+  { name: 'Maree de toits',
+    grid: ['P.Q.P.Q', '.......', 'R.S.R.S', '...o...', 'P.Q.P.Q'],
+    balls: 4, shots: 7, stars: [5, 6] },
+
+  { name: 'Le sablier',
+    grid: ['8888888', '.88888.', '..888..', '...8...', '..888..', '.8o8o8.'],
+    balls: 6, shots: 8, stars: [6, 7] },
+
+  { name: 'Croix du sud',
+    grid: ['...a...', '...a...', 'aaaWaaa', '...a...', '...a...'],
+    balls: 5, shots: 7, stars: [5, 6] },
+
+  { name: 'La muraille',
+    grid: ['ccccccc', '.......', '.o.D.o.', '.......', 'ccccccc'],
+    balls: 6, shots: 8, stars: [6, 7] },
+
+  { name: 'Oeil du volcan',
+    grid: ['..YYY..', '.Y...Y.', 'Y..d..Y', '.Y...Y.', '..YYY..'],
+    balls: 5, shots: 9, stars: [7, 8] },
+
+  { name: 'Les rizieres',
+    grid: ['7.7.7.7', '.6.6.6.', '7.7.7.7', '.6.6.6.', '...F...'],
+    balls: 5, shots: 8, stars: [6, 7] },
+
+  { name: 'Serpent de pierre',
+    grid: ['ee.....', '.ee....', '..ee...', '...ee..', '....ee.', '..o..ee'],
+    balls: 5, shots: 8, stars: [6, 7] },
+
+  { name: 'La forteresse',
+    grid: ['XfffffX', 'f.....f', 'f..o..f', 'f.....f', 'XfffffX'],
+    balls: 6, shots: 9, stars: [7, 8] },
+
+  { name: 'Trois freres',
+    grid: ['.g.g.g.', '.g.g.g.', '.g.g.g.', '...C...'],
+    balls: 6, shots: 8, stars: [6, 7] },
+
+  { name: 'Le damier',
+    grid: ['8.8.8.8', '.8.8.8.', '8.?.?.8', '.8.8.8.', '8.8.8.8'],
+    balls: 6, shots: 9, stars: [7, 8] },
+
+  { name: 'Lagune secrete',
+    grid: ['hh...hh', 'h..*..h', '...h...', 'h..o..h', 'hh...hh'],
+    balls: 6, shots: 8, stars: [6, 7] },
+
+  { name: 'La cascade',
+    grid: ['j.....j', 'jj...jj', 'jjj.jjj', '...W...', 'jj...jj'],
+    balls: 7, shots: 9, stars: [7, 8] },
+
+  { name: 'Temple englouti',
+    grid: ['..PkQ..', '..kkk..', '.PkkkQ.', '.kkkkk.', '...D...'],
+    balls: 7, shots: 9, stars: [7, 8] },
+
+  { name: 'Les gardiens',
+    grid: ['Y.....Y', 'Ym...mY', 'Ymm.mmY', '...o...', '..m.m..'],
+    balls: 7, shots: 10, stars: [8, 9] },
+
+  { name: 'Spirale',
+    grid: ['nnnnnn.', 'n.....n', 'n.nnn.n', 'n.n.n.n', 'n.n...n', 'n.nnnnn'],
+    balls: 8, shots: 11, stars: [9, 10] },
+
+  { name: 'Pluie de perles',
+    grid: ['p.*.*.p', '.p.p.p.', '*.p.p.*', '.p.p.p.', 'p.*.*.p'],
+    balls: 7, shots: 9, stars: [7, 8] },
+
+  { name: 'Le colosse',
+    grid: ['..qqq..', '..qqq..', 'Y.qqq.Y', '..qqq..', '.o.C.o.'],
+    balls: 8, shots: 10, stars: [8, 9] },
+
+  { name: 'Archipel',
+    grid: ['rr...rr', 'rr.o.rr', '...r...', '..rrr..', 'rr...rr', 'rr.F.rr'],
+    balls: 8, shots: 11, stars: [9, 10] },
+
+  { name: 'Les cloches',
+    grid: ['.s.s.s.', 'sss.sss', '.s.s.s.', '...s...', '..sss..'],
+    balls: 8, shots: 10, stars: [8, 9] },
+
+  { name: 'Le labyrinthe',
+    grid: ['ttttttt', '......t', 'ttttt.t', 't...t.t', 't.t.t.t', 't.t...t', 't.ttttt'],
+    balls: 9, shots: 12, stars: [10, 11] },
+
+  { name: 'Le pantheon',
+    grid: ['YvYvYvY', 'v.....v', 'v..?..v', 'v.....v', 'YvvDvvY', '...o...'],
+    balls: 9, shots: 12, stars: [10, 11] },
 ];

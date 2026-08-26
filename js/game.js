@@ -260,6 +260,7 @@ const TRAILS = {
   stars: { colors: ['#bfffe9', '#ffffff'], vy: 12, life: 0.6 },
   foam: { colors: ['#e6fbff', '#bfeef5', '#ffffff'], vy: 18, life: 0.55 },
   gold: { colors: ['#ffd34d', '#ffb648', '#fff3c4'], vy: 30, life: 0.6 },
+  esprit: { colors: ['#c9b8ff', '#ffffff', '#9ff4e4'], vy: 10, life: 0.75 },
 };
 
 /* Applique le décor équipé par-dessus le thème jour/nuit. */
@@ -725,6 +726,8 @@ function spawnRow() {
     if (!replaying) {
       spawnLog.push(round + ':BOSS-' + kind + hp);
       effects.push({ type: 'bossIntro', kind, life: 1 });
+      sfx.bossVoice(kind);
+      buzz(40);
     }
     return;
   }
@@ -953,7 +956,7 @@ function bossRoar(boss) {
     : Math.random;
   const free = freeCells();
   const armorHp = Math.max(1, Math.ceil(round / 3));
-  sfx.boom();
+  sfx.bossVoice(boss.bossKind);
   if (boss.bossKind === 'rangda') {
     const heal = Math.min(boss.maxHp - boss.hp, Math.max(4, Math.ceil(round / 2)));
     boss.hp += heal;
@@ -1028,6 +1031,7 @@ function bossRoar(boss) {
         return true;
       }
     }
+    stats.quake = true; // séisme survécu (succès)
     shiftAnim = 0;
   } else if (boss.bossKind === 'dewi') {
     // la déesse du lac noie le lagon dans la brume pour 2 manches
@@ -1065,7 +1069,7 @@ function addHistory(entry) {
 }
 
 /* Statistiques cumulées (succès et écran Progrès). */
-function addCumulative() {
+function addCumulative(puzzleWon) {
   const c = loadJSON(KEYS.STATS, {});
   c.gamesPlayed = (c.gamesPlayed || 0) + 1;
   c.bricksBroken = (c.bricksBroken || 0) + stats.broken;
@@ -1073,6 +1077,20 @@ function addCumulative() {
   c.pearlsEarned = (c.pearlsEarned || 0) + pearls;
   c.bestRound = Math.max(c.bestRound || 0, mode === 'puzzle' ? 0 : round);
   c.bestScore = Math.max(c.bestScore || 0, score);
+  // par mode : record de manche/score, nombre de parties, victoires Temples
+  c.byMode = c.byMode || {};
+  const m = c.byMode[mode] || { games: 0, round: 0, score: 0, wins: 0 };
+  m.games += 1;
+  m.round = Math.max(m.round, mode === 'puzzle' ? 0 : round);
+  m.score = Math.max(m.score, score);
+  if (puzzleWon) m.wins += 1;
+  c.byMode[mode] = m;
+  // panthéon des boss vaincus + séisme survécu
+  if (stats.kills && stats.kills.length) {
+    c.bossKills = c.bossKills || {};
+    for (const k of stats.kills) c.bossKills[k] = (c.bossKills[k] || 0) + 1;
+  }
+  if (stats.quake) c.quakeSurvived = true;
   store.set(KEYS.STATS, JSON.stringify(c));
 }
 
@@ -1126,6 +1144,8 @@ function gameOver(reason) {
   bankPearls();
   addCumulative();
   sfx.over();
+  buzz([50, 60, 90]);
+  const bossAtDeath = blocks.find((b) => b.type === 'boss');
   if (hooks.onGameOver) {
     const daily = loadJSON(KEYS.DAILY, {});
     const weekly = loadJSON(KEYS.WEEKLY, {});
@@ -1144,6 +1164,8 @@ function gameOver(reason) {
       broken: stats.broken,
       shots: stats.shots,
       balls: ballCount,
+      bossKind: reason === 'line' && bossAtDeath ? bossAtDeath.bossKind : null,
+      bossName: reason === 'line' && bossAtDeath ? BOSS_NAMES[bossAtDeath.bossKind] : null,
     });
   }
 }
@@ -1161,7 +1183,7 @@ function puzzleWin() {
   missionPersist();
   addHistory({ mode: 'puzzle', score, level: puzzle.idx, stars: starCount, win: true });
   bankPearls();
-  addCumulative();
+  addCumulative(true);
   sfx.bonus();
   if (hooks.onPuzzleWin) {
     hooks.onPuzzleWin({
@@ -1261,6 +1283,14 @@ function damageBlock(b, amount, cx, cy) {
 
 const MAX_PARTICLES = 280;
 
+/* Vibrations (Android — iOS Safari n'expose pas l'API, appel sans effet). */
+function buzz(pattern) {
+  if (!settings.haptics) return;
+  try {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch (e) { /* pas de vibreur */ }
+}
+
 /* Bouton « accélérer » : apparaît sur la plage après 8 s de vol.
    Toujours au-dessus de la zone de la barre iOS du bas. */
 function accelBtnRect() {
@@ -1317,7 +1347,14 @@ function breakBlock(b, style, cx, cy) {
   if (b.type === 'mystery') {
     mysteryReward(cx, cy);
   }
-  sfx.brk();
+  if (b.type === 'boss') {
+    // panthéon : on retient quels boss ont été vaincus (succès)
+    if (!stats.kills) stats.kills = [];
+    if (!stats.kills.includes(b.bossKind)) stats.kills.push(b.bossKind);
+    buzz([30, 40, 60]);
+  }
+  if (mode === 'zen') sfx.zenNote();
+  else sfx.brk();
 }
 
 function mysteryReward(cx, cy) {

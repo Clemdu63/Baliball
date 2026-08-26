@@ -116,7 +116,7 @@
       <div class="scene-scrim" aria-hidden="true"></div>
     </div>
 
-    <div class="version">v3.3.0</div>
+    <div class="version">v3.4.0</div>
     <div class="home-top">
       <div class="logo" aria-label="Baliball">
         <span class="logo-ball"></span>
@@ -139,6 +139,17 @@
     </div>
     <span id="offline-badge"></span>
     <div class="hint" id="install-hint"></div>
+  </div>
+
+  <div id="screen-welcome" class="screen hidden">
+    <div class="home-flex" aria-hidden="true"></div>
+    <img id="welcome-art" class="welcome-art" alt="" aria-hidden="true">
+    <div class="over-title" id="welcome-title" style="color:var(--accent)"></div>
+    <p id="welcome-text" class="welcome-text"></p>
+    <div id="welcome-dots" class="welcome-dots" aria-hidden="true"></div>
+    <div class="home-flex" aria-hidden="true"></div>
+    <button id="btn-welcome-next">SUIVANT</button>
+    <button id="btn-welcome-skip" class="secondary">PASSER</button>
   </div>
 
   <div id="screen-modes" class="screen hidden">
@@ -206,6 +217,8 @@
       <canvas id="prog-chart" width="640" height="180"></canvas>
       <div class="setting" style="margin-top:10px"><div class="label">STATISTIQUES</div></div>
       <div class="stats" id="prog-stats"></div>
+      <div class="setting" style="margin-top:10px"><div class="label">PAR MODE DE JEU</div></div>
+      <div class="stats" id="prog-modes"></div>
       <div class="setting" style="margin-top:10px"><div class="label">SUCCÈS</div></div>
       <div id="ach-list" class="shop-list"></div>
     </div>
@@ -444,6 +457,24 @@
     </div>
 
     <div class="setting">
+      <div class="label">VIBRATIONS (SI LE TÉLÉPHONE LES PERMET)</div>
+      <div class="segmented" id="seg-haptics">
+        <button data-value="true">Activées</button>
+        <button data-value="false">Coupées</button>
+      </div>
+    </div>
+
+    <div class="setting">
+      <div class="label">ÉQUIPAGE — CLASSEMENT ENTRE AMIS SUR LES DÉFIS</div>
+      <input id="crew-code" class="transfer-box" maxlength="4" autocapitalize="characters"
+             autocomplete="off" spellcheck="false"
+             placeholder="Code d'équipage (4 lettres, ex. WXYZ)">
+      <p id="crew-status" style="font-size:13px;min-height:18px">Choisis un code avec tes amis :
+        vos meilleurs scores du Défi du jour et de la semaine seront comparés
+        à la fin de chaque partie (Internet requis à ce moment-là).</p>
+    </div>
+
+    <div class="setting">
       <div class="label">SAUVEGARDE &amp; TRANSFERT (VERS UN AUTRE TÉLÉPHONE)</div>
       <button id="btn-export" class="secondary">EXPORTER MA PROGRESSION</button>
       <textarea id="transfer-code" class="transfer-box" rows="3" spellcheck="false"
@@ -459,8 +490,10 @@
 
   <div id="screen-over" class="screen hidden">
     <div class="over-title" id="over-title">PARTIE TERMINÉE</div>
+    <img id="over-boss" class="over-boss hidden" alt="" aria-hidden="true">
     <div class="big-score" id="over-score">0</div>
     <p id="over-best"></p>
+    <div id="crew-board" class="stats crew-board hidden"></div>
     <div class="stats">
       <div class="row"><span id="stat-round-label">Manche atteinte</span><b id="stat-round">1</b></div>
       <div class="row"><span>Pierres brisées</span><b id="stat-broken">0</b></div>

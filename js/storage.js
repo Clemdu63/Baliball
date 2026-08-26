@@ -20,6 +20,8 @@ export const KEYS = {
   TOUR_SAVE: 'baliball.toursave.v1',
   TOUR_NET: 'baliball.tournet.v1',
   HISTORY: 'baliball.history.v1',
+  WELCOME: 'baliball.welcome.v1',
+  CREW: 'baliball.crew.v1',
   SETTINGS: 'baliball.settings.v1',
 };
 
@@ -45,6 +47,7 @@ const DEFAULTS = {
   fast: false,     // vitesse des balles
   lefty: false,    // boutons en jeu à gauche
   calm: false,     // réduire les animations (en plus du réglage système)
+  haptics: true,   // vibrations (Android)
 };
 
 function loadSettings() {

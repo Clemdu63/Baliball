@@ -7,10 +7,10 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.4.0';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['screen-home', 'screen-modes', 'screen-levels', 'screen-settings',
+const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
   'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
   'screen-tournoi', 'screen-online-setup', 'screen-lobby', 'screen-standings',
   'screen-offline-menu', 'screen-tournoi-host', 'screen-tournoi-join',
@@ -722,6 +722,7 @@ const TRAIL_SKINS = {
   stars: { name: 'Poussière d\'étoiles', emoji: '✨', unlock: 10000 },
   foam: { name: 'Écume de mer', emoji: '🌊', price: 90 },
   gold: { name: 'Poussière d\'or', emoji: '🪙', price: 160 },
+  esprit: { name: 'Esprits du panthéon', emoji: '🎭', bossUnlock: 9 },
 };
 
 let shop = loadJSON(KEYS.SHOP, {
@@ -745,14 +746,17 @@ function persistShop() {
 
 function shopItem(id, def, kind) {
   const scoreUnlocked = def.unlock !== undefined && cumulativeBestScore() >= def.unlock;
-  const owned = shop.owned.includes(id) || scoreUnlocked || def.price === 0;
+  const bossUnlocked = def.bossUnlock !== undefined
+    && Object.keys(loadJSON(KEYS.STATS, {}).bossKills || {}).length >= def.bossUnlock;
+  const owned = shop.owned.includes(id) || scoreUnlocked || bossUnlocked || def.price === 0;
   const equipped = shop[kind] === id;
   const div = document.createElement('div');
   div.className = 'shop-item';
   const sub = equipped ? 'Équipé'
     : owned ? 'Possédé'
       : def.unlock !== undefined ? 'Se débloque à ' + def.unlock + ' pts en une partie'
-        : '◉ ' + def.price;
+        : def.bossUnlock !== undefined ? 'Succès « Panthéon du lagon » : vaincre les 9 boss'
+          : '◉ ' + def.price;
   div.innerHTML = '<span class="shop-emoji">' + def.emoji + '</span>'
     + '<span class="shop-info"><span class="shop-name">' + def.name + '</span>'
     + '<span class="shop-sub">' + sub + '</span></span>';
@@ -769,7 +773,7 @@ function shopItem(id, def, kind) {
       persistShop();
       renderShop();
     });
-  } else if (def.unlock !== undefined) {
+  } else if (def.unlock !== undefined || def.bossUnlock !== undefined) {
     btn.textContent = '🔒';
     btn.className = 'owned';
     btn.disabled = true;
@@ -891,6 +895,9 @@ const ACHIEVEMENTS = [
   { name: 'Pèlerin des temples', desc: '12 ★ au mode Temples', test: (c, x) => x.stars >= 12 },
   { name: 'Libérateur des temples', desc: 'Toutes les étoiles des Temples', test: (c, x) => x.stars >= LEVELS.length * 3 },
   { name: 'Habitué de la plage', desc: 'Jouer 25 parties', test: (c) => (c.gamesPlayed || 0) >= 25 },
+  { name: 'Chasseur de masques', desc: 'Vaincre un premier boss', test: (c) => Object.keys(c.bossKills || {}).length >= 1 },
+  { name: 'Rescapé du séisme', desc: 'Survivre au séisme de Bedawang', test: (c) => !!c.quakeSurvived },
+  { name: 'Panthéon du lagon', desc: 'Vaincre les 9 boss différents — débloque le sillage 🎭 Esprits du panthéon', test: (c) => Object.keys(c.bossKills || {}).length >= 9 },
 ];
 
 const MODE_ICONS = {
@@ -988,6 +995,19 @@ function renderProgress() {
   $('prog-stats').innerHTML = rows
     .map(([k, v]) => '<div class="row"><span>' + k + '</span><b>' + v + '</b></div>')
     .join('');
+  // records par mode de jeu (depuis la v3.4 : cumulés partie par partie)
+  const byMode = c.byMode || {};
+  const modeOrder = ['classic', 'tide', 'puzzle', 'zen', 'daily', 'weekly', 'tournament'];
+  $('prog-modes').innerHTML = modeOrder.filter((m) => byMode[m]).map((m) => {
+    const s = byMode[m];
+    const detail = m === 'puzzle'
+      ? (s.wins || 0) + ' temple' + (s.wins > 1 ? 's' : '') + ' libéré' + (s.wins > 1 ? 's' : '')
+      : m === 'zen'
+        ? 'record ' + (s.score || 0) + ' pts'
+        : 'record ' + (s.score || 0) + ' pts · manche ' + (s.round || 0);
+    return '<div class="row"><span>' + (MODE_ICONS[m] || '🥥') + ' ' + (MODE_NAMES[m] || m)
+      + ' — ' + s.games + ' partie' + (s.games > 1 ? 's' : '') + '</span><b>' + detail + '</b></div>';
+  }).join('') || '<div class="row"><span>Termine une partie pour voir tes records par mode.</span></div>';
   const extra = { stars };
   $('ach-list').innerHTML = ACHIEVEMENTS.map((a) => {
     const done = a.test(c, extra);
@@ -1046,6 +1066,91 @@ const SCORE_UNLOCKS = [
 let bestScoreAtStart = cumulativeBestScore();
 let lastOver = null;
 
+/* Le masque du boss qui a mis fin à la partie, sur l'écran de fin et la
+   carte de partage. Chemins littéraux : la démo les remplace par des data URI. */
+const OVER_BOSS_ART = {
+  barong: 'art/boss-barong.webp',
+  rangda: 'art/boss-rangda.webp',
+  naga: 'art/boss-naga.webp',
+  garuda: 'art/boss-garuda.webp',
+  leyak: 'art/boss-leyak.webp',
+  hanuman: 'art/boss-hanuman.webp',
+  bedawang: 'art/boss-bedawang.webp',
+  dewi: 'art/boss-dewi.webp',
+  raksasa: 'art/boss-raksasa.webp',
+};
+
+function syncOverBoss(s) {
+  const img = $('over-boss');
+  if (s.bossKind && OVER_BOSS_ART[s.bossKind]) {
+    $('over-title').textContent = 'TERRASSÉ PAR ' + (s.bossName || 'LE BOSS').toUpperCase();
+    img.src = OVER_BOSS_ART[s.bossKind];
+    img.classList.remove('hidden');
+  } else {
+    img.classList.add('hidden');
+  }
+}
+
+/* ---- équipage : classement entre amis sur les défis du jour / semaine.
+   Même code de 4 lettres dans les réglages de chaque téléphone : à la fin
+   d'une partie, chacun publie son score sur ntfy.sh et l'écran de fin
+   affiche le podium de l'équipage (meilleur score par personne). ---- */
+let crewLive = null;   // {code, key, best:Map, stop}
+
+function crewCode() {
+  const c = (store.get(KEYS.CREW) || '').trim().toUpperCase();
+  return validCode(c) ? c : null;
+}
+
+function teardownCrew() {
+  if (crewLive && crewLive.stop) crewLive.stop();
+  crewLive = null;
+  $('crew-board').classList.add('hidden');
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"]/g, (ch) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+}
+
+function renderCrewBoard() {
+  if (!crewLive) return;
+  const rows = [...crewLive.best.values()].sort((a, b) => b.score - a.score).slice(0, 8);
+  const medals = ['🥇', '🥈', '🥉'];
+  $('crew-board').innerHTML = '<div class="crew-title">⚓ Équipage ' + crewLive.code
+    + ' · ' + (crewLive.key[0] === 'd' ? 'défi du jour' : 'défi de la semaine') + '</div>'
+    + rows.map((r, i) => '<div class="row"><span>' + (medals[i] || '&nbsp;' + (i + 1) + '.')
+      + ' ' + escHtml(r.name) + (r.uid === myUid ? ' (toi)' : '') + '</span><b>'
+      + r.score + '</b></div>').join('')
+    + (rows.length <= 1 ? '<div class="row"><span class="dim">En attente des scores de l\'équipage…</span></div>' : '');
+  $('crew-board').classList.remove('hidden');
+}
+
+function crewPublish(s) {
+  teardownCrew();
+  const code = crewCode();
+  const key = s.mode === 'daily' ? 'd' + dailySeed()
+    : s.mode === 'weekly' ? 'w' + game.weeklyInfo().seed : null;
+  if (!code || !key) return;
+  const name = (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Sans nom';
+  crewLive = { code, key, best: new Map(), stop: null };
+  crewLive.best.set(myUid, { uid: myUid, name, score: s.score });
+  netPublish('crew-' + code, { t: 'best', uid: myUid, name, key, score: s.score });
+  // l'historique du sujet (12 h) ramène aussi les scores publiés plus tôt
+  crewLive.stop = netSubscribe('crew-' + code, (m) => {
+    if (!m || m.t !== 'best' || m.key !== crewLive.key || !m.uid) return;
+    const prev = crewLive.best.get(m.uid);
+    const sc = Math.max(0, m.score | 0);
+    if (!prev || sc > prev.score) {
+      crewLive.best.set(m.uid, {
+        uid: m.uid, name: String(m.name || 'Sans nom').slice(0, 12), score: sc,
+      });
+      renderCrewBoard();
+    }
+  }, () => {}, '12h');
+  renderCrewBoard();
+}
+
 game.initGame($('game'), {
   onTurnEnd(s) {
     if (!net || !net.game || s.mode !== 'tournament') return;
@@ -1069,6 +1174,9 @@ game.initGame($('game'), {
   onGameOver(s) {
     $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
+    syncOverBoss(s);
+    if (s.mode === 'daily' || s.mode === 'weekly') crewPublish(s);
+    else teardownCrew();
     if (s.mode === 'tide') {
       $('over-best').textContent = 'Record marée : ' + s.tideBest + ' pts';
       $('stat-round-label').textContent = 'Manches jouées';
@@ -1139,6 +1247,7 @@ game.initGame($('game'), {
 });
 
 $('btn-retry').addEventListener('click', () => {
+  teardownCrew();
   if (lastStart.mode === 'tournament') {
     show(net ? 'screen-lobby' : 'screen-tournoi');
     return;
@@ -1147,6 +1256,7 @@ $('btn-retry').addEventListener('click', () => {
 });
 
 $('btn-over-home').addEventListener('click', () => {
+  teardownCrew();
   refreshHome();
   show('screen-home');
 });
@@ -1171,7 +1281,16 @@ const MODE_LABELS = {
   tournament: 'Tournoi entre amis',
 };
 
-function shareCardBlob(s) {
+function loadArt(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function shareCardBlob(s) {
   const c = document.createElement('canvas');
   c.width = 720;
   c.height = 900;
@@ -1200,11 +1319,20 @@ function shareCardBlob(s) {
   x.fillRect(0, 700, 720, 200);
   x.fillStyle = 'rgba(255,255,255,0.8)';
   x.fillRect(0, 696, 720, 6);
-  x.fillStyle = '#7a5230';
-  x.beginPath(); x.arc(360, 620, 46, 0, Math.PI * 2); x.fill();
-  x.strokeStyle = '#55361c'; x.lineWidth = 6; x.stroke();
-  x.fillStyle = '#a3794e';
-  x.beginPath(); x.arc(344, 604, 18, 0, Math.PI * 2); x.fill();
+  // le masque du boss vainqueur trône sur le lagon — sinon, la noix de coco
+  const bossImg = s.bossKind && OVER_BOSS_ART[s.bossKind]
+    ? await loadArt(OVER_BOSS_ART[s.bossKind]) : null;
+  if (bossImg) {
+    const w = 250;
+    const h = w * (bossImg.height / bossImg.width);
+    x.drawImage(bossImg, 360 - w / 2, 620 - h / 2, w, h);
+  } else {
+    x.fillStyle = '#7a5230';
+    x.beginPath(); x.arc(360, 620, 46, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = '#55361c'; x.lineWidth = 6; x.stroke();
+    x.fillStyle = '#a3794e';
+    x.beginPath(); x.arc(344, 604, 18, 0, Math.PI * 2); x.fill();
+  }
   x.textAlign = 'center';
   x.fillStyle = '#0d4b43';
   x.font = '800 64px -apple-system, sans-serif';
@@ -1218,9 +1346,17 @@ function shareCardBlob(s) {
   x.font = '700 34px -apple-system, sans-serif';
   x.fillStyle = '#305650';
   x.fillText(s.mode === 'puzzle' ? 'niveau ' + (s.level + 1) : 'manche ' + s.round, 360, 390);
+  x.font = '600 27px -apple-system, sans-serif';
+  x.fillStyle = '#33635a';
+  x.fillText((s.broken || 0) + ' pierres brisées · ' + (s.pearls || 0) + ' perles ◉', 360, 432);
+  if (bossImg && s.bossName) {
+    x.font = '700 30px -apple-system, sans-serif';
+    x.fillStyle = '#6b4a26';
+    x.fillText('Terrassé par ' + s.bossName, 360, 745);
+  }
   x.font = '600 26px -apple-system, sans-serif';
   x.fillStyle = '#8a6f4d';
-  x.fillText(new Date().toLocaleDateString('fr-FR'), 360, 780);
+  x.fillText(new Date().toLocaleDateString('fr-FR'), 360, 790);
   x.fillText('clemdu63.github.io/Baliball', 360, 830);
   return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
 }
@@ -1282,12 +1418,33 @@ bindSegmented('seg-ambience', 'ambience', syncAmbience);
 bindSegmented('seg-speed', 'fast');
 bindSegmented('seg-lefty', 'lefty', applyAccessibility);
 bindSegmented('seg-calm', 'calm', applyAccessibility);
+bindSegmented('seg-haptics', 'haptics');
 applyAccessibility();
+
+// code d'équipage (classement entre amis sur les défis)
+$('crew-code').value = store.get(KEYS.CREW) || '';
+$('crew-code').addEventListener('input', () => {
+  const v = $('crew-code').value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  $('crew-code').value = v;
+  if (v === '') {
+    store.remove(KEYS.CREW);
+    $('crew-status').textContent = 'Choisis un code avec tes amis : vos meilleurs scores '
+      + 'du Défi du jour et de la semaine seront comparés à la fin de chaque partie.';
+  } else if (validCode(v)) {
+    store.set(KEYS.CREW, v);
+    $('crew-status').textContent = '⚓ Équipage « ' + v + ' » enregistré — le podium '
+      + 's\'affichera à la fin de tes défis (Internet requis à ce moment-là).';
+  } else {
+    $('crew-status').textContent = v.length < 4
+      ? 'Encore ' + (4 - v.length) + ' caractère' + (4 - v.length > 1 ? 's' : '') + '…'
+      : 'Code invalide : 4 lettres/chiffres, sans I, L, O, 0 ni 1.';
+  }
+});
 
 // ---- sauvegarde & transfert : un code compact à copier sur l'autre tél ----
 const EXPORT_KEYS = [KEYS.PEARLS, KEYS.SHOP, KEYS.STATS, KEYS.PUZZLE, KEYS.BEST,
   KEYS.BEST_SCORE, KEYS.TIDE_BEST, KEYS.NAME, KEYS.SETTINGS, KEYS.DAILY,
-  KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY];
+  KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY, KEYS.CREW, KEYS.WELCOME];
 
 function checksum(s) {
   let sum = 0;
@@ -1375,11 +1532,68 @@ $('btn-settings-back').addEventListener('click', () => {
   show('screen-home');
 });
 
+// ---- bienvenue : trois diapos illustrées au tout premier lancement ----
+const WELCOME_SLIDES = [
+  {
+    art: 'art/mode-classic.webp',
+    title: 'BIENVENUE À BALI',
+    text: 'Glisse le doigt pour viser, relâche pour lancer tes noix de coco '
+      + 'sur les pierres du temple. À chaque manche tout descend d\'un cran — '
+      + 'tiens bon le plus longtemps possible !',
+  },
+  {
+    art: 'art/boss-barong.webp',
+    title: 'NEUF BOSS LÉGENDAIRES',
+    text: 'Toutes les 10 manches, un masque géant se dresse — Barong, Rangda, '
+      + 'le Naga… Chacun a son pouvoir. Attrape les bonus du lagon pour les '
+      + 'terrasser et remplis la jauge Gamelan pour la fièvre.',
+  },
+  {
+    art: 'art/mode-tournoi.webp',
+    title: 'DÉFIS & TOURNOIS',
+    text: 'Défi du jour, défi de la semaine, tournois entre amis en direct… '
+      + 'Gagne des perles ◉ et dépense-les à la boutique. Tout se joue '
+      + 'hors ligne, même en avion. Selamat datang !',
+  },
+];
+let welcomeStep = 0;
+
+function renderWelcome() {
+  const sl = WELCOME_SLIDES[welcomeStep];
+  $('welcome-art').src = sl.art;
+  $('welcome-title').textContent = sl.title;
+  $('welcome-text').textContent = sl.text;
+  $('welcome-dots').innerHTML = WELCOME_SLIDES
+    .map((_, i) => '<span class="wdot' + (i === welcomeStep ? ' on' : '') + '"></span>').join('');
+  $('btn-welcome-next').textContent =
+    welcomeStep === WELCOME_SLIDES.length - 1 ? 'C\'EST PARTI !' : 'SUIVANT';
+}
+
+function closeWelcome() {
+  store.set(KEYS.WELCOME, '1');
+  refreshHome();
+  show('screen-home');
+}
+
+$('btn-welcome-next').addEventListener('click', () => {
+  if (welcomeStep >= WELCOME_SLIDES.length - 1) { closeWelcome(); return; }
+  welcomeStep += 1;
+  renderWelcome();
+});
+$('btn-welcome-skip').addEventListener('click', closeWelcome);
+
 // ---- démarrage ----
 document.querySelector('.version').textContent = 'v' + APP_VERSION;
 $('settings-version').textContent = 'Baliball v' + APP_VERSION;
 refreshHome();
-show('screen-home');
+/* Tout premier lancement (aucune trace de jeu ni d'accueil déjà vu) :
+   les trois diapos de bienvenue, sinon l'accueil. */
+if (!store.get(KEYS.WELCOME) && !store.get(KEYS.TUTO)) {
+  renderWelcome();
+  show('screen-welcome');
+} else {
+  show('screen-home');
+}
 
 // accès de debug pour les tests automatisés
 window.baliball = game;

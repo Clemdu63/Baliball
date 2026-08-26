@@ -121,7 +121,9 @@ body { position: fixed; inset: 0; }
 .screen {
   position: fixed; inset: 0;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
+  /* pas de justify-content:center : quand le contenu dépasse, il rendrait
+     le haut inatteignable ; les marges auto ci-dessous centrent déjà. */
+  align-items: center; justify-content: flex-start;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -1245,3 +1247,67 @@ body.calm button, body.calm button:active { transition: none; }
 .legend-item .legend-info { text-align: left; }
 .legend-item .legend-name { font-weight: 700; font-size: 14px; }
 .legend-item .legend-desc { font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+/* ---- v3.4 : boss de fin de partie, équipage, bienvenue ---- */
+.over-boss {
+  width: 112px;
+  max-width: 30vw;
+  margin: 2px auto 0;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+  animation: over-boss-in 0.55s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+.over-boss.hidden { display: none; }
+
+@keyframes over-boss-in {
+  from { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+}
+
+body.calm .over-boss { animation: none; }
+
+.crew-board.hidden { display: none; }
+
+.crew-title {
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+
+.crew-board .dim { color: var(--muted); font-weight: 500; }
+
+.welcome-art {
+  width: min(230px, 60vw);
+  margin: 8px auto 4px;
+  border-radius: 26px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+}
+
+.welcome-text {
+  max-width: 300px;
+  margin: 4px auto 8px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.welcome-dots { display: flex; justify-content: center; gap: 7px; margin: 2px 0 10px; }
+
+.welcome-dots .wdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.35;
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+.welcome-dots .wdot.on { opacity: 1; transform: scale(1.25); background: var(--accent); }
+
+input#crew-code {
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 6px;
+  font-size: 18px;
+}

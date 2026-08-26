@@ -40,13 +40,13 @@ export function netPublish(code, data) {
 
 /* S'abonne au salon. onMsg(data, ageSeconds) reçoit chaque message (y compris
    l'historique récent, avec son âge). Renvoie une fonction de désabonnement. */
-export function netSubscribe(code, onMsg, onStatus) {
+export function netSubscribe(code, onMsg, onStatus, since = '30m') {
   let es = null;
   let closed = false;
 
   function open() {
     if (closed) return;
-    es = new EventSource(BASE() + topicFor(code) + '/sse?since=30m');
+    es = new EventSource(BASE() + topicFor(code) + '/sse?since=' + since);
     es.onopen = () => { if (onStatus) onStatus('ok'); };
     es.onerror = () => {
       if (onStatus) onStatus('err');
