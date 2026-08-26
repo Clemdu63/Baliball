@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.5.1';
+const APP_VERSION = '3.5.2';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -1423,17 +1423,10 @@ bindSegmented('seg-haptics-bounce', 'hapticsBounce');
 
 $('btn-haptic-test').addEventListener('click', () => {
   game.hapticTest();
-  $('haptic-hint').textContent = 'Trois tics envoyés. Rien senti sur iPhone ? '
-    + 'Bascule l\'interrupteur ci-dessus avec le doigt : s\'il ne vibre pas '
-    + 'non plus, active Réglages → Sons et vibrations → « Haptique du '
-    + 'système ». S\'il vibre mais pas le bouton, ta version d\'iOS bloque '
-    + 'les vibrations déclenchées par les apps web.';
-});
-$('haptic-probe-input').addEventListener('change', () => {
-  $('haptic-hint').textContent = 'Cet interrupteur a-t-il fait un toc ? '
-    + 'OUI → le matériel est prêt (si le bouton 📳 reste muet, iOS bloque '
-    + 'les vibrations des apps web). NON → active Réglages iPhone → Sons '
-    + 'et vibrations → « Haptique du système », puis rebascule-le.';
+  $('haptic-hint').textContent = 'Trois tics envoyés. Vibrations réelles sur '
+    + 'Android ; sur iPhone, iOS bloque hélas les vibrations des apps web '
+    + '(aucune API officielle) — si tu n\'as rien senti, ce n\'est pas un '
+    + 'réglage du jeu.';
 });
 applyAccessibility();
 
