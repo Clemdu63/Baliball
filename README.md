@@ -118,8 +118,11 @@ illustration.
     manche, manche suivante lancée depuis le classement, podium final de
     la soirée ; **sabotage amical** : un combo ×5 envoie un effet
     surprise chez les adversaires — vague de pierre blindée, brume d'une
-    manche ou singe voleur de noix ; **Chaos 🌪** : un événement commun
-    toutes les 3 manches au lieu de 5 ; **coup de pouce 🤝** : chaque
+    manche ou singe voleur de noix ; **Versus ⚔️** : chaque combo
+    attaque tous les adversaires — ×3 fait surgir une pierre, ×5 une
+    blindée en plus, ×7 noie leur lagon dans la brume, avec bannière
+    « ⚔️ Angel attaque ! » à la réception ; **Chaos 🌪** : un événement
+    commun toutes les 3 manches au lieu de 5 ; **coup de pouce 🤝** : chaque
     joueur peut s'accorder +2 noix et un lotus, annoncé aux autres —
     idéal pour jouer avec un débutant), un **QR code de salon** à
     scanner pour rejoindre sans taper le code, des **messages rapides**

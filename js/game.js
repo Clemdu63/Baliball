@@ -698,6 +698,30 @@ function placeStones(rand, free, n, type, hp) {
   }
 }
 
+/* Mode Versus ⚔️ : attaque reçue d'un adversaire (combo ×3/×5/×7). */
+export function applyAttack(power, who) {
+  if (state !== 'aim' && state !== 'flight') return false;
+  const free = freeCells();
+  const p = Math.max(1, Math.min(3, power | 0));
+  if (p === 1) {
+    placeStones(Math.random, free, 1, 'stone', Math.max(2, round));
+  } else if (p === 2) {
+    placeStones(Math.random, free, 1, 'armored', armorHpFor());
+    placeStones(Math.random, free, 1, 'stone', Math.max(2, round));
+  } else {
+    fogUntil = Math.max(fogUntil, round + 1);
+    placeStones(Math.random, free, 1, 'armored', armorHpFor());
+  }
+  effects.push({
+    type: 'milestone',
+    text: '⚔️ ' + (who ? '« ' + who + ' » attaque' : 'Attaque') + ' ×' + p + ' !',
+    life: 1, color: '#ff7d6e',
+  });
+  sfx.boom();
+  buzz([30, 40, 50]);
+  return true;
+}
+
 /* Sabotage reçu d'un adversaire : trois effets possibles. */
 export function applySabotage(kind) {
   if (state !== 'aim' && state !== 'flight') return false;

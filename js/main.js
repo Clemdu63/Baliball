@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.7.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -229,7 +229,7 @@ $('btn-join-go').addEventListener('click', () => {
 // -- en ligne : salon ntfy.sh, pseudos, scores en direct --
 let net = null;          // {code, name, stop, game, roster:Map, lastPub, lastAnnounce, raceWinner, opts, series}
 let lastLeaderUid = null;
-let lobbyOpts = { target: null, fast: false, series: 1, sabotage: false, chaos: false };
+let lobbyOpts = { target: null, fast: false, series: 1, sabotage: false, chaos: false, versus: false };
 let lastEmojiSent = 0;
 let lastWaveSent = 0;
 
@@ -591,6 +591,12 @@ function onNetMsg(d, age) {
       game.applySabotage(kind);
       toast(WAVE_TOASTS[kind](d.name));
     }
+  } else if (d.t === 'atk') {
+    // mode Versus ⚔️ : l'attaque d'un adversaire s'abat sur notre lagon
+    if (d.game === net.game && d.uid !== myUid && age < 15
+      && game.getMode() === 'tournament' && game.isPlaying()) {
+      game.applyAttack(d.p, d.name);
+    }
   } else if (d.t === 'score') {
     if (d.game !== net.game) return;
     upsert(d.uid, { name: d.name, score: d.score, round: d.round, board: d.board });
@@ -770,6 +776,7 @@ bindLobbyOpt('seg-tspeed', 'fast', (v) => v === 'true');
 bindLobbyOpt('seg-series', 'series', (v) => parseInt(v, 10));
 bindLobbyOpt('seg-sabotage', 'sabotage', (v) => v === 'true');
 bindLobbyOpt('seg-chaos', 'chaos', (v) => v === 'true');
+bindLobbyOpt('seg-versus', 'versus', (v) => v === 'true');
 
 $('btn-lobby-start').addEventListener('click', () => {
   if (!net) return;
@@ -780,6 +787,7 @@ $('btn-lobby-start').addEventListener('click', () => {
     opts: {
       fast: lobbyOpts.fast, target: lobbyOpts.target,
       sabotage: lobbyOpts.sabotage, chaos: lobbyOpts.chaos,
+      versus: lobbyOpts.versus,
     },
     series: lobbyOpts.series > 1 ? { n: 1, of: lobbyOpts.series, pts: {} } : null,
   });
@@ -1371,8 +1379,14 @@ game.initGame($('game'), {
     upsert(myUid, { score: s.score, round: s.round });
     trackCurve(myUid, s.round, s.score);
     tickerRefresh();
+    // mode Versus ⚔️ : chaque combo ×3+ attaque tous les adversaires
+    if (net.opts && net.opts.versus && s.combo >= 3) {
+      const p = s.combo >= 7 ? 3 : s.combo >= 5 ? 2 : 1;
+      netPublish(net.code, { t: 'atk', uid: myUid, name: net.name, game: net.game, p });
+      toast('⚔️ Combo ×' + s.combo + ' : attaque ×' + p + ' envoyée !');
+    }
     // sabotage amical : un combo ×5 envoie un effet surprise chez les autres
-    if (net.opts && net.opts.sabotage && s.combo >= 5
+    if (net.opts && !net.opts.versus && net.opts.sabotage && s.combo >= 5
       && Date.now() - lastWaveSent > 15000) {
       lastWaveSent = Date.now();
       const kind = WAVE_KINDS[Math.floor(Math.random() * WAVE_KINDS.length)];
