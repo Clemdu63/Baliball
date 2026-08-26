@@ -1322,18 +1322,25 @@ const MAX_PARTICLES = 280;
    éprouvé tel quel : un label jetable dans <head>, cliqué puis retiré
    — display:none n'empêche pas le retour haptique. Selon la version
    d'iOS, l'effet peut exiger un toucher récent de l'utilisateur. */
+let hapticMount = null;
+
 function iosTick() {
   try {
-    const label = document.createElement('label');
-    label.ariaHidden = 'true';
-    label.style.display = 'none';
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.setAttribute('switch', '');
-    label.appendChild(input);
-    document.head.appendChild(label);
-    label.click();
-    document.head.removeChild(label);
+    if (!hapticMount) {
+      // monté en permanence et réellement rendu (2×2 px quasi invisibles
+      // dans un coin) : certaines versions d'iOS ignorent un élément
+      // display:none ou hors écran
+      hapticMount = document.createElement('label');
+      hapticMount.setAttribute('aria-hidden', 'true');
+      hapticMount.style.cssText = 'position:fixed;left:0;bottom:0;width:2px;'
+        + 'height:2px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:1;';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.setAttribute('switch', '');
+      hapticMount.appendChild(input);
+      document.body.appendChild(hapticMount);
+    }
+    hapticMount.click();
   } catch (e) { /* pas d'haptique */ }
 }
 
