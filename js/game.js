@@ -1283,11 +1283,55 @@ function damageBlock(b, amount, cx, cy) {
 
 const MAX_PARTICLES = 280;
 
-/* Vibrations (Android — iOS Safari n'expose pas l'API, appel sans effet). */
+/* Vibrations. Android : navigator.vibrate (motifs réels). iOS n'expose
+   pas cette API, mais depuis iOS 17.4 basculer un <input switch> natif
+   déclenche le retour haptique du système : on bascule un interrupteur
+   invisible — détournement assumé, sans effet ailleurs. */
+let hapticSwitch = null;
+
+function iosTick() {
+  try {
+    if (!hapticSwitch) {
+      hapticSwitch = document.createElement('input');
+      hapticSwitch.type = 'checkbox';
+      hapticSwitch.setAttribute('switch', '');
+      hapticSwitch.style.cssText =
+        'position:fixed;left:-100px;top:-100px;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(hapticSwitch);
+    }
+    hapticSwitch.click();
+  } catch (e) { /* pas d'haptique */ }
+}
+
 function buzz(pattern) {
   if (!settings.haptics) return;
   try {
-    if (navigator.vibrate) navigator.vibrate(pattern);
+    if (navigator.vibrate) { navigator.vibrate(pattern); return; }
+    // iOS : un tic par segment de vibration du motif (3 max)
+    const segs = Array.isArray(pattern) ? pattern : [pattern];
+    let delay = 0;
+    let n = 0;
+    for (let i = 0; i < segs.length && n < 3; i += 2) {
+      if (delay === 0) iosTick();
+      else setTimeout(iosTick, delay);
+      n += 1;
+      delay += segs[i] + (segs[i + 1] || 0);
+    }
+  } catch (e) { /* pas de vibreur */ }
+}
+
+/* Tic léger à chaque rebond sur une pierre — bridé pour rester agréable
+   quand une rafale de noix pilonne le plateau. */
+let lastBounceBuzz = 0;
+
+function buzzBounce() {
+  if (!settings.haptics || !settings.hapticsBounce) return;
+  const n = performance.now();
+  if (n - lastBounceBuzz < 70) return;
+  lastBounceBuzz = n;
+  try {
+    if (navigator.vibrate) navigator.vibrate(8);
+    else iosTick();
   } catch (e) { /* pas de vibreur */ }
 }
 
@@ -1553,6 +1597,7 @@ function collideBlocks(ball, r) {
     const wasArmoredTick = b.type === 'armored' && gameClock - (b.lastArmorHit || -9) < 1.2;
     const broke = damageBlock(b, (chiliActive ? 2 : 1) * (feverActive ? 2 : 1),
       (rc.x0 + rc.x1) / 2, (rc.y0 + rc.y1) / 2);
+    buzzBounce();
     if (!broke && !wasArmoredTick) sfx.hit();
     else if (!broke && wasArmoredTick) sfx.wall();
   }

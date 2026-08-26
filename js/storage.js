@@ -47,7 +47,8 @@ const DEFAULTS = {
   fast: false,     // vitesse des balles
   lefty: false,    // boutons en jeu à gauche
   calm: false,     // réduire les animations (en plus du réglage système)
-  haptics: true,   // vibrations (Android)
+  haptics: true,       // vibrations (Android : navigator.vibrate ; iOS : interrupteur natif)
+  hapticsBounce: true, // tic à chaque rebond sur une pierre
 };
 
 function loadSettings() {

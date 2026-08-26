@@ -67,8 +67,10 @@ illustration.
   présentent le jeu (visée, boss, défis) — passables d'un geste.
 - Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
   vitesse des noix de coco, **mode gaucher** (boutons en jeu à gauche),
-  **réduction des animations**, **vibrations** (sur les téléphones qui
-  les permettent : coup de boss, apparition, défaite), le **code
+  **réduction des animations**, **vibrations** — coup de boss, défaite,
+  et un tic à **chaque rebond sur une pierre** (réglage séparé) ; sur
+  Android via l'API standard, sur iPhone (iOS 17.4+) via le retour
+  haptique natif des interrupteurs —, le **code
   d'équipage** (voir Défis), et **sauvegarde & transfert** — un code
   compact à copier/partager (AirDrop, iMessage…) pour retrouver toute sa
   progression sur un autre téléphone, sans aucun serveur.
