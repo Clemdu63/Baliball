@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '3.9.2';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -104,10 +104,12 @@ function hallConsider(rec) {
   if (score <= 0 || score > HALL_MAX) return false;
   const cur = hallCache();
   if (cur && score <= (cur.score || 0)) return false;
+  const round = Math.floor(rec.round);
   store.set(KEYS.HALL, JSON.stringify({
     score,
     name: String(rec.name || 'Anonyme').slice(0, 12) || 'Anonyme',
     uid: String(rec.uid || ''),
+    round: isFinite(round) && round > 0 && round < 100000 ? round : 0,
     ts: Date.now(),
     lastPub: (cur && cur.lastPub) || 0,
   }));
@@ -117,25 +119,43 @@ function hallConsider(rec) {
 
 function renderHall() {
   const h = hallCache();
-  $('home-hall').textContent = h
-    ? '🏆 Record du lagon : ' + h.score.toLocaleString('fr-FR') + ' pts — '
-      + (h.uid === myUid ? 'TOI 👑' : h.name)
-    : '';
+  const box = $('home-hall');
+  box.textContent = '';
+  if (!h) return;
+  // textContent partout : un pseudo venu du réseau n'est jamais du HTML
+  const line = document.createElement('span');
+  line.textContent = '🏆 Record du lagon : ' + h.score.toLocaleString('fr-FR')
+    + ' pts — ' + (h.uid === myUid ? 'TOI 👑' : h.name);
+  box.appendChild(line);
+  if (h.round > 0) {
+    const sub = document.createElement('span');
+    sub.className = 'hall-round';
+    sub.textContent = 'atteint à la manche ' + h.round;
+    box.appendChild(sub);
+  }
 }
 
 function hallPublish(h) {
   try {
-    netPublish('hall', { t: 'record', uid: h.uid, name: h.name, score: h.score });
+    netPublish('hall', {
+      t: 'record', uid: h.uid, name: h.name, score: h.score, round: h.round || 0,
+    });
   } catch (e) { /* hors ligne : le cache local suffit */ }
 }
 
 /* Au lancement : ma meilleure marque compte, puis 15 s d'écoute du
    tam-tam, et enfin le ragot quotidien (on republie le meilleur connu). */
 function hallSync() {
+  const myBest = cumulativeBestScore();
+  // la manche du meilleur score : celle de la partie correspondante
+  const mine = loadJSON(KEYS.HISTORY, [])
+    .filter((e) => e && e.score === myBest && e.mode !== 'puzzle')
+    .sort((a, b) => (b.round || 0) - (a.round || 0))[0];
   hallConsider({
-    score: cumulativeBestScore(),
+    score: myBest,
     name: (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Anonyme',
     uid: myUid,
+    round: mine ? mine.round : 0,
   });
   renderHall();
   if (!navigator.onLine || hallStop) return;
@@ -1632,7 +1652,10 @@ game.initGame($('game'), {
   onGameOver(s) {
     // 🏆 record du lagon battu ? (tous les modes, tournoi compris)
     const hallName = (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Anonyme';
-    const newHall = hallConsider({ score: s.score, name: hallName, uid: myUid });
+    const newHall = hallConsider({
+      score: s.score, name: hallName, uid: myUid,
+      round: s.mode === 'puzzle' ? 0 : s.round,
+    });
     if (newHall && navigator.onLine) hallPublish(hallCache());
     $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
