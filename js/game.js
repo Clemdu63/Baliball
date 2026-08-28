@@ -611,6 +611,10 @@ export function debugState() {
     boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn, kind: b.bossKind } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
+    powerups: powerups.map((p) => ({ col: p.col, row: p.row, kind: p.kind })),
+    balls: balls.map((x) => ({ x: x.x, y: x.y, vx: x.vx, vy: x.vy })),
+    bossHit: b ? hitRect(b, 0) : null,
+    bossBox: b ? blockRect(b, 0) : null,
     geometry: { W, boardTop, floorY, cell, deathRow },
   };
 }
@@ -626,6 +630,24 @@ function blockRect(b, yOffset) {
     x1: (b.col + span) * cell - pad,
     y1: boardTop + (b.row + vspan + yOffset) * cell - pad,
   };
+}
+
+/* Boîte de COLLISION. Pour une pierre, c'est sa case. Pour un boss, le
+   masque peint est plus haut que large : dessiné dans une boîte de trois
+   colonnes, il n'en occupait visuellement que deux — les noix
+   rebondissaient dans le vide sur les côtés. On ramène donc la boîte à la
+   largeur réellement peinte (voir drawBoss pour la même formule). */
+function hitRect(b, yOffset) {
+  const rc = blockRect(b, yOffset);
+  if (b.type !== 'boss') return rc;
+  const w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
+  const img = bossArtReady(b.bossKind || 'barong');
+  const painted = img
+    ? img.naturalWidth * Math.min((w * 1.16) / img.naturalWidth,
+      (h * 1.26) / img.naturalHeight)
+    : w;
+  const cut = Math.max(0, (w - Math.max(painted, cell)) / 2);
+  return { x0: rc.x0 + cut, y0: rc.y0, x1: rc.x1 - cut, y1: rc.y1 };
 }
 
 /* Rangée du bas d'une pierre (le Barong occupe deux rangées). */
@@ -920,11 +942,22 @@ function spawnRow() {
       free += 1;
     }
   }
-  // portails jumeaux : la noix qui entre dans l'un ressort de l'autre
-  if (round >= 5 && free + 1 < cols.length && rng() < 0.12) {
-    powerups.push({ col: cols[free], row: 0, kind: 'portal', pair: round });
-    powerups.push({ col: cols[free + 1], row: 0, kind: 'portal', pair: round });
-    free += 2;
+  // portails jumeaux : la noix qui entre dans l'un ressort de l'autre.
+  // Rares (une fenêtre toutes les 7 manches) et jamais voisins : deux
+  // portails côte à côte ne font que se renvoyer la noix.
+  if (round >= 7 && round % 7 === 0 && free + 1 < cols.length && rng() < 0.5) {
+    let far = -1;
+    for (let i = free + 1; i < cols.length; i++) {
+      if (Math.abs(cols[i] - cols[free]) >= 3) { far = i; break; }
+    }
+    if (far >= 0) {
+      const tmp = cols[free + 1];
+      cols[free + 1] = cols[far];
+      cols[far] = tmp;
+      powerups.push({ col: cols[free], row: 0, kind: 'portal', pair: round });
+      powerups.push({ col: cols[free + 1], row: 0, kind: 'portal', pair: round });
+      free += 2;
+    }
   }
   if (!replaying) {
     spawnLog.push(round + ':'
@@ -1711,7 +1744,7 @@ function stepBall(ball, dist) {
 function collideBlocks(ball, r) {
   for (let i = blocks.length - 1; i >= 0; i--) {
     const b = blocks[i];
-    const rc = blockRect(b, 0);
+    const rc = hitRect(b, 0);
     if (ball.x <= rc.x0 - r || ball.x >= rc.x1 + r || ball.y <= rc.y0 - r || ball.y >= rc.y1 + r) continue;
 
     if (b.type === 'tri') {
@@ -2373,7 +2406,7 @@ function drawBoss(b, yOff, T) {
     ctx.shadowOffsetY = 4;
     ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
     ctx.restore();
-    drawBossHud(b, rc, T);
+    drawBossHud(b, hitRect(b, yOff), T);
     return;
   }
   drawBossVector(b, yOff, T);
@@ -3313,7 +3346,7 @@ function drawAimLine(angle, T) {
 
 function pointInBlock(x, y, r) {
   for (const b of blocks) {
-    const rc = blockRect(b, 0);
+    const rc = hitRect(b, 0);
     if (x > rc.x0 - r && x < rc.x1 + r && y > rc.y0 - r && y < rc.y1 + r) return true;
   }
   return false;

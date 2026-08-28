@@ -21,17 +21,19 @@ illustration.
   **durian** explose les pierres voisines, le **piment** double les dégâts du
   tir, la **perle** se collectionne, la **fleur de frangipanier** renvoie la
   noix tout droit vers le haut, le **gecko** dédouble la noix qui le touche,
-  les **portails jumeaux** téléportent les noix de l'un à l'autre (au
-  plus 6 voyages par noix et par tir, avec une légère déviation à la
-  sortie : deux portails ne peuvent plus se renvoyer une noix sans
-  fin), le
+  les **portails jumeaux** téléportent les noix de l'un à l'autre — rares
+  (une chance toutes les 7 manches), jamais côte à côte, au plus 6
+  voyages par noix et par tir et avec une légère déviation à la sortie,
+  pour qu'ils restent une surprise et non un piège —, le
   **lotus-bouclier** sauve la partie une fois quand une pierre atteint la
   plage, et la rare **boussole marine** révèle pendant 2 tirs la
   trajectoire complète, rebonds sur les murs compris.
 - Les combos remplissent la **jauge Gamelan** : pleine, le prochain tir est
   une **fièvre** à dégâts doublés, traînée de braises comprise.
 - Toutes les 10 manches, un des **neuf boss** se dresse — un masque peint
-  géant sur deux rangées, avec un pouvoir toutes les 3 manches s'il
+  géant sur deux rangées, dont la **zone de collision épouse le masque**
+  (une noix qui passe visiblement à côté ne le touche pas ; la barre de
+  vie sous le masque en montre la largeur exacte), avec un pouvoir toutes les 3 manches s'il
   survit : 🎭 le **Barong** (manche 10) appelle 2 pierres blindées,
   👺 **Rangda** (20) se régénère, 🐉 le **Naga** (30) fait surgir un mur
   de pierres, 🦅 **Garuda** (40) abat une pierre large, 🔥 le **Léak**
