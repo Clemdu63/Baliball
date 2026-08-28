@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.8.1';
+const APP_VERSION = '3.9.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -85,6 +85,77 @@ function playerLevel() {
   };
 }
 
+/* ---- 🏆 Record du lagon : le meilleur score de TOUS les joueurs.
+   Pas de serveur : un sujet ntfy public sert de tam-tam — chaque app en
+   ligne récupère le meilleur record connu, le garde en cache local
+   (affiché même hors ligne) et republie le meilleur connu au plus une
+   fois par jour pour que le record se propage de proche en proche. ---- */
+const HALL_MAX = 2000000;
+let hallStop = null;
+
+function hallCache() {
+  return loadJSON(KEYS.HALL, null);
+}
+
+/* Retient rec s'il bat le record connu. Renvoie true si le record change. */
+function hallConsider(rec) {
+  if (!rec || typeof rec.score !== 'number' || !isFinite(rec.score)) return false;
+  const score = Math.floor(rec.score);
+  if (score <= 0 || score > HALL_MAX) return false;
+  const cur = hallCache();
+  if (cur && score <= (cur.score || 0)) return false;
+  store.set(KEYS.HALL, JSON.stringify({
+    score,
+    name: String(rec.name || 'Anonyme').slice(0, 12) || 'Anonyme',
+    uid: String(rec.uid || ''),
+    ts: Date.now(),
+    lastPub: (cur && cur.lastPub) || 0,
+  }));
+  renderHall();
+  return true;
+}
+
+function renderHall() {
+  const h = hallCache();
+  $('home-hall').textContent = h
+    ? '🏆 Record du lagon : ' + h.score.toLocaleString('fr-FR') + ' pts — '
+      + (h.uid === myUid ? 'TOI 👑' : h.name)
+    : '';
+}
+
+function hallPublish(h) {
+  try {
+    netPublish('hall', { t: 'record', uid: h.uid, name: h.name, score: h.score });
+  } catch (e) { /* hors ligne : le cache local suffit */ }
+}
+
+/* Au lancement : ma meilleure marque compte, puis 15 s d'écoute du
+   tam-tam, et enfin le ragot quotidien (on republie le meilleur connu). */
+function hallSync() {
+  hallConsider({
+    score: cumulativeBestScore(),
+    name: (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Anonyme',
+    uid: myUid,
+  });
+  renderHall();
+  if (!navigator.onLine || hallStop) return;
+  try {
+    hallStop = netSubscribe('hall', (m) => {
+      if (m && m.t === 'record') hallConsider(m);
+    }, () => {}, '12h');
+    setTimeout(() => {
+      if (hallStop) hallStop();
+      hallStop = null;
+      const h = hallCache();
+      if (h && Date.now() - (h.lastPub || 0) > 20 * 3600 * 1000) {
+        h.lastPub = Date.now();
+        store.set(KEYS.HALL, JSON.stringify(h));
+        hallPublish(h);
+      }
+    }, 15000);
+  } catch (e) { hallStop = null; }
+}
+
 function refreshHome() {
   const best = game.getBest();
   const bestScore = game.getBestScore();
@@ -104,6 +175,7 @@ function refreshHome() {
     : '📜 Missions du jour : ' + doneCount + '/' + missions.length
       + ' — à suivre dans Progrès';
 
+  renderHall();
   const saved = game.savedMode();
   const resumeBtn = $('btn-resume');
   resumeBtn.style.display = saved ? '' : 'none';
@@ -1558,6 +1630,10 @@ game.initGame($('game'), {
     }
   },
   onGameOver(s) {
+    // 🏆 record du lagon battu ? (tous les modes, tournoi compris)
+    const hallName = (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Anonyme';
+    const newHall = hallConsider({ score: s.score, name: hallName, uid: myUid });
+    if (newHall && navigator.onLine) hallPublish(hallCache());
     $('over-title').textContent = OVER_TITLES[s.reason] || 'PARTIE TERMINÉE';
     $('over-score').textContent = String(s.score);
     syncOverBoss(s);
@@ -1614,6 +1690,10 @@ game.initGame($('game'), {
       .map((u) => u.label);
     if (newUnlocks.length) {
       $('over-best').textContent += ' — ' + newUnlocks.join(' · ');
+    }
+    if (newHall) {
+      $('over-best').textContent += ' — 🏆 RECORD DU LAGON !';
+      sfx.milestone();
     }
     bestScoreAtStart = cumulativeBestScore();
     $('stat-broken').textContent = String(s.broken);
@@ -1842,7 +1922,7 @@ $('crew-code').addEventListener('input', () => {
 const EXPORT_KEYS = [KEYS.PEARLS, KEYS.SHOP, KEYS.STATS, KEYS.PUZZLE, KEYS.BEST,
   KEYS.BEST_SCORE, KEYS.TIDE_BEST, KEYS.NAME, KEYS.SETTINGS, KEYS.DAILY,
   KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY, KEYS.CREW, KEYS.WELCOME,
-  KEYS.RIVALS];
+  KEYS.RIVALS, KEYS.HALL];
 
 function checksum(s) {
   let sum = 0;
@@ -1984,6 +2064,7 @@ $('btn-welcome-skip').addEventListener('click', closeWelcome);
 document.querySelector('.version').textContent = 'v' + APP_VERSION;
 $('settings-version').textContent = 'Baliball v' + APP_VERSION;
 refreshHome();
+hallSync();
 /* Tout premier lancement (aucune trace de jeu ni d'accueil déjà vu) :
    les trois diapos de bienvenue, sinon l'accueil. */
 if (!store.get(KEYS.WELCOME) && !store.get(KEYS.TUTO)) {

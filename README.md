@@ -158,6 +158,12 @@ illustration.
 
 ## Progression
 
+L'accueil affiche le **🏆 Record du lagon** : le meilleur score de tous
+les joueurs, propagé de téléphone en téléphone par un tam-tam ntfy.sh
+(chaque app en ligne récupère le meilleur record connu au lancement, le
+garde en cache — donc visible hors ligne — et republie le meilleur connu
+une fois par jour ; battre le record le publie immédiatement, et
+l'écran de fin le célèbre).
 Chaque partie fait grimper ton **niveau de joueur** (XP dérivée des
 statistiques cumulées, donc rétroactive) avec des **titres balinais** —
 Pêcheur du lagon, Gardien du temple, Légende de Bali… — affichés sur

@@ -1384,3 +1384,19 @@ body.lefty #btn-mute { right: auto; left: 102px; }
 
 /* option de salon neutralisée par une autre (sabotage sous Versus) */
 .segmented.seg-off { opacity: 0.4; pointer-events: none; }
+
+/* 🏆 record du lagon sur l'accueil */
+#home-hall {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: #a4781b;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+:root[data-theme="dark"] #home-hall {
+  color: #ffd34d;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+#home-hall:empty { display: none; }

@@ -23,6 +23,7 @@ export const KEYS = {
   WELCOME: 'baliball.welcome.v1',
   CREW: 'baliball.crew.v1',
   RIVALS: 'baliball.rivals.v1',
+  HALL: 'baliball.hall.v1',
   SETTINGS: 'baliball.settings.v1',
 };
 
