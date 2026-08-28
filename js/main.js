@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.9.0';
+const APP_VERSION = '3.9.1';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',

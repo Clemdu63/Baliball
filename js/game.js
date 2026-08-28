@@ -307,6 +307,10 @@ const RADIUS = () => cell * 0.13;
 const BONUS_R = () => cell * 0.19;
 const MIN_ANGLE = 0.14;
 
+/* Nombre maximal de téléportations d'une même noix pendant un tir :
+   au-delà, les portails la laissent passer (anti-boucle infinie). */
+const PORTAL_MAX = 6;
+
 const POWERUP_KINDS = ['pearl', 'pearl', 'pearl', 'sword', 'durian', 'chili', 'flower', 'gecko', 'lotus', 'guide', 'gong'];
 
 /* Générateur aléatoire à graine : en duel, les deux joueurs reçoivent
@@ -576,6 +580,17 @@ export function drawBoardSnapshot(cv, snap) {
 export function debugSet(o) {
   if (o && typeof o.guide === 'number') guideShots = o.guide;
   if (o && typeof o.fever === 'number') fever = o.fever;
+  if (o && o.clearBlocks) blocks = [];
+  if (o && o.setBall) {
+    // place une noix précise (tests de trajectoire : boucles de portails…)
+    balls = [{ x: o.setBall.x, y: o.setBall.y, vx: o.setBall.vx, vy: o.setBall.vy, dead: false }];
+    toLaunch = 0;
+  }
+  if (o && Array.isArray(o.spawnPortals)) {
+    const [c1, r1, c2, r2] = o.spawnPortals;
+    powerups.push({ col: c1, row: r1, kind: 'portal', pair: 999 });
+    powerups.push({ col: c2, row: r2, kind: 'portal', pair: 999 });
+  }
   if (o && typeof o.spawnBoss === 'string' && BOSS_KINDS.includes(o.spawnBoss)) {
     blocks.push({
       col: Math.floor((COLS - 3) / 2), row: 0, hp: 60, maxHp: 60, roarIn: 1, bossKind: o.spawnBoss,
@@ -1814,14 +1829,25 @@ function collidePowerups(ball, r) {
     if (Math.hypot(ball.x - c.x, ball.y - c.y) >= r + BONUS_R()) continue;
     if (p.kind === 'portal') {
       // pas consommé : téléporte vers le portail jumeau (avec un délai
-      // anti-aller-retour par noix)
+      // anti-aller-retour par noix). Une noix qui a déjà beaucoup voyagé
+      // les traverse sans effet : sinon deux portails bien placés se
+      // renvoient la noix indéfiniment et le tir ne finit jamais.
       const partner = powerups.find((q) => q !== p && q.kind === 'portal' && q.pair === p.pair);
       if (!partner || gameClock - (ball.lastPortal || -9) < 0.6) continue;
+      if ((ball.portals || 0) >= PORTAL_MAX) continue;
       const dst = powerupCenter(partner, 0);
       ball.x = dst.x;
       ball.y = dst.y;
       ball.lastPortal = gameClock;
-      lastProgress = gameClock;
+      ball.portals = (ball.portals || 0) + 1;
+      // légère déviation à la sortie : casse les cycles géométriques
+      // parfaits (la noix ne repart jamais exactement du même angle)
+      const sp = Math.hypot(ball.vx, ball.vy) || SPEED();
+      const a2 = Math.atan2(ball.vy, ball.vx) + (Math.random() - 0.5) * 0.35;
+      ball.vx = Math.cos(a2) * sp;
+      ball.vy = Math.sin(a2) * sp;
+      // NB : une téléportation n'est PAS un progrès — sans quoi le filet
+      // de sécurité ci-dessous ne se déclenche jamais dans une boucle.
       floaters.push({ x: dst.x, y: dst.y, life: 1, text: '🌀' });
       sfx.mystery();
       continue;
@@ -1860,7 +1886,10 @@ function collidePowerups(ball, r) {
       case 'gecko':
         // la noix se dédouble pour le reste du tir
         if (balls.length < 60) {
-          balls.push({ x: ball.x, y: ball.y, vx: -ball.vx, vy: ball.vy, dead: false });
+          balls.push({
+            x: ball.x, y: ball.y, vx: -ball.vx, vy: ball.vy, dead: false,
+            portals: ball.portals || 0, lastPortal: ball.lastPortal,
+          });
         }
         floaters.push({ x: c.x, y: c.y, life: 1, text: '🦎 ×2' });
         sfx.bonus();
@@ -1996,7 +2025,7 @@ function update(dt) {
   // filet de sécurité : des noix qui volent longtemps sans causer le
   // moindre dégât ni ramasser de bonus tournent en rond — la marée les rappelle
   if (balls.length > 0 && toLaunch === 0
-    && (gameClock - lastProgress > 10 || flightTime > 90)) {
+    && (gameClock - lastProgress > 10 || flightTime > 40)) {
     for (const b of balls) {
       if (nextLaunchX === null) {
         nextLaunchX = Math.min(Math.max(b.x, RADIUS() + 2), W - RADIUS() - 2);

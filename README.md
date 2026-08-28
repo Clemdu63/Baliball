@@ -21,7 +21,10 @@ illustration.
   **durian** explose les pierres voisines, le **piment** double les dégâts du
   tir, la **perle** se collectionne, la **fleur de frangipanier** renvoie la
   noix tout droit vers le haut, le **gecko** dédouble la noix qui le touche,
-  les **portails jumeaux** téléportent les noix de l'un à l'autre, le
+  les **portails jumeaux** téléportent les noix de l'un à l'autre (au
+  plus 6 voyages par noix et par tir, avec une légère déviation à la
+  sortie : deux portails ne peuvent plus se renvoyer une noix sans
+  fin), le
   **lotus-bouclier** sauve la partie une fois quand une pierre atteint la
   plage, et la rare **boussole marine** révèle pendant 2 tirs la
   trajectoire complète, rebonds sur les murs compris.
