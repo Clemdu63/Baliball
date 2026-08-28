@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.9.3';
+const APP_VERSION = '3.9.4';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -102,14 +102,26 @@ function hallConsider(rec) {
   if (!rec || typeof rec.score !== 'number' || !isFinite(rec.score)) return false;
   const score = Math.floor(rec.score);
   if (score <= 0 || score > HALL_MAX) return false;
+  const r = Math.floor(rec.round);
+  const round = isFinite(r) && r > 0 && r < 100000 ? r : 0;
   const cur = hallCache();
-  if (cur && score <= (cur.score || 0)) return false;
-  const round = Math.floor(rec.round);
+  if (cur && score <= (cur.score || 0)) {
+    // même record, mais on apprend enfin sa manche : les records établis
+    // avant la v3.9.2 (ou publiés par une app pas encore à jour) n'en
+    // portaient aucune — on complète au lieu de rejeter
+    if (score === (cur.score || 0) && round && !cur.round) {
+      cur.round = round;
+      if (cur.uid === myUid) cur.lastPub = 0;   // à repartager au plus vite
+      store.set(KEYS.HALL, JSON.stringify(cur));
+      renderHall();
+    }
+    return false;
+  }
   store.set(KEYS.HALL, JSON.stringify({
     score,
     name: String(rec.name || 'Anonyme').slice(0, 12) || 'Anonyme',
     uid: String(rec.uid || ''),
-    round: isFinite(round) && round > 0 && round < 100000 ? round : 0,
+    round,
     ts: Date.now(),
     lastPub: (cur && cur.lastPub) || 0,
   }));
@@ -147,10 +159,12 @@ function hallPublish(h) {
    tam-tam, et enfin le ragot quotidien (on republie le meilleur connu). */
 function hallSync() {
   const myBest = cumulativeBestScore();
-  // la manche du meilleur score : celle de la partie correspondante
-  const mine = loadJSON(KEYS.HISTORY, [])
-    .filter((e) => e && e.score === myBest && e.mode !== 'puzzle')
-    .sort((a, b) => (b.round || 0) - (a.round || 0))[0];
+  // la manche du meilleur score : celle de la partie correspondante dans
+  // l'historique ; à défaut (historique purgé), la meilleure manche connue
+  const hist = loadJSON(KEYS.HISTORY, []);
+  const mine = hist.filter((e) => e && e.score === myBest && e.mode !== 'puzzle')
+    .sort((a, b) => (b.round || 0) - (a.round || 0))[0]
+    || { round: loadJSON(KEYS.STATS, {}).bestRound || 0 };
   hallConsider({
     score: myBest,
     name: (store.get(KEYS.NAME) || '').trim().slice(0, 12) || 'Anonyme',
