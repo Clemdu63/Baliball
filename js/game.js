@@ -943,8 +943,11 @@ function spawnRow() {
     }
   }
   // portails jumeaux : la noix qui entre dans l'un ressort de l'autre.
-  // Rares (une fenêtre toutes les 7 manches) et jamais voisins : deux
-  // portails côte à côte ne font que se renvoyer la noix.
+  // Rares (une fenêtre toutes les 7 manches), jamais voisins — deux
+  // portails côte à côte ne font que se renvoyer la noix — et jamais sur
+  // la même ligne : l'un reste en surface, l'autre plonge de 2 à 4
+  // rangées, si bien qu'y entrer par le bas catapulte la noix tout en
+  // haut du lagon, là où elle n'irait jamais toute seule.
   if (round >= 7 && round % 7 === 0 && free + 1 < cols.length && rng() < 0.5) {
     let far = -1;
     for (let i = free + 1; i < cols.length; i++) {
@@ -954,8 +957,9 @@ function spawnRow() {
       const tmp = cols[free + 1];
       cols[free + 1] = cols[far];
       cols[far] = tmp;
+      const drop = 2 + Math.floor(rng() * 3);
       powerups.push({ col: cols[free], row: 0, kind: 'portal', pair: round });
-      powerups.push({ col: cols[free + 1], row: 0, kind: 'portal', pair: round });
+      powerups.push({ col: cols[free + 1], row: drop, kind: 'portal', pair: round });
       free += 2;
     }
   }

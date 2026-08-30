@@ -8,7 +8,7 @@ import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.9.4';
+const APP_VERSION = '3.9.5';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
@@ -1230,7 +1230,7 @@ const LEGEND_POWERUPS = [
   ['pearl', 'Perle', 'Monnaie de la boutique (skins et décors).'],
   ['flower', 'Frangipanier', 'Renvoie la noix qui la touche tout droit vers le haut.'],
   ['gecko', 'Gecko', 'Dédouble la noix qui le touche, pour le reste du tir.'],
-  ['portal', 'Portails jumeaux', 'La noix qui entre dans l\'un ressort de l\'autre. Ils descendent avec la marée.'],
+  ['portal', 'Portails jumeaux', 'La noix qui entre dans l\'un ressort de l\'autre. Rares, jamais côte à côte : l\'un plonge quelques rangées plus bas, alors entrer par celui du bas ressort tout en haut du lagon.'],
   ['lotus', 'Lotus-bouclier', 'Sauve la partie une fois : la pierre qui atteint la plage est engloutie (2 max).'],
   ['guide', 'Boussole marine', 'Rare : pendant 2 tirs, la visée révèle toute la trajectoire, rebonds sur les murs compris.'],
   ['gong', 'Gong', 'Résonne dans tout le lagon : TOUTES les pierres perdent 1 PV.'],

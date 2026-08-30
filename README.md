@@ -22,9 +22,11 @@ illustration.
   tir, la **perle** se collectionne, la **fleur de frangipanier** renvoie la
   noix tout droit vers le haut, le **gecko** dédouble la noix qui le touche,
   les **portails jumeaux** téléportent les noix de l'un à l'autre — rares
-  (une chance toutes les 7 manches), jamais côte à côte, au plus 6
-  voyages par noix et par tir et avec une légère déviation à la sortie,
-  pour qu'ils restent une surprise et non un piège —, le
+  (une chance toutes les 7 manches), jamais côte à côte **ni sur la même
+  ligne** : l'un reste en surface, l'autre plonge de 2 à 4 rangées, si
+  bien qu'entrer par celui du bas catapulte la noix tout en haut du
+  lagon, là où elle n'irait jamais toute seule ; au plus 6 voyages par
+  noix et par tir, avec une légère déviation à la sortie —, le
   **lotus-bouclier** sauve la partie une fois quand une pierre atteint la
   plage, et la rare **boussole marine** révèle pendant 2 tirs la
   trajectoire complète, rebonds sur les murs compris.
