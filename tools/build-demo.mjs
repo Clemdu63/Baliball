@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ORDER = ['storage', 'theme', 'audio', 'net', 'qr', 'levels', 'game', 'main'];
+const ORDER = ['storage', 'theme', 'audio', 'net', 'qr', 'levels', 'odyssey', 'game', 'main'];
 const CUT_MARKER = '// service worker : hors ligne';
 
 const read = (p) => readFileSync(join(root, p), 'utf8');

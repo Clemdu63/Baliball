@@ -25,6 +25,9 @@ export const KEYS = {
   RIVALS: 'baliball.rivals.v1',
   HALL: 'baliball.hall.v1',
   SETTINGS: 'baliball.settings.v1',
+  ODYSSEY: 'baliball.odyssey.v1',
+  SHRINE: 'baliball.shrine.v1',
+  RUSH_BEST: 'baliball.rushbest.v1',
 };
 
 export function loadJSON(key, fallback) {

@@ -6,12 +6,13 @@ import { initAudio, syncAmbience, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
 import { drawQR } from './qr.js';
+import { ODY_ISLANDS, ODY_STAGES, odysseyGoalText } from './odyssey.js';
 import * as game from './game.js';
 
-const APP_VERSION = '3.9.5';
+const APP_VERSION = '4.0.0';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-settings',
+const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-odyssee', 'screen-settings',
   'screen-over', 'screen-win', 'screen-shop', 'screen-progress', 'screen-legend',
   'screen-tournoi', 'screen-online-setup', 'screen-lobby', 'screen-standings',
   'screen-offline-menu', 'screen-tournoi-host', 'screen-tournoi-join',
@@ -222,7 +223,26 @@ function refreshHome() {
 }
 
 // ---- accueil ----
-$('btn-play').addEventListener('click', () => show('screen-modes'));
+/* Cartes des modes : l'Odyssée et le Boss Rush affichent l'avancement. */
+function refreshModes() {
+  const prog = loadJSON(KEYS.ODYSSEY, { stars: {} });
+  const doneCount = Object.keys(prog.stars).length;
+  const starSum = Object.values(prog.stars).reduce((a, b) => a + b, 0);
+  if (doneCount > 0) {
+    $('ody-desc').textContent = doneCount + ' / ' + ODY_STAGES.length
+      + ' étapes · ' + starSum + ' ★ — la traversée continue !';
+  }
+  const rb = parseInt(store.get(KEYS.RUSH_BEST) || '0', 10) || 0;
+  if (rb > 0) {
+    $('rush-desc').textContent = 'Record : ' + rb + ' boss terrassé' + (rb > 1 ? 's' : '')
+      + ' en une partie. Les masques t\'attendent.';
+  }
+}
+
+$('btn-play').addEventListener('click', () => {
+  refreshModes();
+  show('screen-modes');
+});
 
 $('btn-resume').addEventListener('click', () => {
   initAudio();
@@ -250,6 +270,74 @@ function startOrResume(m) {
 }
 
 $('btn-mode-classic').addEventListener('click', () => startOrResume('classic'));
+$('btn-mode-rush').addEventListener('click', () => startGame('rush'));
+$('btn-mode-odyssee').addEventListener('click', () => {
+  renderOdyssey();
+  show('screen-odyssee');
+});
+$('btn-ody-back').addEventListener('click', () => {
+  refreshModes();
+  show('screen-modes');
+});
+
+/* ---- 🗺 L'Odyssée : 6 îles de 8 étapes, déblocage en chaîne ----
+   Une étape s'ouvre quand la précédente a au moins 1 ★ ; la finale de
+   chaque île est un boss dont dépend l'île suivante. */
+function renderOdyssey() {
+  const prog = loadJSON(KEYS.ODYSSEY, { stars: {} });
+  const starSum = Object.values(prog.stars).reduce((a, b) => a + b, 0);
+  const doneCount = Object.keys(prog.stars).length;
+  $('ody-progress').textContent = doneCount + ' / ' + ODY_STAGES.length
+    + ' étapes · ' + starSum + ' ★ sur ' + ODY_STAGES.length * 3;
+  const scroll = $('ody-scroll');
+  scroll.innerHTML = '';
+  ODY_ISLANDS.forEach((isl, i) => {
+    const base = i * 8;
+    const islandOpen = base === 0 || !!prog.stars[base - 1];
+    const sec = document.createElement('div');
+    sec.className = 'ody-island' + (islandOpen ? '' : ' locked');
+    const stars = Array.from({ length: 8 }, (_, k) => prog.stars[base + k] || 0);
+    const head = document.createElement('div');
+    head.className = 'ody-head';
+    const img = document.createElement('img');
+    img.src = isl.art;
+    img.alt = '';
+    head.appendChild(img);
+    const ttl = document.createElement('div');
+    ttl.innerHTML = '<div class="ody-name">' + isl.emoji + ' ' + isl.name + '</div>'
+      + '<div class="ody-stars">' + stars.reduce((a, b) => a + b, 0) + ' ★ sur 24</div>';
+    head.appendChild(ttl);
+    sec.appendChild(head);
+    const legend = document.createElement('p');
+    legend.className = 'ody-legend';
+    legend.textContent = islandOpen ? isl.legend
+      : 'Terrasse le boss de l\'île précédente pour lever l\'ancre.';
+    sec.appendChild(legend);
+    const grid = document.createElement('div');
+    grid.className = 'levels-grid';
+    for (let k = 0; k < 8; k++) {
+      const idx = base + k;
+      const def = ODY_STAGES[idx];
+      const unlocked = islandOpen && (idx === 0 || !!prog.stars[idx - 1]);
+      const st = prog.stars[idx] || 0;
+      const btn = document.createElement('button');
+      btn.className = 'level-btn' + (unlocked ? '' : ' locked')
+        + (def.t === 'boss' ? ' ody-boss' : '');
+      btn.disabled = !unlocked;
+      btn.innerHTML = '<span class="level-num">'
+        + (unlocked ? (def.t === 'boss' ? '👹' : (idx + 1)) : '🔒') + '</span>'
+        + '<span class="level-stars">' + '★'.repeat(st) + '<span class="dim">'
+        + '★'.repeat(unlocked ? 3 - st : 0) + '</span></span>';
+      if (unlocked) {
+        btn.title = def.n + ' — ' + odysseyGoalText(def);
+        btn.addEventListener('click', () => startGame('odyssey', idx));
+      }
+      grid.appendChild(btn);
+    }
+    sec.appendChild(grid);
+    scroll.appendChild(sec);
+  });
+}
 $('btn-mode-tide').addEventListener('click', () => startGame('tide'));
 $('btn-mode-zen').addEventListener('click', () => startOrResume('zen'));
 $('btn-mode-puzzle').addEventListener('click', () => {
@@ -1192,6 +1280,74 @@ function shopItem(id, def, kind) {
   return div;
 }
 
+/* ---- 🕉 Sanctuaire : offrandes permanentes, 2 équipées au plus.
+   Achetées une fois pour toutes, actives en solo uniquement (game.js
+   ignore les offrandes dans les modes à graine partagée). ---- */
+const SHRINE_ITEMS = {
+  canari: { name: 'Canari du matin', emoji: '🐦', price: 150, desc: '+1 noix de coco au départ' },
+  boussole: { name: 'Boussole du pêcheur', emoji: '🧭', price: 120, desc: '2 tirs guidés au départ' },
+  piment: { name: 'Piment séché', emoji: '🌶', price: 160, desc: 'Premier tir : dégâts ×2' },
+  fievre: { name: 'Braise de gamelan', emoji: '🔥', price: 180, desc: 'Jauge de fièvre à moitié pleine' },
+  lotus: { name: 'Lotus d\'avance', emoji: '🪷', price: 200, desc: 'Un bouclier de lotus au départ' },
+  gong: { name: 'Gong du temple', emoji: '🔔', price: 250, desc: 'Le premier boss perd 30 % de ses PV' },
+};
+
+let shrine = loadJSON(KEYS.SHRINE, { owned: [], equipped: [] });
+game.setOfferings(shrine.equipped);
+
+function persistShrine() {
+  store.set(KEYS.SHRINE, JSON.stringify(shrine));
+  game.setOfferings(shrine.equipped);
+}
+
+function shrineItem(id, def) {
+  const owned = shrine.owned.includes(id);
+  const equipped = shrine.equipped.includes(id);
+  const div = document.createElement('div');
+  div.className = 'shop-item';
+  const sub = equipped ? def.desc + ' — active'
+    : owned ? def.desc
+      : def.desc + ' · ◉ ' + def.price;
+  div.innerHTML = '<span class="shop-emoji">' + def.emoji + '</span>'
+    + '<span class="shop-info"><span class="shop-name">' + def.name + '</span>'
+    + '<span class="shop-sub">' + sub + '</span></span>';
+  const btn = document.createElement('button');
+  if (equipped) {
+    btn.textContent = '✓ RETIRER';
+    btn.className = 'equipped';
+    btn.addEventListener('click', () => {
+      shrine.equipped = shrine.equipped.filter((x) => x !== id);
+      persistShrine();
+      renderShop();
+    });
+  } else if (owned) {
+    const full = shrine.equipped.length >= 2;
+    btn.textContent = full ? '2 MAX' : 'ÉQUIPER';
+    btn.className = 'owned';
+    btn.disabled = full;
+    if (!full) {
+      btn.addEventListener('click', () => {
+        shrine.equipped.push(id);
+        persistShrine();
+        renderShop();
+      });
+    }
+  } else {
+    btn.textContent = 'ACHETER';
+    btn.disabled = wallet() < def.price;
+    btn.addEventListener('click', () => {
+      if (wallet() < def.price) return;
+      store.set(KEYS.PEARLS, String(wallet() - def.price));
+      shrine.owned.push(id);
+      if (shrine.equipped.length < 2) shrine.equipped.push(id);
+      persistShrine();
+      renderShop();
+    });
+  }
+  div.appendChild(btn);
+  return div;
+}
+
 function renderShop() {
   $('shop-wallet').textContent = '◉ ' + wallet() + ' perle' + (wallet() > 1 ? 's' : '')
     + ' — gagne des perles en jouant';
@@ -1209,6 +1365,11 @@ function renderShop() {
   trails.innerHTML = '';
   for (const [id, def] of Object.entries(TRAIL_SKINS)) {
     trails.appendChild(shopItem(id, def, 'trail'));
+  }
+  const shrineList = $('shop-shrine');
+  shrineList.innerHTML = '';
+  for (const [id, def] of Object.entries(SHRINE_ITEMS)) {
+    shrineList.appendChild(shrineItem(id, def));
   }
 }
 
@@ -1297,16 +1458,19 @@ const ACHIEVEMENTS = [
   { name: 'Chasseur de masques', desc: 'Vaincre un premier boss', test: (c) => Object.keys(c.bossKills || {}).length >= 1 },
   { name: 'Rescapé du séisme', desc: 'Survivre au séisme de Bedawang', test: (c) => !!c.quakeSurvived },
   { name: 'Panthéon du lagon', desc: 'Vaincre les 9 boss différents — débloque le sillage 🎭 Esprits du panthéon', test: (c) => Object.keys(c.bossKills || {}).length >= 9 },
+  { name: 'Cap sur l\'archipel', desc: 'Franchir la première île de l\'Odyssée', test: () => !!loadJSON(KEYS.ODYSSEY, { stars: {} }).stars[7] },
+  { name: 'Légende de l\'Odyssée', desc: 'Terminer les 48 étapes de l\'Odyssée', test: () => Object.keys(loadJSON(KEYS.ODYSSEY, { stars: {} }).stars).length >= 48 },
+  { name: 'Fureur du Boss Rush', desc: 'Terrasser 5 boss en un seul Boss Rush', test: () => (parseInt(store.get(KEYS.RUSH_BEST) || '0', 10) || 0) >= 5 },
 ];
 
 const MODE_ICONS = {
   classic: '🥥', tide: '🌊', puzzle: '🛕', zen: '🏖', daily: '🌅',
-  weekly: '🌀', tournament: '📡',
+  weekly: '🌀', tournament: '📡', odyssey: '🗺', rush: '👑',
 };
 const MODE_NAMES = {
   classic: 'Classique', tide: 'Marée montante', puzzle: 'Temples',
   zen: 'Plage', daily: 'Défi du jour', weekly: 'Défi de la semaine',
-  tournament: 'Tournoi',
+  tournament: 'Tournoi', odyssey: 'Odyssée', rush: 'Boss Rush',
 };
 
 function timeAgo(ts) {
@@ -1335,7 +1499,9 @@ function renderHistory() {
     : h.map((e) => {
       const what = e.mode === 'puzzle'
         ? 'Niveau ' + ((e.level || 0) + 1) + ' · ' + '★'.repeat(e.stars || 0)
-        : e.score + ' pts · manche ' + (e.round || 1);
+        : e.mode === 'odyssey'
+          ? 'Étape ' + ((e.level || 0) + 1) + ' · ' + '★'.repeat(e.stars || 0)
+          : e.score + ' pts · manche ' + (e.round || 1);
       return '<div class="ach-item done">'
         + '<span class="ach-check">' + (MODE_ICONS[e.mode] || '🥥') + '</span>'
         + '<span class="ach-info"><div class="ach-name">' + (MODE_NAMES[e.mode] || e.mode) + ' — ' + what + '</div>'
@@ -1375,10 +1541,59 @@ function renderChart() {
   c.fillText('max ' + max.toLocaleString('fr-FR') + ' pts', pad, 6);
 }
 
+/* ---- 🎭 Musée des masques : un masque accroché par boss vaincu.
+   Touche un masque conquis pour entendre sa voix. ---- */
+const MUSEUM = [
+  ['barong', '🎭 Le Barong', 'Rugit et appelle 2 pierres blindées.'],
+  ['rangda', '👺 Rangda', 'Se régénère et appelle une blindée.'],
+  ['naga', '🐉 Le Naga', 'Dresse un mur de 3 pierres.'],
+  ['garuda', '🦅 Garuda', 'Fait surgir une pierre large.'],
+  ['leyak', '🔥 Le Léak', 'Maudit 2 pierres en blindées.'],
+  ['hanuman', '🐒 Hanuman', 'Chipe une noix de ta rafale.'],
+  ['bedawang', '🐢 Bedawang', 'Séisme : tout descend d\'un cran.'],
+  ['dewi', '🌊 Dewi Danu', 'Voile le lagon de brume.'],
+  ['raksasa', '👹 Le Raksasa', 'Dévore les bonus du plateau.'],
+];
+
+function renderMuseum() {
+  const kills = loadJSON(KEYS.STATS, {}).bossKills || {};
+  const grid = $('museum-grid');
+  grid.innerHTML = '';
+  for (const [kind, name, power] of MUSEUM) {
+    const n = kills[kind] || 0;
+    const item = document.createElement('button');
+    item.className = 'museum-item' + (n > 0 ? '' : ' locked');
+    const img = document.createElement('img');
+    img.src = OVER_BOSS_ART[kind];
+    img.alt = '';
+    item.appendChild(img);
+    const cap = document.createElement('span');
+    cap.className = 'museum-name';
+    cap.textContent = n > 0 ? name : '???';
+    item.appendChild(cap);
+    const sub = document.createElement('span');
+    sub.className = 'museum-sub';
+    sub.textContent = n > 0
+      ? power + ' — terrassé ×' + n
+      : 'Jamais vaincu';
+    item.appendChild(sub);
+    if (n > 0) {
+      item.addEventListener('click', () => {
+        initAudio();
+        sfx.bossVoice(kind);
+      });
+    } else {
+      item.disabled = true;
+    }
+    grid.appendChild(item);
+  }
+}
+
 function renderProgress() {
   renderMissions();
   renderChart();
   renderHistory();
+  renderMuseum();
   const c = loadJSON(KEYS.STATS, {});
   const prog = loadJSON(KEYS.PUZZLE, { stars: {} });
   const stars = Object.values(prog.stars || {}).reduce((a, b) => a + b, 0);
@@ -1393,20 +1608,26 @@ function renderProgress() {
     ['Meilleure manche', c.bestRound || 0],
     ['Meilleur score', c.bestScore || 0],
     ['Étoiles des Temples ★', stars + ' / ' + LEVELS.length * 3],
+    ['Odyssée 🗺', Object.keys(loadJSON(KEYS.ODYSSEY, { stars: {} }).stars).length
+      + ' / ' + ODY_STAGES.length + ' étapes'],
   ];
   $('prog-stats').innerHTML = rows
     .map(([k, v]) => '<div class="row"><span>' + k + '</span><b>' + v + '</b></div>')
     .join('');
   // records par mode de jeu (depuis la v3.4 : cumulés partie par partie)
   const byMode = c.byMode || {};
-  const modeOrder = ['classic', 'tide', 'puzzle', 'zen', 'daily', 'weekly', 'tournament'];
+  const modeOrder = ['classic', 'odyssey', 'rush', 'tide', 'puzzle', 'zen', 'daily', 'weekly', 'tournament'];
   $('prog-modes').innerHTML = modeOrder.filter((m) => byMode[m]).map((m) => {
     const s = byMode[m];
     const detail = m === 'puzzle'
       ? (s.wins || 0) + ' temple' + (s.wins > 1 ? 's' : '') + ' libéré' + (s.wins > 1 ? 's' : '')
-      : m === 'zen'
-        ? 'record ' + (s.score || 0) + ' pts'
-        : 'record ' + (s.score || 0) + ' pts · manche ' + (s.round || 0);
+      : m === 'odyssey'
+        ? (s.wins || 0) + ' étape' + (s.wins > 1 ? 's' : '') + ' franchie' + (s.wins > 1 ? 's' : '')
+        : m === 'rush'
+          ? 'record ' + (parseInt(store.get(KEYS.RUSH_BEST) || '0', 10) || 0) + ' boss'
+          : m === 'zen'
+            ? 'record ' + (s.score || 0) + ' pts'
+            : 'record ' + (s.score || 0) + ' pts · manche ' + (s.round || 0);
     return '<div class="row"><span>' + (MODE_ICONS[m] || '🥥') + ' ' + (MODE_NAMES[m] || m)
       + ' — ' + s.games + ' partie' + (s.games > 1 ? 's' : '') + '</span><b>' + detail + '</b></div>';
   }).join('') || '<div class="row"><span>Termine une partie pour voir tes records par mode.</span></div>';
@@ -1716,6 +1937,17 @@ game.initGame($('game'), {
       $('over-best').textContent = '🌀 ' + wi.name + ' · meilleur cette semaine : ' + s.weeklyBest + ' pts';
       $('stat-round-label').textContent = 'Manche atteinte';
       $('stat-round').textContent = String(s.round);
+    } else if (s.mode === 'odyssey') {
+      $('over-best').textContent = s.odyssey
+        ? '🗺 « ' + s.odyssey.name + ' » — ' + s.odyssey.goal
+        : '🗺 L\'Odyssée continue…';
+      $('stat-round-label').textContent = 'Étape';
+      $('stat-round').textContent = String((s.odyssey ? s.odyssey.idx : 0) + 1);
+    } else if (s.mode === 'rush') {
+      $('over-best').textContent = '👑 ' + s.bossesDown + ' boss terrassé'
+        + (s.bossesDown > 1 ? 's' : '') + ' · record ' + s.rushBest;
+      $('stat-round-label').textContent = 'Boss terrassés';
+      $('stat-round').textContent = String(s.bossesDown);
     } else {
       $('over-best').textContent = 'Record : manche ' + s.best + ' · ' + s.bestScore + ' pts';
       $('stat-round-label').textContent = 'Manche atteinte';
@@ -1741,6 +1973,9 @@ game.initGame($('game'), {
     show('screen-over');
   },
   onPuzzleWin(s) {
+    winMode = 'puzzle';
+    $('win-title').textContent = 'TEMPLE LIBÉRÉ !';
+    $('btn-win-levels').textContent = 'TOUS LES TEMPLES';
     $('win-name').textContent = '« ' + s.name + ' » — niveau ' + (s.level + 1);
     $('win-stars').innerHTML = '★'.repeat(s.stars) + '<span class="dim">' + '★'.repeat(3 - s.stars) + '</span>';
     $('win-shots').textContent = s.shotsUsed + ' tir' + (s.shotsUsed > 1 ? 's' : '')
@@ -1749,7 +1984,24 @@ game.initGame($('game'), {
     $('btn-win-next').dataset.next = String(s.level + 1);
     show('screen-win');
   },
+  onOdysseyWin(s) {
+    winMode = 'odyssey';
+    $('win-title').textContent = 'ÉTAPE FRANCHIE !';
+    $('btn-win-levels').textContent = 'CARTE DE L\'ODYSSÉE';
+    $('win-name').textContent = '« ' + s.name + ' » — étape ' + (s.idx + 1) + ' / ' + ODY_STAGES.length;
+    $('win-stars').innerHTML = '★'.repeat(s.stars) + '<span class="dim">' + '★'.repeat(3 - s.stars) + '</span>';
+    $('win-shots').textContent = s.detail
+      + (s.pearls > 0 ? ' · ' + s.pearls + ' perle' + (s.pearls > 1 ? 's' : '') + ' ◉' : '')
+      + (s.first ? ' · prime de traversée !' : '');
+    $('btn-win-next').style.display = s.hasNext ? '' : 'none';
+    $('btn-win-next').dataset.next = String(s.idx + 1);
+    show('screen-win');
+  },
 });
+
+/* L'écran de victoire sert aux Temples et à l'Odyssée : winMode aiguille
+   les boutons « suivant » et « carte ». */
+let winMode = 'puzzle';
 
 $('btn-retry').addEventListener('click', () => {
   teardownCrew();
@@ -1768,9 +2020,14 @@ $('btn-over-home').addEventListener('click', () => {
 
 $('btn-win-next').addEventListener('click', (e) => {
   const next = parseInt(e.currentTarget.dataset.next || '0', 10);
-  startGame('puzzle', next);
+  startGame(winMode, next);
 });
 $('btn-win-levels').addEventListener('click', () => {
+  if (winMode === 'odyssey') {
+    renderOdyssey();
+    show('screen-odyssee');
+    return;
+  }
   renderLevels();
   show('screen-levels');
 });
@@ -1783,7 +2040,7 @@ $('btn-win-home').addEventListener('click', () => {
 const MODE_LABELS = {
   classic: 'Mode classique', tide: 'Marée montante', puzzle: 'Temples',
   zen: 'Plage', daily: 'Défi du jour', weekly: 'Défi de la semaine',
-  tournament: 'Tournoi entre amis',
+  tournament: 'Tournoi entre amis', odyssey: 'L\'Odyssée', rush: 'Boss Rush',
 };
 
 function loadArt(src) {
@@ -1959,7 +2216,7 @@ $('crew-code').addEventListener('input', () => {
 const EXPORT_KEYS = [KEYS.PEARLS, KEYS.SHOP, KEYS.STATS, KEYS.PUZZLE, KEYS.BEST,
   KEYS.BEST_SCORE, KEYS.TIDE_BEST, KEYS.NAME, KEYS.SETTINGS, KEYS.DAILY,
   KEYS.WEEKLY, KEYS.MISSIONS, KEYS.HISTORY, KEYS.CREW, KEYS.WELCOME,
-  KEYS.RIVALS, KEYS.HALL];
+  KEYS.RIVALS, KEYS.HALL, KEYS.ODYSSEY, KEYS.SHRINE, KEYS.RUSH_BEST];
 
 function checksum(s) {
   let sum = 0;

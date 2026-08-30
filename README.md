@@ -93,6 +93,15 @@ illustration.
 
 ## Modes de jeu
 
+- **🗺 L'Odyssée** — la campagne : 48 étapes réparties sur 6 îles de
+  l'archipel (plage de Sanur, rizières d'Ubud, lagon de Nusa, falaises
+  d'Uluwatu, volcan Batur, île des Esprits), chacune avec sa légende.
+  Objectifs variés (survivre, briser, marquer en tirs limités) et un
+  **boss de fin d'île** ; étoiles ★ à la clé, déblocage en chaîne,
+  prime de perles à la première traversée de chaque étape.
+- **👑 Boss Rush** — les 9 masques défilent sans répit, de plus en plus
+  coriaces, escortés de rangées légères ; record du nombre de boss
+  terrassés en une partie.
 - **🥥 Classique** — les pierres descendent, tiens bon le plus longtemps
   possible (sauvegarde et reprise automatiques).
 - **🌊 Marée montante** — 90 secondes chrono, tirs enchaînés, la marée
@@ -184,6 +193,16 @@ peaux de balle (ballon de plage, frangipanier, lampion, durian), des
 décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant) et
 des **sillages** derrière les noix (pétales, braises, poussière
 d'étoiles).
+Le **🕉 Sanctuaire** (dans la Boutique) vend des **offrandes**
+permanentes — canari du matin (+1 noix), boussole du pêcheur (2 tirs
+guidés), piment séché (premier tir ×2), braise de gamelan (fièvre à
+moitié), lotus d'avance (un bouclier), gong du temple (premier boss
+−30 % PV). On en équipe **2 au plus** ; elles bénissent chaque partie
+solo, jamais les modes à graine partagée (équité du tournoi et des
+défis).
+Le **🎭 Musée des masques** (écran Progrès) accroche le masque de chaque
+boss vaincu avec son pouvoir et son nombre de victoires — touche un
+masque conquis pour entendre sa voix ; les autres restent en silhouette.
 L'écran **Progrès** liste **Mes parties récentes** (les 20 dernières :
 mode, score, manche atteinte, il y a combien de temps), trace la
 **courbe des scores**, et suit les statistiques cumulées — globales et
@@ -242,6 +261,7 @@ mise à jour.
 | `js/main.js` | Écrans, modes, boutique, réglages, démarrage |
 | `js/game.js` | Moteur du jeu (physique, rendu canvas, sauvegarde) |
 | `js/levels.js` | Les 48 niveaux du mode Temples |
+| `js/odyssey.js` | Les 48 étapes et 6 îles de l'Odyssée |
 | `js/theme.js` | Thèmes du plateau (couleurs canvas + CSS) |
 | `js/net.js` | Tournoi en ligne : pub/sub minimal sur ntfy.sh |
 | `js/qr.js` | Générateur de QR codes (salons à scanner), sans dépendance |

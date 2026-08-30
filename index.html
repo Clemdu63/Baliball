@@ -127,7 +127,7 @@
       <div class="scene-scrim" aria-hidden="true"></div>
     </div>
 
-    <div class="version">v3.9.5</div>
+    <div class="version">v4.0.0</div>
     <div class="home-top">
       <div class="logo" aria-label="Baliball">
         <span class="logo-ball"></span>
@@ -179,6 +179,11 @@
 
   <div id="screen-modes" class="screen hidden">
     <div class="settings-title">MODES DE JEU</div>
+    <button class="mode-card illustrated" id="btn-mode-odyssee">
+      <img class="mode-art" src="art/mode-tournoi.webp" alt="" aria-hidden="true">
+      <span class="mode-name">🗺 L'Odyssée</span>
+      <span class="mode-desc" id="ody-desc">La traversée de l'archipel : 48 étapes, 6 îles, 6 boss à terrasser.</span>
+    </button>
     <button class="mode-card illustrated" id="btn-mode-classic">
       <img class="mode-art" src="art/mode-classic.webp" alt="" aria-hidden="true">
       <span class="mode-name">🥥 Classique</span>
@@ -209,6 +214,11 @@
       <span class="mode-name">🌀 Défi de la semaine</span>
       <span class="mode-desc" id="weekly-desc">Une même partie toute la semaine, avec un mutateur qui change les règles.</span>
     </button>
+    <button class="mode-card illustrated" id="btn-mode-rush">
+      <img class="mode-art" src="art/boss-barong.webp" alt="" aria-hidden="true">
+      <span class="mode-name">👑 Boss Rush</span>
+      <span class="mode-desc" id="rush-desc">Les 9 masques défilent, de plus en plus coriaces. Combien vas-tu en terrasser ?</span>
+    </button>
     <button class="mode-card illustrated" id="btn-mode-tournoi">
       <img class="mode-art" src="art/mode-tournoi.webp" alt="" aria-hidden="true">
       <span class="mode-name">📡 Tournoi entre amis</span>
@@ -227,6 +237,11 @@
       <div id="shop-decors" class="shop-list"></div>
       <div class="setting"><div class="label">SILLAGES</div></div>
       <div id="shop-trails" class="shop-list"></div>
+      <div class="setting"><div class="label">🕉 SANCTUAIRE — OFFRANDES</div></div>
+      <p class="shrine-hint">Achète des offrandes et équipe-en 2 au plus : leurs
+        bénédictions s'appliquent au départ de chaque partie solo
+        (jamais en Tournoi ni dans les défis, pour l'équité).</p>
+      <div id="shop-shrine" class="shop-list"></div>
     </div>
     <button id="btn-shop-back" class="secondary">RETOUR</button>
   </div>
@@ -244,6 +259,10 @@
       <div class="stats" id="prog-stats"></div>
       <div class="setting" style="margin-top:10px"><div class="label">PAR MODE DE JEU</div></div>
       <div class="stats" id="prog-modes"></div>
+      <div class="setting" style="margin-top:10px"><div class="label">🎭 MUSÉE DES MASQUES</div></div>
+      <p class="museum-hint">Chaque boss vaincu accroche son masque ici. Touche un
+        masque pour entendre sa voix.</p>
+      <div class="museum-grid" id="museum-grid"></div>
       <div class="setting" style="margin-top:10px"><div class="label">SUCCÈS</div></div>
       <div id="ach-list" class="shop-list"></div>
     </div>
@@ -445,8 +464,15 @@
     <button id="btn-levels-back" class="secondary" style="margin-top:8px">RETOUR</button>
   </div>
 
+  <div id="screen-odyssee" class="screen hidden">
+    <div class="settings-title">🗺 L'ODYSSÉE</div>
+    <p id="ody-progress"></p>
+    <div class="shop-scroll" id="ody-scroll"></div>
+    <button id="btn-ody-back" class="secondary" style="margin-top:8px">RETOUR</button>
+  </div>
+
   <div id="screen-win" class="screen hidden">
-    <div class="over-title" style="color:var(--accent)">TEMPLE LIBÉRÉ !</div>
+    <div class="over-title" id="win-title" style="color:var(--accent)">TEMPLE LIBÉRÉ !</div>
     <p id="win-name"></p>
     <div class="win-stars" id="win-stars">★★★</div>
     <p id="win-shots"></p>

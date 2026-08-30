@@ -12,6 +12,7 @@ import { store, KEYS, settings, loadJSON } from './storage.js';
 import { getTheme, stoneStyle, DECORS } from './theme.js';
 import { initAudio, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
+import { ODY_STAGES, odysseyGoalText, odysseySeed } from './odyssey.js';
 
 const COLS = 9;
 const FONT = "'Baloo 2', -apple-system, sans-serif";
@@ -103,6 +104,10 @@ let feverActive = false;       // tir « fièvre » en cours : dégâts x2
 let shieldCharges = 0;         // lotus : sauve la partie quand une pierre touche la plage
 let guideShots = 0;            // boussole : la visée révèle toute la trajectoire
 let weeklyMut = null;          // mutateur du défi de la semaine
+let odyssey = null;            // Odyssée : {idx, def, shotsLeft, done}
+let rushSpawned = 0;           // Boss Rush : nombre de boss apparus
+let offerings = [];            // offrandes du Sanctuaire équipées (2 max)
+let gongUsed = false;          // le gong ne bénit que le premier boss
 
 const TIDE_DURATION = 90;
 
@@ -279,6 +284,12 @@ export function forceGameOver(reason) {
 /* Cosmétiques équipés (boutique) : peau de balle, décor et sillage. */
 let cosmetics = { ball: 'coco', decor: 'lagoon', trail: 'none' };
 
+/* Offrandes du Sanctuaire équipées (2 max). Elles ne s'appliquent qu'aux
+   parties solo — jamais dans les modes à graine partagée (équité). */
+export function setOfferings(list) {
+  offerings = Array.isArray(list) ? list.slice(0, 2) : [];
+}
+
 export function setCosmetics(c) {
   cosmetics = Object.assign({ ball: 'coco', decor: 'lagoon', trail: 'none' }, c);
 }
@@ -364,6 +375,10 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   } else if (m === 'weekly') {
     // même partie toute la semaine, mutateur compris
     seed = isoWeekSeed();
+  } else if (m === 'odyssey') {
+    // chaque étape a sa graine fixe : rejouable à l'identique
+    if (!ODY_STAGES[levelIdx]) levelIdx = 0;
+    seed = odysseySeed(levelIdx);
   }
   weeklyMut = m === 'weekly' ? MUTATORS[seed % MUTATORS.length].id : null;
   currentSeed = seed;
@@ -388,6 +403,9 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   shotId = 0;
   tideTime = TIDE_DURATION;
   puzzle = null;
+  odyssey = null;
+  rushSpawned = 0;
+  gongUsed = false;
   nextMilestone = 1000;
   nextTier = 0;
   fever = 0;
@@ -404,6 +422,11 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   }
 
   tutoActive = mode === 'classic' && !store.get(KEYS.TUTO);
+
+  if (mode === 'odyssey') {
+    const def = ODY_STAGES[levelIdx] || ODY_STAGES[0];
+    odyssey = { idx: levelIdx, def, shotsLeft: def.s || 0, done: false };
+  }
 
   if (mode === 'puzzle') {
     const def = LEVELS[levelIdx] || LEVELS[0];
@@ -422,6 +445,25 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   if (mode === 'weekly') {
     const m2 = MUTATORS.find((x) => x.id === weeklyMut);
     if (m2) effects.push({ type: 'milestone', text: m2.name, life: 1, color: '#7ef0d8' });
+  }
+  if (mode === 'odyssey') {
+    effects.push({
+      type: 'milestone', text: '🗺 ' + odysseyGoalText(odyssey.def),
+      life: 1, color: '#7ef0d8',
+    });
+  }
+  // offrandes du Sanctuaire : parties solo uniquement — jamais dans les
+  // modes à graine partagée (tournoi, défis), ni dans les Temples
+  if (offerings.length && !isSeeded() && mode !== 'puzzle') {
+    if (offerings.includes('canari')) ballCount += 1;
+    if (offerings.includes('lotus')) shieldCharges += 1;
+    if (offerings.includes('boussole')) guideShots += 2;
+    if (offerings.includes('fievre')) fever = Math.max(fever, 0.5);
+    if (offerings.includes('piment')) chiliActive = true;
+    effects.push({
+      type: 'milestone', text: '🕉 Tes offrandes veillent sur toi',
+      life: 1, color: '#ffd34d',
+    });
   }
   if (mode === 'tournament' && playerHandicap) {
     ballCount += 2;
@@ -591,6 +633,13 @@ export function debugSet(o) {
     powerups.push({ col: c1, row: r1, kind: 'portal', pair: 999 });
     powerups.push({ col: c2, row: r2, kind: 'portal', pair: 999 });
   }
+  if (o && typeof o.bossHp === 'number') {
+    const bb = blocks.find((x) => x.type === 'boss');
+    if (bb) bb.hp = o.bossHp;
+  }
+  if (o && typeof o.addBroken === 'number') stats.broken += o.addBroken;
+  if (o && typeof o.odyShots === 'number' && odyssey) odyssey.shotsLeft = o.odyShots;
+  if (o && typeof o.addScore === 'number') score += o.addScore;
   if (o && typeof o.spawnBoss === 'string' && BOSS_KINDS.includes(o.spawnBoss)) {
     blocks.push({
       col: Math.floor((COLS - 3) / 2), row: 0, hp: 60, maxHp: 60, roarIn: 1, bossKind: o.spawnBoss,
@@ -610,6 +659,12 @@ export function debugState() {
     guideShots, aimSteps: aimSteps(),
     boss: b ? { hp: b.hp, maxHp: b.maxHp, roarIn: b.roarIn, kind: b.bossKind } : null,
     shotsLeft: puzzle ? puzzle.shotsLeft : null,
+    odyssey: odyssey ? {
+      idx: odyssey.idx, t: odyssey.def.t, g: odyssey.def.g,
+      shotsLeft: odyssey.shotsLeft, done: !!odyssey.done,
+    } : null,
+    rush: mode === 'rush' ? { spawned: rushSpawned, down: stats.bossesDown || 0 } : null,
+    offerings: offerings.slice(),
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
     powerups: powerups.map((p) => ({ col: p.col, row: p.row, kind: p.kind })),
     balls: balls.map((x) => ({ x: x.x, y: x.y, vx: x.vx, vy: x.vy })),
@@ -812,7 +867,17 @@ export function dropSurpriseStone() {
    La décision ne dépend que de la manche : en tournoi, tous les joueurs
    le voient au même moment et le flux aléatoire principal reste intact. */
 function bossRound(r) {
+  if (mode === 'odyssey') return !!(odyssey && odyssey.def.t === 'boss') && r === 1;
+  if (mode === 'rush') return false; // les boss défilent via spawnRushRow
   return r >= 10 && r % 10 === 0 && mode !== 'puzzle' && !isTimed();
+}
+
+/* Offrande « gong du temple » : le premier boss de la partie perd 30 %
+   de ses PV. Jamais dans les modes à graine partagée (équité). */
+function gongBless(hp) {
+  if (!offerings.includes('gong') || gongUsed || isSeeded()) return hp;
+  gongUsed = true;
+  return Math.max(10, Math.round(hp * 0.7));
 }
 
 /* Six boss se relaient toutes les 10 manches, chacun son pouvoir :
@@ -853,11 +918,23 @@ function bossArtReady(kind) {
 }
 
 function spawnRow() {
+  if (mode === 'rush') {
+    spawnRushRow();
+    return;
+  }
   if (bossRound(round)) {
-    const kind = BOSS_KINDS[(Math.floor(round / 10) - 1) % BOSS_KINDS.length];
-    // premiers boss abordables (~2 manches), les tardifs redoutables
-    const mult = 4.5 + 3.5 * difficulty();
-    const hp = Math.max(30, Math.round(round * mult * (unlockCount() >= 5 ? 1.3 : 1)));
+    let kind, hp;
+    if (mode === 'odyssey') {
+      // le boss de l'étape, taillé pour un départ à une seule noix
+      kind = odyssey.def.b;
+      hp = Math.round(60 * (odyssey.def.hp || 1));
+    } else {
+      kind = BOSS_KINDS[(Math.floor(round / 10) - 1) % BOSS_KINDS.length];
+      // premiers boss abordables (~2 manches), les tardifs redoutables
+      const mult = 4.5 + 3.5 * difficulty();
+      hp = Math.max(30, Math.round(round * mult * (unlockCount() >= 5 ? 1.3 : 1)));
+    }
+    hp = gongBless(hp);
     blocks.push({
       col: Math.floor((COLS - 3) / 2), row: 0, hp, maxHp: hp,
       roarIn: round < 30 ? 4 : 3, bossKind: kind,
@@ -970,6 +1047,53 @@ function spawnRow() {
   }
 }
 
+/* Boss Rush : les masques défilent. Sans boss vivant, le suivant surgit
+   avec des PV croissants ; sous un boss vivant, une rangée légère
+   l'escorte pour alimenter la rafale en noix. */
+function spawnRushRow() {
+  if (!blocks.some((b) => b.type === 'boss')) {
+    const kind = BOSS_KINDS[rushSpawned % BOSS_KINDS.length];
+    const hp = gongBless(Math.round((34 + rushSpawned * 26) * (1 + rushSpawned * 0.04)));
+    rushSpawned += 1;
+    blocks.push({
+      col: Math.floor((COLS - 3) / 2), row: 0, hp, maxHp: hp,
+      roarIn: 4, bossKind: kind,
+      flash: 0, seed: Math.random(), type: 'boss', orient: 0, lastHitShot: -1,
+    });
+    if (!replaying) {
+      spawnLog.push(round + ':RUSH-' + kind + hp);
+      effects.push({ type: 'bossIntro', kind, life: 1 });
+      sfx.bossVoice(kind);
+      buzz(40);
+    }
+    return;
+  }
+  const cols = Array.from({ length: COLS }, (_, i) => i);
+  for (let i = cols.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [cols[i], cols[j]] = [cols[j], cols[i]];
+  }
+  const n = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < n; i++) {
+    blocks.push({
+      col: cols[i], row: 0,
+      hp: Math.max(1, Math.round(2 + rushSpawned * 1.5 + round * 0.4)),
+      flash: 0, seed: Math.random(), type: rng() < 0.15 ? 'mystery' : 'stone',
+      orient: 0, lastHitShot: -1,
+    });
+  }
+  powerups.push({ col: cols[n], row: 0, kind: 'ball' });
+  if (rng() < 0.3) {
+    const kind = POWERUP_KINDS[Math.floor(rng() * POWERUP_KINDS.length)];
+    powerups.push({ col: cols[n + 1], row: 0, kind });
+  }
+  if (!replaying) {
+    spawnLog.push(round + ':'
+      + blocks.filter((b) => b.row === 0).map((b) => b.col + b.type + b.hp).join(',')
+      + '|' + powerups.filter((p) => p.row === 0).map((p) => p.col + p.kind).join(','));
+  }
+}
+
 function endTurn() {
   ballCount += collectedThisTurn;
   collectedThisTurn = 0;
@@ -978,6 +1102,21 @@ function endTurn() {
   if (mode === 'tournament' && tourOpts.target && score >= tourOpts.target) {
     gameOver('race');
     return;
+  }
+  if (mode === 'odyssey') {
+    // l'objectif d'abord : une victoire prime sur tout le reste du tour
+    const d = odyssey.def;
+    const won = (d.t === 'break' && stats.broken >= d.g)
+      || (d.t === 'score' && score >= d.g)
+      || (d.t === 'boss' && odyssey.done);
+    if (won) {
+      odysseyWin();
+      return;
+    }
+    if (d.s && odyssey.shotsLeft <= 0) {
+      gameOver('shots');
+      return;
+    }
   }
   if (nextLaunchX !== null) launchX = nextLaunchX;
   nextLaunchX = null;
@@ -1024,7 +1163,8 @@ function endTurn() {
     });
     const reached = blocks.filter((b) => bottomRow(b) >= deathRow);
     if (reached.length > 0) {
-      if (mode === 'classic' || mode === 'daily' || mode === 'weekly' || mode === 'tournament') {
+      if (mode === 'classic' || mode === 'daily' || mode === 'weekly'
+        || mode === 'tournament' || mode === 'odyssey' || mode === 'rush') {
         if (shieldCharges > 0) {
           // le lotus s'ouvre : la marée engloutit les pierres au lieu de perdre
           shieldCharges -= 1;
@@ -1062,6 +1202,13 @@ function endTurn() {
   shiftAnim = 0;
   round += 1;
   if (isSeeded()) announceTiers();
+
+  // Odyssée « tiens g manches » : la manche g est jouée et sa marée
+  // encaissée — l'étape est franchie
+  if (mode === 'odyssey' && odyssey.def.t === 'survive' && round > odyssey.def.g) {
+    odysseyWin();
+    return;
+  }
 
   // cap de manche : tous les 25 crans, une pluie de perles
   if (round % 25 === 0 && mode !== 'puzzle' && !isTimed()) {
@@ -1294,6 +1441,9 @@ function gameOver(reason) {
     w.score = Math.max(w.score || 0, score);
     w.round = Math.max(w.round || 0, round);
     store.set(KEYS.WEEKLY, JSON.stringify(w));
+  } else if (mode === 'rush') {
+    const rb = parseInt(store.get(KEYS.RUSH_BEST) || '0', 10) || 0;
+    if ((stats.bossesDown || 0) > rb) store.set(KEYS.RUSH_BEST, String(stats.bossesDown || 0));
   }
   if (mode === 'tournament') store.remove(KEYS.TOUR_SAVE);
   missionAdd('play3');
@@ -1323,6 +1473,11 @@ function gameOver(reason) {
       broken: stats.broken,
       shots: stats.shots,
       balls: ballCount,
+      bossesDown: stats.bossesDown || 0,
+      rushBest: parseInt(store.get(KEYS.RUSH_BEST) || '0', 10) || 0,
+      odyssey: odyssey
+        ? { idx: odyssey.idx, name: odyssey.def.n, goal: odysseyGoalText(odyssey.def) }
+        : null,
       bossKind: reason === 'line' && bossAtDeath ? bossAtDeath.bossKind : null,
       bossName: reason === 'line' && bossAtDeath ? BOSS_NAMES[bossAtDeath.bossKind] : null,
     });
@@ -1356,6 +1511,44 @@ function puzzleWin() {
   }
 }
 
+/* Étape d'Odyssée franchie : étoiles selon le type d'objectif —
+   tirs utilisés (break/score), noix au fanion (survive), manche du coup
+   fatal (boss). Première traversée : prime de 10 perles. */
+function odysseyWin() {
+  state = 'over';
+  const d = odyssey.def;
+  let starCount = 1;
+  let detail = '';
+  if (d.t === 'break' || d.t === 'score') {
+    const used = d.s - odyssey.shotsLeft;
+    starCount = used <= d.stars[0] ? 3 : used <= d.stars[1] ? 2 : 1;
+    detail = used + ' tir' + (used > 1 ? 's' : '');
+  } else if (d.t === 'survive') {
+    starCount = ballCount >= d.stars[0] ? 3 : ballCount >= d.stars[1] ? 2 : 1;
+    detail = ballCount + ' 🥥 au fanion';
+  } else {
+    starCount = round <= d.stars[0] ? 3 : round <= d.stars[1] ? 2 : 1;
+    detail = 'boss plié en ' + round + ' manche' + (round > 1 ? 's' : '');
+  }
+  const prog = loadJSON(KEYS.ODYSSEY, { stars: {} });
+  const first = !prog.stars[odyssey.idx];
+  prog.stars[odyssey.idx] = Math.max(prog.stars[odyssey.idx] || 0, starCount);
+  store.set(KEYS.ODYSSEY, JSON.stringify(prog));
+  if (first) pearls += 10;
+  missionAdd('play3');
+  missionPersist();
+  addHistory({ mode: 'odyssey', score, level: odyssey.idx, stars: starCount, win: true });
+  bankPearls();
+  addCumulative(true);
+  sfx.bonus();
+  if (hooks.onOdysseyWin) {
+    hooks.onOdysseyWin({
+      idx: odyssey.idx, name: d.n, stars: starCount, detail,
+      pearls, first, hasNext: odyssey.idx + 1 < ODY_STAGES.length,
+    });
+  }
+}
+
 function fire(angle) {
   // mutateur miroir : la noix part à l'opposé de la visée
   if (mode === 'weekly' && weeklyMut === 'mirror') angle = Math.PI - angle;
@@ -1379,6 +1572,7 @@ function fire(angle) {
   brokenThisShot = 0;
   lastProgress = gameClock;
   if (puzzle) puzzle.shotsLeft -= 1;
+  if (mode === 'odyssey' && odyssey.def.s) odyssey.shotsLeft -= 1;
   lastFiredAngle = angle;
   sfx.launch();
   // dans le geste du toucher : le tic du lancer passe même quand iOS
@@ -1573,9 +1767,18 @@ function breakBlock(b, style, cx, cy) {
     mysteryReward(cx, cy);
   }
   if (b.type === 'boss') {
-    // panthéon : on retient quels boss ont été vaincus (succès)
+    // panthéon et Musée : chaque boss vaincu compte
     if (!stats.kills) stats.kills = [];
-    if (!stats.kills.includes(b.bossKind)) stats.kills.push(b.bossKind);
+    stats.kills.push(b.bossKind);
+    stats.bossesDown = (stats.bossesDown || 0) + 1;
+    if (mode === 'odyssey' && odyssey) odyssey.done = true;
+    if (mode === 'rush') {
+      effects.push({
+        type: 'milestone',
+        text: '👑 ' + stats.bossesDown + ' boss terrassé' + (stats.bossesDown > 1 ? 's' : '') + ' !',
+        life: 1, color: '#ffd34d',
+      });
+    }
     buzz([30, 40, 60]);
   }
   if (mode === 'zen') sfx.zenNote();
@@ -1656,6 +1859,7 @@ function loadGame(m) {
     mode = m;
     tideTime = TIDE_DURATION;
     puzzle = null;
+    odyssey = null;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.blocks) || !s.round) return false;
     round = s.round;
@@ -3199,6 +3403,13 @@ function draw(t) {
     ctx.fillStyle = T.hud;
   } else if (mode === 'puzzle') {
     ctx.fillText('NIVEAU ' + (puzzle.idx + 1), 14, ceilY - 26);
+  } else if (mode === 'odyssey') {
+    const d = odyssey.def;
+    const label = d.t === 'survive' ? 'MANCHE ' + Math.min(round, d.g) + '/' + d.g
+      : d.t === 'break' ? '🪨 ' + Math.min(stats.broken, d.g) + '/' + d.g
+        : d.t === 'score' ? '🎯 ' + d.g.toLocaleString('fr-FR')
+          : 'MANCHE ' + round;
+    ctx.fillText(label, 14, ceilY - 26);
   } else {
     const label = 'MANCHE ' + round;
     ctx.fillText(label, 14, ceilY - 26);
@@ -3237,6 +3448,8 @@ function draw(t) {
   ctx.textAlign = 'right';
   if (mode === 'puzzle') {
     ctx.fillText('TIRS ' + puzzle.shotsLeft, W - 58, ceilY - 26);
+  } else if (mode === 'odyssey' && odyssey.def.s) {
+    ctx.fillText('TIRS ' + odyssey.shotsLeft, W - 58, ceilY - 26);
   } else {
     ctx.fillText('◉ ' + pearls, W - 58, ceilY - 26);
   }
