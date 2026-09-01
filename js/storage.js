@@ -49,6 +49,7 @@ const DEFAULTS = {
   theme: 'auto',   // auto | light | dark
   sound: true,
   ambience: true,  // ressac en fond
+  music: true,     // musique gamelan générative pendant les parties
   fast: false,     // vitesse des balles
   lefty: false,    // boutons en jeu à gauche
   calm: false,     // réduire les animations (en plus du réglage système)

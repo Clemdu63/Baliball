@@ -180,6 +180,65 @@ export const sfx = {
   },
 };
 
+/* ---- musique gamelan générative ----
+   Un planificateur léger (réveil toutes les 240 ms, notes calées 0,6 s
+   en avance sur l'horloge audio) tisse un motif pentatonique : gong
+   grave tous les 16 pas, basse lente, mélodie dont la densité et le
+   tempo suivent l'intensité de la partie (manches, boss). Tout en
+   synthèse, gains très bas — un fond, pas une fanfare. */
+const MUSIC_PATTERN = [0, 2, 4, 3, 2, 0, 1, 3, 4, 2, 3, 1, 0, 4, 2, 3];
+const MUSIC_LOW = [130.81, 146.83, 164.81, 196.0, 220.0];
+let music = null;          // {timer, nextBeat, step}
+let musicIntensity = 0;
+
+export function musicSetIntensity(x) {
+  musicIntensity = Math.max(0, Math.min(1, x));
+}
+
+function scheduleBeat(step, rel) {
+  if (step % 16 === 0) strike(65.41, { t: 2.4, g: 0.03, when: rel });          // gong
+  if (step % 4 === 2) {
+    strike(MUSIC_LOW[Math.floor(step / 4) % MUSIC_LOW.length], { t: 0.9, g: 0.024, when: rel });
+  }
+  const density = 0.3 + 0.55 * musicIntensity;
+  if (Math.random() < density) {
+    const idx = MUSIC_PATTERN[step % MUSIC_PATTERN.length];
+    const oct = Math.random() < 0.2 + musicIntensity * 0.35 ? 2 : 1;
+    strike(note(idx) * oct, { t: 0.45, g: 0.018 + 0.012 * musicIntensity, when: rel });
+    if (musicIntensity > 0.6 && Math.random() < 0.35) {
+      strike(note((idx + 2) % 5) * 2, { t: 0.3, g: 0.014, when: rel + 0.09 });
+    }
+  }
+}
+
+function musicTick() {
+  if (!music || !actx || !settings.sound || !settings.music || document.hidden) return;
+  const beat = 0.5 - 0.2 * musicIntensity;
+  const now = actx.currentTime;
+  if (music.nextBeat < now - 0.4) music.nextBeat = now + 0.05; // rattrapage
+  while (music.nextBeat < now + 0.6) {
+    scheduleBeat(music.step, music.nextBeat - now);
+    music.step += 1;
+    music.nextBeat += beat;
+  }
+}
+
+export function musicStart() {
+  if (music) return;
+  music = { timer: setInterval(musicTick, 240), nextBeat: 0, step: 0 };
+}
+
+export function musicStop() {
+  if (!music) return;
+  clearInterval(music.timer);
+  music = null;
+}
+
+/* État du moteur musical, pour les tests automatisés. */
+export function musicDebug() {
+  return { running: !!music, intensity: musicIntensity };
+}
+
 /* ---- ressac (boucle de bruit filtré, volume modulé lentement) ---- */
 function startSurf() {
   if (!actx || surf) return;

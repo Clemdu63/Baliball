@@ -1499,3 +1499,23 @@ body.lefty #btn-mute { right: auto; left: 102px; }
   margin: 0 0 8px;
   text-align: left;
 }
+
+/* ---- v4.1 : légende en pleine partie ---- */
+#btn-book {
+  position: fixed;
+  top: calc(10px + var(--sat));
+  right: 148px;
+  width: 38px; height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4ead0;
+  font-size: 16px;
+  line-height: 38px;
+  z-index: 5;
+  box-shadow: none;
+}
+
+#btn-book.hidden { display: none; }
+
+body.lefty #btn-book { right: auto; left: 148px; }

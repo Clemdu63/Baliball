@@ -70,7 +70,9 @@ illustration.
   rebondir entre le haut de l'écran et les pierres, et les pilonner par
   le dessus — les tirs en cloche valent souvent mieux que les tirs rasants.
 - Pendant le vol, un bouton **▶▶ Accélérer** apparaît au bout de 8 secondes.
-- En jeu : **⟲** recommence la partie (avec confirmation), **⌂** revient au
+- En jeu : **📖** ouvre la légende (bonus et pierres) par-dessus la partie,
+  moteur figé — on reprend exactement où on en était ; **⟲** recommence la
+  partie (avec confirmation), **⌂** revient au
   menu, **🔊/🔇** coupe ou remet le son sans quitter ; l'écran **Légende**
   rappelle l'effet de chaque bonus et pierre.
 - Sur **iPad, ordinateur ou écran couché** assez haut, le plateau garde ses
@@ -81,6 +83,7 @@ illustration.
 - Au tout premier lancement, **trois diapos de bienvenue** illustrées
   présentent le jeu (visée, boss, défis) — passables d'un geste.
 - Dans **Réglages** : thème jour/nuit/auto, sons, ressac d'ambiance,
+  musique gamelan,
   vitesse des noix de coco, **mode gaucher** (boutons en jeu à gauche),
   **réduction des animations**, **vibrations** — coup de boss, défaite,
   et un tic à **chaque rebond sur une pierre** (réglage séparé) ; réelles
@@ -171,6 +174,22 @@ illustration.
     grille, même suite de rangées à venir. En ligne, le salon est
     retrouvé automatiquement : classement, suivi en direct et émojis
     reprennent comme si de rien n'était.
+
+## Le lagon vivant
+
+En thème **Auto**, le lagon suit l'heure réelle : **aube dorée** (6 h-8 h),
+plein jour, **couchant embrasé** (17 h 30-19 h 30), nuit. Une **météo du
+jour**, tirée de la date (la même pour tout le monde, calculée hors
+ligne), habille certains jours : **brume** sur le haut du lagon,
+**mousson** et son rideau de pluie, **pleine lune** qui fait scintiller
+la nuit. Purement cosmétique — le gameplay ne change jamais.
+Une **musique de gamelan générative** (pentatonique, tout en synthèse
+WebAudio) accompagne les parties : gong grave, basse lente, mélodie dont
+la densité et le tempo suivent la partie — plus la manche est haute et
+plus un boss rôde, plus elle s'anime. Le mode Plage garde sa propre
+mélodie jouée pierre par pierre. Des **pétales de frangipanier** dérivent
+sur l'écume et les pierres volent en **éclats anguleux** (adoucis si
+« réduire les animations » est actif).
 
 ## Progression
 

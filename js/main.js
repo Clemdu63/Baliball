@@ -9,7 +9,7 @@ import { drawQR } from './qr.js';
 import { ODY_ISLANDS, ODY_STAGES, odysseyGoalText } from './odyssey.js';
 import * as game from './game.js';
 
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.1.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-odyssee', 'screen-settings',
@@ -25,6 +25,7 @@ function show(id) {
   $('btn-home').classList.add('hidden');
   $('btn-restart').classList.add('hidden');
   $('btn-mute').classList.add('hidden');
+  $('btn-book').classList.add('hidden');
 }
 
 function showGame() {
@@ -32,6 +33,8 @@ function showGame() {
   $('btn-home').classList.remove('hidden');
   $('btn-restart').classList.remove('hidden');
   $('btn-mute').classList.remove('hidden');
+  $('btn-book').classList.remove('hidden');
+  game.setPaused(false);
   syncMuteIcon();
   if (typeof syncEmojiButton === 'function') syncEmojiButton();
 }
@@ -1433,10 +1436,29 @@ function renderLegend() {
 }
 
 $('btn-legend').addEventListener('click', () => {
+  legendFromGame = false;
   renderLegend();
   show('screen-legend');
 });
+
+/* 📖 en pleine partie : la légende s'ouvre par-dessus le jeu, moteur
+   figé — on revient exactement où on en était. */
+let legendFromGame = false;
+
+$('btn-book').addEventListener('click', () => {
+  legendFromGame = true;
+  game.setPaused(true);
+  renderLegend();
+  show('screen-legend');
+});
+
 $('btn-legend-back').addEventListener('click', () => {
+  if (legendFromGame && game.isPlaying()) {
+    legendFromGame = false;
+    showGame();
+    return;
+  }
+  legendFromGame = false;
   refreshHome();
   show('screen-home');
 });
@@ -1665,7 +1687,10 @@ $('btn-home').addEventListener('click', () => {
   show('screen-home');
 });
 
-$('btn-restart').addEventListener('click', () => show('screen-confirm'));
+$('btn-restart').addEventListener('click', () => {
+  game.setPaused(true);
+  show('screen-confirm');
+});
 $('btn-confirm-no').addEventListener('click', () => showGame());
 $('btn-confirm-yes').addEventListener('click', () => {
   game.newGame(lastStart.mode, lastStart.level, lastStart.seed);
@@ -2177,6 +2202,7 @@ function applyAccessibility() {
 bindSegmented('seg-theme', 'theme', () => setThemeMode(settings.theme));
 bindSegmented('seg-sound', 'sound', syncAmbience);
 bindSegmented('seg-ambience', 'ambience', syncAmbience);
+bindSegmented('seg-music', 'music');
 bindSegmented('seg-speed', 'fast');
 bindSegmented('seg-lefty', 'lefty', applyAccessibility);
 bindSegmented('seg-calm', 'calm', applyAccessibility);

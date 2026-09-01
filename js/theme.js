@@ -139,21 +139,94 @@ export const DECORS = {
 
 let themeMode = 'auto';
 let current = THEMES.day;
+let currentPhase = 'jour';
 const mq = window.matchMedia('(prefers-color-scheme: dark)');
 
+/* ---- le lagon vivant : phases du jour réelles + météo du jour ----
+   En thème Auto, le lagon suit l'heure locale : aube dorée, plein jour,
+   couchant embrasé, nuit. Une météo cosmétique, tirée de la date (la
+   même pour tous, hors ligne), habille certains jours : brume, mousson,
+   pleine lune. Purement visuel — le gameplay ne change jamais. */
+export function phaseFor(h) {
+  if (h >= 6 && h < 8) return 'aube';
+  if (h >= 8 && h < 17.5) return 'jour';
+  if (h >= 17.5 && h < 19.5) return 'couchant';
+  return 'nuit';
+}
+
+const PHASE_BASE = { aube: 'day', jour: 'day', couchant: 'night', nuit: 'night' };
+
+const PHASE_OVERRIDES = {
+  aube: {
+    page: '#12262b',
+    waterTop: '#4b9aa6', waterBottom: '#ffd9bd',
+    waterGlow: 'rgba(255,190,140,0.25)',
+    sparkle: 'rgba(255,225,185,0.75)',
+    caustic: 'rgba(255,235,210,0.14)',
+    sand: '#f4debb', sandDark: '#e2c993',
+  },
+  couchant: {
+    page: '#180f16',
+    waterTop: '#3c3a63', waterBottom: '#e08a52',
+    waterGlow: 'rgba(255,140,60,0.4)',
+    sparkle: 'rgba(255,196,120,0.9)',
+    caustic: 'rgba(255,200,140,0.10)',
+    sand: '#c59c68', sandDark: '#ab8654', sandText: '#5c3f22',
+    fish: 'rgba(40,20,30,0.2)',
+  },
+};
+
+export function weatherFor(d) {
+  const n = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  let x = (n ^ 0x9e3779b9) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
+  x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
+  const r = ((x ^ (x >>> 16)) >>> 0) / 4294967296;
+  if (r < 0.12) return 'mousson';
+  if (r < 0.28) return 'brume';
+  if (r < 0.40) return 'lune';
+  return 'clair';
+}
+
+export function getWeather() {
+  if (window.BALIBALL_FORCE_WEATHER) return window.BALIBALL_FORCE_WEATHER;
+  return weatherFor(new Date());
+}
+
+export function getPhase() {
+  return currentPhase;
+}
+
 function resolved() {
-  if (themeMode === 'dark') return 'night';
-  if (themeMode === 'light') return 'day';
-  return mq.matches ? 'night' : 'day';
+  if (themeMode === 'dark') return 'nuit';
+  if (themeMode === 'light') return 'jour';
+  if (window.BALIBALL_FORCE_PHASE && PHASE_BASE[window.BALIBALL_FORCE_PHASE]) {
+    return window.BALIBALL_FORCE_PHASE;
+  }
+  const d = new Date();
+  return phaseFor(d.getHours() + d.getMinutes() / 60);
 }
 
 function apply() {
-  const name = resolved();
-  current = THEMES[name];
-  document.documentElement.dataset.theme = name === 'night' ? 'dark' : 'light';
+  const phase = resolved();
+  currentPhase = phase;
+  const base = THEMES[PHASE_BASE[phase]];
+  const po = PHASE_OVERRIDES[phase];
+  let T = po ? Object.assign({}, base, po) : base;
+  // pleine lune : le lagon scintille davantage la nuit
+  if (phase === 'nuit' && getWeather() === 'lune') {
+    T = Object.assign({}, T, { sparkle: 'rgba(255,240,200,0.95)' });
+  }
+  current = T;
+  document.documentElement.dataset.theme = PHASE_BASE[phase] === 'night' ? 'dark' : 'light';
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = current.page;
 }
+
+// la phase se réévalue toute seule : le couchant arrive en pleine partie
+setInterval(() => {
+  if (themeMode === 'auto') apply();
+}, 60000);
 
 export function setThemeMode(m) {
   themeMode = m;

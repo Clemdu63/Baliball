@@ -9,8 +9,8 @@
    fleur de frangipanier (renvoie la noix tout droit vers le haut). */
 
 import { store, KEYS, settings, loadJSON } from './storage.js';
-import { getTheme, stoneStyle, DECORS } from './theme.js';
-import { initAudio, sfx } from './audio.js';
+import { getTheme, stoneStyle, DECORS, getPhase, getWeather } from './theme.js';
+import { initAudio, sfx, musicStart, musicStop, musicSetIntensity, musicDebug } from './audio.js';
 import { LEVELS } from './levels.js';
 import { ODY_STAGES, odysseyGoalText, odysseySeed } from './odyssey.js';
 
@@ -93,6 +93,9 @@ let gameClock = 0;             // temps de jeu écoulé (accélération comprise
 let lastProgress = 0;          // dernier dégât ou bonus du tir en cours
 let fishes = [];
 let fishTimer = 2;
+let petals = [];               // pétales de frangipanier sur l'écume (décor)
+let petalTimer = 4;
+let paused = false;            // pause moteur (légende ou confirmation ouvertes)
 let mode = 'classic';          // classic | tide | zen | puzzle | daily | weekly | tournament
 let tideTime = 0;              // secondes restantes (marée montante)
 let puzzle = null;             // {idx, def, shotsLeft}
@@ -365,6 +368,12 @@ export function setPlayerHandicap(on) {
   playerHandicap = !!on;
 }
 
+/* Pause moteur : la partie se fige (physique, chronos, marée) pendant
+   qu'un écran — légende, confirmation — est ouvert par-dessus. */
+export function setPaused(on) {
+  paused = !!on;
+}
+
 export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   mode = m;
   spawnLog = [];
@@ -470,6 +479,12 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
     shieldCharges = Math.min(2, shieldCharges + 1);
     effects.push({ type: 'milestone', text: '🤝 Coup de pouce : +2 🥥 et un lotus !', life: 1, color: '#ffc7dd' });
   }
+  // musique gamelan : partout sauf en mode Plage, qui a sa propre mélodie
+  if (mode === 'zen') musicStop();
+  else {
+    musicSetIntensity(0.15);
+    musicStart();
+  }
   state = 'aim';
   saveGame();
 }
@@ -513,6 +528,8 @@ export function toMenu() {
     saveGame();
   }
   state = 'menu';
+  musicStop();
+  paused = false;
   balls = [];
   toLaunch = 0;
   aim = null;
@@ -665,6 +682,10 @@ export function debugState() {
     } : null,
     rush: mode === 'rush' ? { spawned: rushSpawned, down: stats.bossesDown || 0 } : null,
     offerings: offerings.slice(),
+    phase: getPhase(), weather: getWeather(), paused,
+    petals: petals.length,
+    shards: particles.filter((p) => p.shard).length,
+    music: musicDebug(),
     blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
     powerups: powerups.map((p) => ({ col: p.col, row: p.row, kind: p.kind })),
     balls: balls.map((x) => ({ x: x.x, y: x.y, vx: x.vx, vy: x.vy })),
@@ -1244,6 +1265,10 @@ function endTurn() {
     }
   }
 
+  // la musique suit la partie : plus dense avec les manches, féroce sous un boss
+  const bossAlive = blocks.some((b) => b.type === 'boss');
+  musicSetIntensity(Math.min(1, round / 45 + (bossAlive ? 0.4 : 0) + (mode === 'rush' ? 0.25 : 0)));
+
   missionPersist();
   state = 'aim';
   saveGame();
@@ -1408,6 +1433,7 @@ function todayKey() {
 
 function gameOver(reason) {
   state = 'over';
+  musicStop();
   if (mode === 'classic') {
     if (round > best) {
       best = round;
@@ -1486,6 +1512,7 @@ function gameOver(reason) {
 
 function puzzleWin() {
   state = 'over';
+  musicStop();
   const used = puzzle.def.shots - puzzle.shotsLeft;
   const [s3, s2] = puzzle.def.stars;
   const starCount = used <= s3 ? 3 : used <= s2 ? 2 : 1;
@@ -1516,6 +1543,7 @@ function puzzleWin() {
    fatal (boss). Première traversée : prime de 10 perles. */
 function odysseyWin() {
   state = 'over';
+  musicStop();
   const d = odyssey.def;
   let starCount = 1;
   let detail = '';
@@ -1763,6 +1791,23 @@ function breakBlock(b, style, cx, cy) {
       color: p % 3 === 0 ? style.edge : style.base,
     });
   }
+  // éclats anguleux qui tournoient : la pierre vole vraiment en morceaux
+  const shardN = calmMode() ? 2 : 4;
+  for (let p = 0; p < shardN && particles.length < MAX_PARTICLES; p++) {
+    const a = Math.random() * Math.PI * 2;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(a) * cell * (1 + Math.random() * 1.6),
+      vy: Math.sin(a) * cell * (1 + Math.random()) - cell * 0.7,
+      life: 0.9,
+      color: style.edge,
+      shard: {
+        size: cell * (0.08 + Math.random() * 0.08),
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 9,
+      },
+    });
+  }
   if (b.type === 'mystery') {
     mysteryReward(cx, cy);
   }
@@ -1913,6 +1958,11 @@ function loadGame(m) {
     nextLaunchX = null;
     chiliActive = false;
     shiftAnim = 1;
+    if (m === 'zen') musicStop();
+    else {
+      musicSetIntensity(Math.min(1, round / 45));
+      musicStart();
+    }
     state = 'aim';
     return true;
   } catch (e) {
@@ -2177,7 +2227,7 @@ function update(dt) {
   // téléphone couché : le plateau n'a plus de sens en paysage bas, on met
   // le jeu en pause plutôt que de laisser la marée « tuer » la partie
   // avec une géométrie d'écran fausse
-  if (flatBlocked()) return;
+  if (paused || flatBlocked()) return;
   if (shiftAnim < 1) shiftAnim = Math.min(1, shiftAnim + dt * 5);
 
   // poissons du décor (immobiles si l'utilisateur préfère moins d'animations)
@@ -2205,8 +2255,30 @@ function update(dt) {
     const p = particles[i];
     p.x += p.vx * dt; p.y += p.vy * dt;
     p.vx *= 0.92; p.vy *= 0.92;
+    if (p.shard) p.shard.rot += p.shard.vr * dt;
     p.life -= dt * 2.4;
     if (p.life <= 0) particles.splice(i, 1);
+  }
+  // pétales de frangipanier : ils dérivent sur l'écume de la plage
+  petalTimer -= dt;
+  if (petalTimer <= 0 && petals.length < 5 && !calmMode()) {
+    petalTimer = 3 + Math.random() * 4;
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    petals.push({
+      x: dir === 1 ? -12 : W + 12,
+      y: floorY - 3 + Math.random() * 14,
+      dir,
+      speed: 7 + Math.random() * 9,
+      size: cell * (0.09 + Math.random() * 0.05),
+      phase: Math.random() * Math.PI * 2,
+      rot: Math.random() * Math.PI * 2,
+    });
+  }
+  for (let i = petals.length - 1; i >= 0; i--) {
+    const pe = petals[i];
+    pe.x += pe.dir * pe.speed * dt;
+    pe.rot += pe.dir * dt * 0.4;
+    if (pe.x < -20 || pe.x > W + 20) petals.splice(i, 1);
   }
   for (let i = floaters.length - 1; i >= 0; i--) {
     const f = floaters[i];
@@ -3198,6 +3270,68 @@ function drawBeach(rawT, T) {
     else ctx.lineTo(x, y);
   }
   ctx.stroke();
+
+  // pétales de frangipanier qui dérivent sur l'écume
+  for (const pe of petals) {
+    const bob = Math.sin(t * 1.6 + pe.phase) * 1.6;
+    ctx.save();
+    ctx.translate(pe.x, pe.y + bob);
+    ctx.rotate(pe.rot);
+    ctx.globalAlpha = 0.7;
+    for (let k = 0; k < 5; k++) {
+      ctx.rotate((Math.PI * 2) / 5);
+      ctx.fillStyle = '#fff6f9';
+      ctx.beginPath();
+      ctx.ellipse(pe.size * 0.55, 0, pe.size * 0.55, pe.size * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ffd34d';
+    ctx.beginPath();
+    ctx.arc(0, 0, pe.size * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* Météo du jour (cosmétique, tirée de la date) : brume au petit matin
+   du lagon, rideau de mousson, halo de pleine lune la nuit. */
+function drawWeather(t) {
+  const w = getWeather();
+  if (w === 'brume') {
+    const g = ctx.createLinearGradient(0, ceilY, 0, ceilY + cell * 4);
+    g.addColorStop(0, 'rgba(228,240,240,0.17)');
+    g.addColorStop(1, 'rgba(228,240,240,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, ceilY, W, cell * 4);
+    return;
+  }
+  if (w === 'mousson' && !calmMode()) {
+    ctx.strokeStyle = 'rgba(215,232,240,0.17)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 26; i++) {
+      const seed = i * 127.3;
+      const x = ((seed * 7 + t * (140 + (i % 5) * 24)) % (W + 40)) - 20;
+      const y = ((seed * 13 + t * (420 + (i % 7) * 60)) % (floorY - ceilY)) + ceilY;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 3, y + cell * 0.5);
+    }
+    ctx.stroke();
+    return;
+  }
+  if (w === 'lune' && getPhase() === 'nuit') {
+    const mx = W * 0.8;
+    const my = ceilY + cell * 0.45;
+    const g = ctx.createRadialGradient(mx, my, 2, mx, my, cell * 1.2);
+    g.addColorStop(0, 'rgba(255,244,214,0.55)');
+    g.addColorStop(0.3, 'rgba(255,244,214,0.16)');
+    g.addColorStop(1, 'rgba(255,244,214,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(mx, my, cell * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawTideLine(t, T) {
@@ -3332,7 +3466,21 @@ function draw(t) {
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
+    if (p.shard) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.shard.rot);
+      const s = p.shard.size;
+      ctx.beginPath();
+      ctx.moveTo(-s, s * 0.6);
+      ctx.lineTo(0, -s);
+      ctx.lineTo(s, s * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
+    }
   }
   ctx.globalAlpha = 1;
   drawEffects(T);
@@ -3353,6 +3501,7 @@ function draw(t) {
   }
 
   drawBeach(t, T);
+  drawWeather(t);
 
   for (const ball of balls) {
     if (feverActive) {
@@ -3443,15 +3592,18 @@ function draw(t) {
       ctx.fill();
     }
   }
+  // tirs restants / perles : en bas à gauche — le haut droit appartient
+  // aux boutons (📖 🔊 ⟲ ⌂) qui recouvraient ce compteur
   ctx.fillStyle = T.hudSub;
   ctx.font = '700 ' + Math.round(cell * 0.22) + 'px ' + FONT;
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
   if (mode === 'puzzle') {
-    ctx.fillText('TIRS ' + puzzle.shotsLeft, W - 58, ceilY - 26);
+    ctx.fillText('TIRS ' + puzzle.shotsLeft, 14, floorY + 44);
   } else if (mode === 'odyssey' && odyssey.def.s) {
-    ctx.fillText('TIRS ' + odyssey.shotsLeft, W - 58, ceilY - 26);
+    ctx.fillText('TIRS ' + odyssey.shotsLeft, 14, floorY + 44);
   } else {
-    ctx.fillText('◉ ' + pearls, W - 58, ceilY - 26);
+    ctx.fillText('◉ ' + pearls, 14, floorY + 44);
   }
 
   const ab = accelBtnRect();
