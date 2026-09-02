@@ -101,7 +101,12 @@ illustration.
   d'Uluwatu, volcan Batur, île des Esprits), chacune avec sa légende.
   Objectifs variés (survivre, briser, marquer en tirs limités) et un
   **boss de fin d'île** ; étoiles ★ à la clé, déblocage en chaîne,
-  prime de perles à la première traversée de chaque étape.
+  prime de perles à la première traversée de chaque étape. La rafale de
+  départ grandit avec les îles (1 noix à Sanur, 6 sur l'île des Esprits ;
+  4 à 10 face aux boss). Objectifs et seuils d'étoiles sont **calibrés
+  par simulation** : le vrai moteur joue chaque étape des dizaines de
+  fois sous Node (`tools/sim/`), et les seuils sont posés sur les
+  quartiles des parties gagnées.
 - **👑 Boss Rush** — les 9 masques défilent sans répit, de plus en plus
   coriaces, escortés de rangées légères ; record du nombre de boss
   terrassés en une partie.
@@ -257,6 +262,23 @@ comme source. Le jeu sera servi sur :
 ```
 https://clemdu63.github.io/Baliball/
 ```
+
+## Simulation et audit du moteur
+
+`tools/sim/harness.mjs` exécute le **vrai** `js/game.js` sous Node sans
+navigateur (DOM et canvas minimaux, horloge virtuelle à 30 i/s, rendu
+coupé) : une partie complète se joue en une fraction de seconde. Deux
+bots (« correct » et « naïf ») servent à l'équilibrage ; des
+vérificateurs d'invariants (noix dans une pierre, hors du lagon, dérive
+de vitesse, pierres superposées, bonus dans une pierre, exceptions)
+auditent la physique sur des centaines de parties dans tous les modes.
+
+- `node tools/sim/audit.mjs` — audit physique tous modes + déterminisme
+  tournoi (deux joueurs, même graine → mêmes rangées).
+- `node tools/sim/odyssey-sim.mjs` — joue les 48 étapes de l'Odyssée.
+- `node tools/sim/ody-calib.mjs` puis `ody-policy.mjs` et
+  `ody-generate.mjs` — recalibre objectifs et étoiles, régénère
+  `js/odyssey.js`.
 
 ## Développement local
 

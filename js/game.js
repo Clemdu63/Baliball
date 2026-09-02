@@ -23,6 +23,7 @@ let hooks = {};
 
 // ---- layout ----
 let W = 0, H = 0, dpr = 1;
+let winW = 0, winH = 0;   // taille de fenêtre vue au dernier resize
 let cell = 0, boardTop = 0, floorY = 0, deathRow = 8;
 let ceilY = 0;   // plafond des rebonds : un couloir libre au-dessus de la grille
 let offX = 0;    // iPad / paysage : plateau plafonné en largeur et centré
@@ -40,6 +41,8 @@ function readSafeInset(name) {
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 3);
+  winW = window.innerWidth;
+  winH = window.innerHeight;
   H = window.innerHeight;
   // écrans larges (iPad, paysage, ordinateur) : le plateau garde des
   // proportions de téléphone et se centre, bandes latérales neutres —
@@ -435,6 +438,7 @@ export function newGame(m = 'classic', levelIdx = 0, seed = null) {
   if (mode === 'odyssey') {
     const def = ODY_STAGES[levelIdx] || ODY_STAGES[0];
     odyssey = { idx: levelIdx, def, shotsLeft: def.s || 0, done: false };
+    if (def.balls) ballCount = def.balls;   // rafale de départ de l'étape
   }
 
   if (mode === 'puzzle') {
@@ -656,6 +660,21 @@ export function debugSet(o) {
   }
   if (o && typeof o.addBroken === 'number') stats.broken += o.addBroken;
   if (o && typeof o.odyShots === 'number' && odyssey) odyssey.shotsLeft = o.odyShots;
+  if (o && typeof o.fire === 'number' && state === 'aim') {
+    // tir programmatique (simulations hors navigateur) : même clampage
+    // que le geste du joueur
+    fire(Math.min(Math.PI - MIN_ANGLE, Math.max(MIN_ANGLE, o.fire)));
+  }
+  if (o && typeof o.noDraw === 'boolean') drawEnabled = !o.noDraw;
+  if (o && Array.isArray(o.addBlocks)) {
+    for (const k of o.addBlocks) {
+      blocks.push({
+        col: k.col, row: k.row, hp: k.hp || 1, type: k.type || 'stone', orient: k.orient || 0,
+        flash: 0, seed: Math.random(), lastHitShot: -1,
+        maxHp: k.hp || 1, roarIn: 3, bossKind: k.bossKind || 'barong',
+      });
+    }
+  }
   if (o && typeof o.addScore === 'number') score += o.addScore;
   if (o && typeof o.spawnBoss === 'string' && BOSS_KINDS.includes(o.spawnBoss)) {
     blocks.push({
@@ -670,6 +689,7 @@ export function debugState() {
   const b = blocks.find((x) => x.type === 'boss');
   return {
     state, mode, round, score, pearls, ballCount, launchX, lastFiredAngle,
+    broken: stats.broken,
     timeScale, accelBtn: accelBtnRect(), spawnLog,
     fever, shield: shieldCharges, weeklyMut, fogUntil,
     ghostLen: ghost ? ghost.length : 0,
@@ -686,7 +706,7 @@ export function debugState() {
     petals: petals.length,
     shards: particles.filter((p) => p.shard).length,
     music: musicDebug(),
-    blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type })),
+    blocks: blocks.map((x) => ({ col: x.col, row: x.row, hp: x.hp, type: x.type, orient: x.orient || 0 })),
     powerups: powerups.map((p) => ({ col: p.col, row: p.row, kind: p.kind })),
     balls: balls.map((x) => ({ x: x.x, y: x.y, vx: x.vx, vy: x.vy })),
     bossHit: b ? hitRect(b, 0) : null,
@@ -795,6 +815,16 @@ function tourEventFor(r) {
 
 /* Sabotage amical (option de salon du tournoi en ligne) : une vague
    adverse fait surgir une pierre blindée sur le plateau. */
+/* La case (col,row) est-elle prise par une pierre (emprise comprise) ou un bonus ? */
+function cellOccupied(col, row) {
+  for (const b of blocks) {
+    const span = b.type === 'wide' ? 2 : b.type === 'boss' ? 3 : 1;
+    const vspan = b.type === 'boss' ? 2 : 1;
+    if (col >= b.col && col < b.col + span && row >= b.row && row < b.row + vspan) return true;
+  }
+  return powerups.some((p) => p.col === col && p.row === row);
+}
+
 /* Cases libres des rangées 1 à 3 (renforts de boss, vagues adverses). */
 function freeCells() {
   const occupied = new Set();
@@ -893,6 +923,46 @@ function bossRound(r) {
   return r >= 10 && r % 10 === 0 && mode !== 'puzzle' && !isTimed();
 }
 
+/* Un boss occupe trois colonnes sur deux rangées ; la rangée 1 porte
+   encore les pierres et bonus de la manche précédente. Rien ne doit
+   rester caché sous le masque : chaque élément de l'emprise glisse vers
+   la case libre la plus proche de sa rangée, ou disparaît s'il n'y en a
+   pas. Déterministe (aucun tirage) : le flux aléatoire partagé des
+   tournois reste identique pour tous. */
+function evictBossFootprint(c0) {
+  const c1 = c0 + 2;
+  const cellSpan = (b) => (b.type === 'wide' ? 2 : 1);
+  const overlaps = (x) => x.row === 1 && x.col <= c1 && x.col + cellSpan(x) - 1 >= c0;
+  const stay = blocks.filter((b) => b.row === 1 && !overlaps(b));
+  const taken = new Set();
+  for (const b of stay) for (let k = 0; k < cellSpan(b); k++) taken.add(b.col + k);
+  for (const p of powerups) if (p.row === 1 && !overlaps(p)) taken.add(p.col);
+  for (let c = c0; c <= c1; c++) taken.add(c);
+  const findSpot = (span) => {
+    for (let d = 1; d < COLS; d++) {
+      for (const c of [c0 - d - (span - 1), c1 + d]) {
+        if (c < 0 || c + span > COLS) continue;
+        let free = true;
+        for (let k = 0; k < span; k++) if (taken.has(c + k)) free = false;
+        if (free) return c;
+      }
+    }
+    return -1;
+  };
+  const relocate = (list) => list.filter((x) => {
+    if (!overlaps(x)) return true;
+    const span = cellSpan(x);
+    const c = findSpot(span);
+    if (c < 0) return false;                 // plus de place : emporté
+    for (let k = 0; k < span; k++) taken.add(c + k);
+    x.col = c;
+    x.flash = 1;
+    return true;
+  });
+  blocks = relocate(blocks);
+  powerups = relocate(powerups);
+}
+
 /* Offrande « gong du temple » : le premier boss de la partie perd 30 %
    de ses PV. Jamais dans les modes à graine partagée (équité). */
 function gongBless(hp) {
@@ -956,6 +1026,7 @@ function spawnRow() {
       hp = Math.max(30, Math.round(round * mult * (unlockCount() >= 5 ? 1.3 : 1)));
     }
     hp = gongBless(hp);
+    evictBossFootprint(Math.floor((COLS - 3) / 2));
     blocks.push({
       col: Math.floor((COLS - 3) / 2), row: 0, hp, maxHp: hp,
       roarIn: round < 30 ? 4 : 3, bossKind: kind,
@@ -1055,9 +1126,18 @@ function spawnRow() {
       const tmp = cols[free + 1];
       cols[free + 1] = cols[far];
       cols[far] = tmp;
-      const drop = 2 + Math.floor(rng() * 3);
+      // un seul tirage quoi qu'il arrive (flux partagé des tournois) ;
+      // si la case visée est prise, on essaie les autres profondeurs
+      // dans un ordre fixe, et à défaut le jumeau reste en surface
+      const wanted = 2 + Math.floor(rng() * 3);
+      const col2 = cols[free + 1];
+      let drop = 0;
+      for (let k = 0; k < 3; k++) {
+        const d = 2 + ((wanted - 2 + k) % 3);
+        if (!cellOccupied(col2, d)) { drop = d; break; }
+      }
       powerups.push({ col: cols[free], row: 0, kind: 'portal', pair: round });
-      powerups.push({ col: cols[free + 1], row: drop, kind: 'portal', pair: round });
+      powerups.push({ col: col2, row: drop, kind: 'portal', pair: round });
       free += 2;
     }
   }
@@ -1076,6 +1156,7 @@ function spawnRushRow() {
     const kind = BOSS_KINDS[rushSpawned % BOSS_KINDS.length];
     const hp = gongBless(Math.round((34 + rushSpawned * 26) * (1 + rushSpawned * 0.04)));
     rushSpawned += 1;
+    evictBossFootprint(Math.floor((COLS - 3) / 2));
     blocks.push({
       col: Math.floor((COLS - 3) / 2), row: 0, hp, maxHp: hp,
       roarIn: 4, bossKind: kind,
@@ -1996,12 +2077,22 @@ function stepBall(ball, dist) {
     }
     collideBlocks(ball, r);
     collidePowerups(ball, r);
+    // une pierre collée au bord peut repousser la noix hors du lagon :
+    // on la ramène dans le cadre sans toucher à sa vitesse (déjà réfléchie)
+    if (ball.x < r) ball.x = r;
+    else if (ball.x > W - r) ball.x = W - r;
+    if (ball.y < ceilY + r) ball.y = ceilY + r;
   }
 }
 
 function collideBlocks(ball, r) {
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const b = blocks[i];
+  // parcours sur une copie : une casse en cascade (pierre mystère qui
+  // explose) retire des pierres pendant la boucle — sans copie, l'index
+  // pouvait dépasser le tableau et figer la partie
+  const snapshot = blocks.slice();
+  for (let i = snapshot.length - 1; i >= 0; i--) {
+    const b = snapshot[i];
+    if (b.hp <= 0) continue; // déjà brisée par la cascade
     const rc = hitRect(b, 0);
     if (ball.x <= rc.x0 - r || ball.x >= rc.x1 + r || ball.y <= rc.y0 - r || ball.y >= rc.y1 + r) continue;
 
@@ -2212,14 +2303,18 @@ function collidePowerups(ball, r) {
 
 // ---- boucle ----
 let lastT = 0;
+let drawEnabled = true;        // les simulations coupent le rendu
 function frame(t) {
   // filet de sécurité : iOS peut changer la taille de la fenêtre sans
   // événement resize fiable → bande noire en bas si on ne suit pas
-  if (W !== window.innerWidth || H !== window.innerHeight) resize();
+  // (on compare à la fenêtre vue au dernier resize, pas à W : sur iPad
+  // le plateau est plus étroit que la fenêtre et le canvas se réallouait
+  // à chaque frame)
+  if (winW !== window.innerWidth || winH !== window.innerHeight) resize();
   const dt = Math.min((t - lastT) / 1000 || 0, 1 / 30);
   lastT = t;
   update(dt);
-  draw(t / 1000);
+  if (drawEnabled) draw(t / 1000);
   requestAnimationFrame(frame);
 }
 
