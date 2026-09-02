@@ -196,7 +196,12 @@ ciel vivant — halo du soleil ou de la lune, nappes de nuages qui dérivent,
 de mousson selon la météo du jour — et une ligne discrète annonce l'heure
 et le temps qu'il fait (« 🌅 Aube sur le lagon · brume »). Les teintes du
 verre des boutons suivent la lumière. Tout se fige si « réduire les
-animations » est actif. Une **météo du
+animations » est actif.
+En partie, l'**eau du plateau** est elle aussi une peinture par phase
+(aube rosée, turquoise de midi, reflets de couchant, indigo lunaire),
+choisie pour rester douce sous les pierres. En **tournoi**, une guirlande
+de fanions balinais est tendue sous le plafond du lagon : c'est jour de
+fête. Une **météo du
 jour**, tirée de la date (la même pour tout le monde, calculée hors
 ligne), habille certains jours : **brume** sur le haut du lagon,
 **mousson** et son rideau de pluie, **pleine lune** qui fait scintiller

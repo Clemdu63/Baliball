@@ -3235,18 +3235,63 @@ function drawPowerup(p, yOff, T, t) {
 
 /* Fond marin peint (jour/nuit) — repli sur le dégradé si non chargé.
    Chemins littéraux : la démo mono-fichier les remplace par des data URI. */
-const BOARD_ART_SRC = { day: 'art/board-day.webp', night: 'art/board-night.webp' };
+/* Eau du plateau : une peinture par phase du jour (comme l'accueil).
+   Chemins littéraux : la démo mono-fichier les remplace par des data URI. */
+const BOARD_ART_SRC = {
+  day: 'art/board-day.webp', night: 'art/board-night.webp',
+  dawn: 'art/board-dawn.webp', dusk: 'art/board-dusk.webp',
+};
 const BOARD_ART = {};
-for (const k of ['day', 'night']) {
+for (const k of ['day', 'night', 'dawn', 'dusk']) {
   const img = new Image();
   img.src = BOARD_ART_SRC[k];
   BOARD_ART[k] = img;
 }
+const PHASE_BOARD = { aube: 'dawn', jour: 'day', couchant: 'dusk', nuit: 'night' };
 
 function boardArtReady() {
-  const k = document.documentElement.dataset.theme === 'dark' ? 'night' : 'day';
-  const img = BOARD_ART[k];
+  const phase = document.documentElement.dataset.phase;
+  const k = PHASE_BOARD[phase]
+    || (document.documentElement.dataset.theme === 'dark' ? 'night' : 'day');
+  let img = BOARD_ART[k];
+  if (!(img && img.complete && img.naturalWidth > 0)) {
+    // peinture de la phase pas encore chargée : celle du jour/nuit de base
+    img = BOARD_ART[k === 'dawn' ? 'day' : k === 'dusk' ? 'night' : k];
+  }
   return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/* Tournoi : une guirlande de fanions (umbul-umbul) tendue sous le plafond
+   du lagon — décor seulement, les noix passent devant. */
+const FLAG_COLORS = ['#ffd34d', '#ff7847', '#7ef0d8', '#f75f92', '#ffffff'];
+function drawFestival(t) {
+  const step = cell * 0.62;
+  const fh = cell * 0.3, fw = cell * 0.26;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 8) {
+    const sag = Math.sin((x / W) * Math.PI) * cell * 0.16;
+    const y = ceilY + 3 + sag;
+    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  let i = 0;
+  for (let x = step * 0.5; x < W; x += step, i++) {
+    const sag = Math.sin((x / W) * Math.PI) * cell * 0.16;
+    const y = ceilY + 3 + sag;
+    const sway = Math.sin(t * 1.4 + i * 0.9) * fw * 0.12;
+    ctx.fillStyle = FLAG_COLORS[i % FLAG_COLORS.length];
+    ctx.beginPath();
+    ctx.moveTo(x - fw / 2, y);
+    ctx.lineTo(x + fw / 2, y);
+    ctx.lineTo(x + sway, y + fh);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 /* Les dégradés d'eau sont recréés seulement quand le thème/décor change. */
@@ -3607,6 +3652,7 @@ function draw(t) {
 
   drawBeach(t, T);
   drawWeather(t);
+  if (mode === 'tournament' && !calmMode()) drawFestival(t);
 
   for (const ball of balls) {
     if (feverActive) {
