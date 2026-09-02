@@ -21,9 +21,14 @@
     (function () {
       try {
         var s = JSON.parse(localStorage.getItem('baliball.settings.v1') || '{}');
-        var dark = s.theme === 'dark' || (s.theme !== 'light'
-          && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        // même découpage que js/theme.js : aube 6-8 h, jour, couchant 17 h 30-19 h 30, nuit
+        var d = new Date();
+        var h = d.getHours() + d.getMinutes() / 60;
+        var phase = s.theme === 'dark' ? 'nuit' : s.theme === 'light' ? 'jour'
+          : (h >= 6 && h < 8) ? 'aube' : (h >= 8 && h < 17.5) ? 'jour'
+            : (h >= 17.5 && h < 19.5) ? 'couchant' : 'nuit';
+        document.documentElement.dataset.phase = phase;
+        document.documentElement.dataset.theme = (phase === 'nuit' || phase === 'couchant') ? 'dark' : 'light';
       } catch (e) {
         document.documentElement.dataset.theme = 'light';
       }
@@ -122,19 +127,31 @@
           <circle cx="93" cy="461" r="6"></circle>
         </g>
       </svg>
-      <!-- fond minimal peint (jour/nuit) au-dessus de la scène SVG de repli -->
+      <!-- fonds peints par phase du jour (fondu enchaîné), au-dessus de la scène SVG de repli -->
       <img class="scene-art scene-art-day" src="art/menu-day.webp" alt="" aria-hidden="true">
+      <img class="scene-art scene-art-dawn" src="art/menu-dawn.webp" alt="" aria-hidden="true">
+      <img class="scene-art scene-art-dusk" src="art/menu-dusk.webp" alt="" aria-hidden="true">
       <img class="scene-art scene-art-night" src="art/menu-night.webp" alt="" aria-hidden="true">
+      <!-- ciel vivant : halo, nuages, étoiles, lucioles, brume, pluie -->
+      <div class="sky-fx" aria-hidden="true">
+        <div class="fx fx-glow"></div>
+        <div class="fx fx-clouds"><i></i><i></i><i></i></div>
+        <div class="fx fx-stars" id="fx-stars"></div>
+        <div class="fx fx-fireflies" id="fx-fireflies"></div>
+        <div class="fx fx-mist"></div>
+        <div class="fx fx-rain"></div>
+      </div>
       <div class="scene-scrim" aria-hidden="true"></div>
     </div>
 
-    <div class="version">v4.2.0</div>
+    <div class="version">v4.3.0</div>
     <div class="home-top">
       <div class="logo" aria-label="Baliball">
         <span class="logo-ball"></span>
         <span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">I</span><span class="lt">B</span><span class="lt">A</span><span class="lt">L</span><span class="lt">L</span>
       </div>
       <p class="tagline">Le casse-briques du lagon</p>
+      <p class="tagline home-sky" id="home-sky"></p>
       <p id="home-best"></p>
       <p id="home-hall"></p>
     </div>

@@ -219,6 +219,12 @@ function apply() {
   }
   current = T;
   document.documentElement.dataset.theme = PHASE_BASE[phase] === 'night' ? 'dark' : 'light';
+  // l'accueil choisit son fond et ses calques de ciel sur ces deux attributs
+  document.documentElement.dataset.phase = phase;
+  document.documentElement.dataset.weather = getWeather();
+  try {
+    document.dispatchEvent(new CustomEvent('baliball:sky', { detail: { phase, weather: getWeather() } }));
+  } catch (e) { /* environnement sans CustomEvent */ }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = current.page;
 }

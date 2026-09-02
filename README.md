@@ -183,7 +183,15 @@ illustration.
 ## Le lagon vivant
 
 En thème **Auto**, le lagon suit l'heure réelle : **aube dorée** (6 h-8 h),
-plein jour, **couchant embrasé** (17 h 30-19 h 30), nuit. Une **météo du
+plein jour, **couchant embrasé** (17 h 30-19 h 30), nuit.
+L'**accueil** change de tableau avec l'heure : quatre peintures (aube rosée,
+plein jour, couchant pourpre, nuit à la lune) en fondu enchaîné, sous un
+ciel vivant — halo du soleil ou de la lune, nappes de nuages qui dérivent,
+étoiles qui scintillent, lucioles près du temple, nappe de brume ou rideau
+de mousson selon la météo du jour — et une ligne discrète annonce l'heure
+et le temps qu'il fait (« 🌅 Aube sur le lagon · brume »). Les teintes du
+verre des boutons suivent la lumière. Tout se fige si « réduire les
+animations » est actif. Une **météo du
 jour**, tirée de la date (la même pour tout le monde, calculée hors
 ligne), habille certains jours : **brume** sur le haut du lagon,
 **mousson** et son rideau de pluie, **pleine lune** qui fait scintiller

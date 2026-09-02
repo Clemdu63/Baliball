@@ -1,7 +1,7 @@
 /* Écrans, modes de jeu, boutique, tournoi, réglages et démarrage. */
 
 import { settings, persistSettings, KEYS, loadJSON, store } from './storage.js';
-import { setThemeMode, DECORS } from './theme.js';
+import { setThemeMode, DECORS, getPhase, getWeather } from './theme.js';
 import { initAudio, syncAmbience, sfx } from './audio.js';
 import { LEVELS } from './levels.js';
 import { netPublish, netSubscribe, netBeacon, myUid } from './net.js';
@@ -9,7 +9,7 @@ import { drawQR } from './qr.js';
 import { ODY_ISLANDS, ODY_STAGES, odysseyGoalText } from './odyssey.js';
 import * as game from './game.js';
 
-const APP_VERSION = '4.2.0';
+const APP_VERSION = '4.3.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-odyssee', 'screen-settings',
@@ -194,7 +194,52 @@ function hallSync() {
   } catch (e) { hallStop = null; }
 }
 
+/* ---- accueil vivant : légende de l'heure et de la météo, étoiles et
+   lucioles semées une fois (positions fixes, scintillement décalé) ---- */
+const PHASE_LABEL = {
+  aube: '🌅 Aube sur le lagon', jour: '☀️ Plein jour sur le lagon',
+  couchant: '🌇 Couchant sur le lagon', nuit: '🌙 Nuit sur le lagon',
+};
+const WEATHER_LABEL = { brume: 'brume', mousson: 'mousson', lune: 'pleine lune' };
+
+function syncSky() {
+  const phase = getPhase();
+  const w = getWeather();
+  const showW = w in WEATHER_LABEL && !(w === 'lune' && phase !== 'nuit');
+  $('home-sky').textContent = (PHASE_LABEL[phase] || '') + (showW ? ' · ' + WEATHER_LABEL[w] : '');
+}
+
+function buildSkyFx() {
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed >>> 8) / 16777216; };
+  const stars = $('fx-stars');
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('i');
+    const size = (1.1 + rnd() * 1.7).toFixed(1) + 'px';
+    s.style.left = (rnd() * 100).toFixed(1) + '%';
+    s.style.top = (rnd() * 40).toFixed(1) + '%';
+    s.style.width = size;
+    s.style.height = size;
+    s.style.animationDelay = (rnd() * 4).toFixed(2) + 's';
+    s.style.animationDuration = (2.4 + rnd() * 2.8).toFixed(2) + 's';
+    stars.appendChild(s);
+  }
+  const ff = $('fx-fireflies');
+  for (let i = 0; i < 7; i++) {
+    const f = document.createElement('i');
+    f.style.left = (5 + rnd() * 28).toFixed(1) + '%';
+    f.style.top = (60 + rnd() * 14).toFixed(1) + '%';
+    f.style.animationDelay = (rnd() * 7).toFixed(2) + 's';
+    f.style.animationDuration = (5.5 + rnd() * 4).toFixed(2) + 's';
+    ff.appendChild(f);
+  }
+}
+buildSkyFx();
+// theme.js réévalue la phase chaque minute et à chaque changement de réglage
+document.addEventListener('baliball:sky', syncSky);
+
 function refreshHome() {
+  syncSky();
   const best = game.getBest();
   const bestScore = game.getBestScore();
   const tideBest = parseInt(store.get(KEYS.TIDE_BEST) || '0', 10) || 0;

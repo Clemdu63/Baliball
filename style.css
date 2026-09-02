@@ -326,9 +326,14 @@ button:focus-visible {
   to { transform: scale(1.06); }
 }
 
-.scene-art-night { display: none; }
-:root[data-theme="dark"] .scene-art-day { display: none; }
-:root[data-theme="dark"] .scene-art-night { display: block; }
+/* un fond par phase du jour, en fondu enchaîné ; sans attribut (avant
+   l'amorçage) le jour s'affiche */
+.scene-art { opacity: 0; transition: opacity 1.6s ease; }
+:root:not([data-phase]) .scene-art-day,
+:root[data-phase="jour"] .scene-art-day { opacity: 1; }
+:root[data-phase="aube"] .scene-art-dawn { opacity: 1; }
+:root[data-phase="couchant"] .scene-art-dusk { opacity: 1; }
+:root[data-phase="nuit"] .scene-art-night { opacity: 1; }
 
 .scene-scrim {
   position: absolute;
@@ -1519,3 +1524,163 @@ body.lefty #btn-mute { right: auto; left: 102px; }
 #btn-book.hidden { display: none; }
 
 body.lefty #btn-book { right: auto; left: 148px; }
+
+/* ---- v4.3 : accueil vivant — teintes de verre par phase ---- */
+:root[data-phase="aube"] {
+  --scene-sky1: #f3d6c4;
+  --lg1: rgba(255, 168, 138, 0.62);
+  --lg2: rgba(255, 214, 168, 0.5);
+  --lg3: rgba(122, 202, 218, 0.56);
+  --lg-pane: rgba(255, 250, 244, 0.46);
+  --lg-pane-text: #5b3a36;
+}
+
+:root[data-phase="couchant"] {
+  --scene-sky1: #2a1738;
+  --lg1: rgba(255, 128, 72, 0.74);
+  --lg2: rgba(226, 88, 126, 0.62);
+  --lg3: rgba(118, 84, 205, 0.64);
+  --lg-pane: rgba(28, 12, 34, 0.44);
+  --lg-pane-text: #ffe7cf;
+}
+
+.home-sky {
+  font-size: 11px !important;
+  letter-spacing: 2px !important;
+  opacity: 0.7 !important;
+  margin-top: -4px;
+}
+
+.home-sky:empty { display: none; }
+
+/* ---- calques de ciel ---- */
+.sky-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fx {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+
+/* halo du soleil ou de la lune : position et couleur selon la phase */
+.fx-glow {
+  background: radial-gradient(circle at var(--glow-x, 50%) var(--glow-y, 45%),
+    var(--glow-c, rgba(255, 244, 210, 0.6)) 0%, rgba(255, 255, 255, 0) var(--glow-r, 24%));
+  animation: glow-breathe 9s ease-in-out infinite alternate;
+}
+
+@keyframes glow-breathe {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+:root[data-phase="jour"] .fx-glow { opacity: 1; --glow-x: 79%; --glow-y: 44%; --glow-r: 20%; --glow-c: rgba(255, 244, 200, 0.7); }
+:root[data-phase="aube"] .fx-glow { opacity: 1; --glow-x: 50%; --glow-y: 46%; --glow-r: 34%; --glow-c: rgba(255, 196, 160, 0.55); }
+:root[data-phase="couchant"] .fx-glow { opacity: 1; --glow-x: 50%; --glow-y: 54%; --glow-r: 30%; --glow-c: rgba(255, 160, 70, 0.45); }
+:root[data-phase="nuit"][data-weather="lune"] .fx-glow { opacity: 1; --glow-x: 50%; --glow-y: 52%; --glow-r: 30%; --glow-c: rgba(225, 238, 255, 0.5); }
+
+/* nuages : trois nappes floues qui traversent lentement */
+.fx-clouds i {
+  position: absolute;
+  width: 46%;
+  height: 7%;
+  border-radius: 50%;
+  background: var(--cloud-c, rgba(255, 255, 255, 0.42));
+  filter: blur(14px);
+  animation: cloud-drift 110s linear infinite;
+}
+
+.fx-clouds i:nth-child(1) { top: 9%; left: -50%; animation-duration: 120s; }
+.fx-clouds i:nth-child(2) { top: 19%; left: -50%; width: 34%; height: 5%; animation-duration: 95s; animation-delay: -40s; }
+.fx-clouds i:nth-child(3) { top: 30%; left: -50%; width: 52%; height: 6%; animation-duration: 140s; animation-delay: -90s; }
+
+@keyframes cloud-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(330%); }
+}
+
+:root[data-phase="jour"] .fx-clouds { opacity: 0.9; }
+:root[data-phase="aube"] .fx-clouds { opacity: 0.75; --cloud-c: rgba(255, 226, 214, 0.5); }
+:root[data-phase="couchant"] .fx-clouds { opacity: 0.55; --cloud-c: rgba(255, 176, 120, 0.4); }
+
+/* étoiles qui scintillent, lucioles près du temple */
+.fx-stars i, .fx-fireflies i {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.fx-stars i {
+  background: #ffffff;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.55);
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.fx-fireflies i {
+  width: 3px;
+  height: 3px;
+  background: #ffe28a;
+  box-shadow: 0 0 8px 2px rgba(255, 210, 100, 0.7);
+  animation: firefly 7s ease-in-out infinite;
+}
+
+@keyframes firefly {
+  0%, 100% { opacity: 0; transform: translate(0, 0); }
+  25% { opacity: 1; }
+  55% { opacity: 0.5; transform: translate(7px, -12px); }
+  80% { opacity: 0.9; transform: translate(-4px, -18px); }
+}
+
+:root[data-phase="nuit"] .fx-stars { opacity: 1; }
+:root[data-phase="couchant"] .fx-stars { opacity: 0.35; }
+:root[data-phase="nuit"] .fx-fireflies,
+:root[data-phase="couchant"] .fx-fireflies { opacity: 1; }
+
+/* météo du jour : brume sur l'horizon, rideau de mousson */
+.fx-mist {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(255, 255, 255, 0.26) 50%,
+    rgba(255, 255, 255, 0.34) 56%,
+    rgba(255, 255, 255, 0) 66%);
+  animation: mist-breathe 12s ease-in-out infinite alternate;
+}
+
+@keyframes mist-breathe {
+  from { transform: translateY(0); }
+  to { transform: translateY(-1.5%); }
+}
+
+:root[data-weather="brume"] .fx-mist { opacity: 1; }
+
+.fx-rain {
+  background-image: repeating-linear-gradient(104deg,
+    rgba(255, 255, 255, 0) 0 15px, rgba(222, 236, 246, 0.2) 15px 16px);
+  background-size: 220px 220px;
+  animation: rain-fall 0.75s linear infinite;
+}
+
+@keyframes rain-fall {
+  to { background-position: -46px 220px; }
+}
+
+:root[data-weather="mousson"] .fx-rain { opacity: 1; }
+:root[data-weather="mousson"] .scene-scrim {
+  background: linear-gradient(180deg, rgba(20, 30, 40, 0.28), rgba(0, 0, 0, 0.06) 30%, rgba(6, 20, 22, 0.36) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx, .fx i { animation: none !important; }
+}
+
+body.calm .fx, body.calm .fx i { animation: none !important; }
