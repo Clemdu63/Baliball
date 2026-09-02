@@ -108,6 +108,7 @@ let ghostTrace = [];           // trace du run en cours
 let fever = 0;                 // jauge Gamelan (0..1), remplie par les combos
 let feverActive = false;       // tir « fièvre » en cours : dégâts x2
 let shieldCharges = 0;         // lotus : sauve la partie quand une pierre touche la plage
+let lotusOpen = false;         // un lotus ouvert protège tout le tour (marée double, séisme)
 let guideShots = 0;            // boussole : la visée révèle toute la trajectoire
 let weeklyMut = null;          // mutateur du défi de la semaine
 let odyssey = null;            // Odyssée : {idx, def, shotsLeft, done}
@@ -659,6 +660,7 @@ export function debugSet(o) {
     if (bb) bb.hp = o.bossHp;
   }
   if (o && typeof o.addBroken === 'number') stats.broken += o.addBroken;
+  if (o && typeof o.shield === 'number') shieldCharges = o.shield;
   if (o && typeof o.odyShots === 'number' && odyssey) odyssey.shotsLeft = o.odyShots;
   if (o && typeof o.fire === 'number' && state === 'aim') {
     // tir programmatique (simulations hors navigateur) : même clampage
@@ -1196,7 +1198,21 @@ function spawnRushRow() {
   }
 }
 
+/* Ouvre un lotus si possible : un seul par tour, quel que soit le nombre
+   de crans de marée ou de secousses qui atteignent la plage ce tour-ci.
+   Renvoie true si la partie est protégée. */
+function lotusSaves() {
+  if (lotusOpen) return true;
+  if (shieldCharges <= 0) return false;
+  shieldCharges -= 1;
+  lotusOpen = true;
+  effects.push({ type: 'milestone', text: '🪷 Le lotus te sauve !', life: 1, color: '#ffc7dd' });
+  sfx.milestone();
+  return true;
+}
+
 function endTurn() {
+  lotusOpen = false;
   ballCount += collectedThisTurn;
   collectedThisTurn = 0;
   chiliActive = false;
@@ -1267,12 +1283,9 @@ function endTurn() {
     if (reached.length > 0) {
       if (mode === 'classic' || mode === 'daily' || mode === 'weekly'
         || mode === 'tournament' || mode === 'odyssey' || mode === 'rush') {
-        if (shieldCharges > 0) {
-          // le lotus s'ouvre : la marée engloutit les pierres au lieu de perdre
-          shieldCharges -= 1;
-          effects.push({ type: 'milestone', text: '🪷 Le lotus te sauve !', life: 1, color: '#ffc7dd' });
-          sfx.milestone();
-        } else {
+        // le lotus s'ouvre : la marée engloutit les pierres au lieu de perdre
+        // (un seul lotus par tour, même si la Grande marée descend deux crans)
+        if (!lotusSaves()) {
           gameOver('line');
           return;
         }
@@ -1433,10 +1446,7 @@ function bossRoar(boss) {
     if (reached.length > 0) {
       if (mode === 'zen' || isTimed()) {
         blocks = blocks.filter((b2) => bottomRow(b2) < deathRow);
-      } else if (shieldCharges > 0) {
-        shieldCharges -= 1;
-        effects.push({ type: 'milestone', text: '🪷 Le lotus te sauve !', life: 1, color: '#ffc7dd' });
-        sfx.milestone();
+      } else if (lotusSaves()) {
         blocks = blocks.filter((b2) => bottomRow(b2) < deathRow);
       } else {
         gameOver('line');
@@ -3776,44 +3786,98 @@ function aimSteps() {
   return Math.max(8, 24 - Math.floor(round / 2));
 }
 
+/* Une noix en (x, y) toucherait-elle la pierre b ? Mêmes tests que la
+   physique (collideBlocks) sans en appliquer les effets : boîte de
+   collision (hitRect, donc masque peint du boss), moitié pleine des toits
+   de temple, disque des pierres rondes. */
+function wouldHit(b, x, y, r) {
+  const rc = hitRect(b, 0);
+  if (x <= rc.x0 - r || x >= rc.x1 + r || y <= rc.y0 - r || y >= rc.y1 + r) return false;
+  if (b.type === 'round') {
+    const cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2;
+    return Math.hypot(x - cx, y - cy) < r + (rc.x1 - rc.x0) / 2;
+  }
+  if (b.type === 'tri') {
+    const g = triGeometry(b, rc);
+    const sd = (x - g.a.x) * g.n.x + (y - g.a.y) * g.n.y;
+    if (sd > r) return false;
+    if (sd < -r * 0.4) return true;
+    const abx = g.bpt.x - g.a.x, aby = g.bpt.y - g.a.y;
+    const tt = ((x - g.a.x) * abx + (y - g.a.y) * aby) / (abx * abx + aby * aby);
+    return tt >= -0.1 && tt <= 1.1;
+  }
+  return true;
+}
+
+/* Trajectoire prévue d'un tir : la MÊME cinématique que stepBall (sous-pas
+   de 0,8 rayon, murs et plafond réfléchissants) jusqu'au premier contact —
+   pierre, portail (la sortie est imprévisible) ou plage. Un tracé plus
+   grossier ratait les noix qui effleurent le coin d'une pierre et montrait
+   un rebond sur le mur que la vraie noix ne faisait jamais. */
+function previewPath(angle, { reflect, maxLen }) {
+  const r = RADIUS();
+  const stepLen = r * 0.8;
+  let dirX = Math.cos(angle), dirY = -Math.sin(angle);
+  let x = launchX, y = floorY - r;
+  const pts = [];
+  let end = 'len';
+  for (let travelled = 0; travelled < maxLen; travelled += stepLen) {
+    x += dirX * stepLen;
+    y += dirY * stepLen;
+    if (reflect) {
+      if (x < r) { x = r; dirX = Math.abs(dirX); }
+      if (x > W - r) { x = W - r; dirX = -Math.abs(dirX); }
+      if (y < ceilY + r) { y = ceilY + r; dirY = Math.abs(dirY); }
+      if (y > floorY - r && dirY > 0) { end = 'floor'; break; }
+    } else if (x < r || x > W - r || y < boardTop + r) {
+      end = 'wall';
+      break;
+    }
+    if (blocks.some((b) => wouldHit(b, x, y, r))) { end = 'block'; break; }
+    if (powerups.some((p) => p.kind === 'portal'
+      && Math.hypot(x - powerupCenter(p, 0).x, y - powerupCenter(p, 0).y) < r + BONUS_R())) {
+      end = 'portal';
+      break;
+    }
+    pts.push({ x, y });
+  }
+  return { pts, end, x, y };
+}
+
+/* Point de contact prévu, pour les tests automatisés. */
+export function debugPreview(angle) {
+  const p = previewPath(angle, { reflect: true, maxLen: cell * 40 });
+  return { end: p.end, x: p.x, y: p.y, n: p.pts.length, pts: p.pts };
+}
+
 function drawAimLine(angle, T) {
   const r = RADIUS();
   const guided = guideShots > 0;
   let a = angle;
   // sous le mutateur miroir, la boussole montre la VRAIE trajectoire
   if (guided && mode === 'weekly' && weeklyMut === 'mirror') a = Math.PI - a;
-  let dirX = Math.cos(a), dirY = -Math.sin(a);
-  let x = launchX, y = floorY - r;
-  const step = cell * 0.32;
-  const steps = guided ? 64 : aimSteps();
-  for (let i = 0; i < steps; i++) {
-    x += dirX * step;
-    y += dirY * step;
-    if (guided) {
-      if (x < r) { x = r + (r - x); dirX = Math.abs(dirX); }
-      if (x > W - r) { x = (W - r) - (x - (W - r)); dirX = -Math.abs(dirX); }
-      if (y < ceilY + r) { y = ceilY + r + (ceilY + r - y); dirY = Math.abs(dirY); }
-      if (y > floorY - r) break;
-    } else if (x < r || x > W - r || y < boardTop + r) {
-      break;
-    }
-    if (pointInBlock(x, y, r)) break;
-    ctx.fillStyle = guided ? '#ffe28a' : T.aimDot;
+  const path = previewPath(a, {
+    reflect: guided,
+    maxLen: guided ? cell * 40 : aimSteps() * cell * 0.32,
+  });
+  // un point tous les ~0,32 case, calculé sur la trajectoire fine
+  const every = Math.max(1, Math.round((cell * 0.32) / (r * 0.8)));
+  ctx.fillStyle = guided ? '#ffe28a' : T.aimDot;
+  ctx.strokeStyle = guided ? 'rgba(0,40,40,0.5)' : T.aimDotStroke;
+  ctx.lineWidth = 1;
+  for (let i = every - 1; i < path.pts.length; i += every) {
+    const p = path.pts[i];
     ctx.beginPath();
-    ctx.arc(x, y, Math.max(2.5, r * 0.45), 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, Math.max(2.5, r * 0.45), 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = guided ? 'rgba(0,40,40,0.5)' : T.aimDotStroke;
-    ctx.lineWidth = 1;
     ctx.stroke();
   }
-}
-
-function pointInBlock(x, y, r) {
-  for (const b of blocks) {
-    const rc = hitRect(b, 0);
-    if (x > rc.x0 - r && x < rc.x1 + r && y > rc.y0 - r && y < rc.y1 + r) return true;
+  if (guided && path.end === 'portal') {
+    ctx.font = '700 ' + Math.round(cell * 0.3) + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🌀', path.x, path.y);
   }
-  return false;
 }
 
 function roundRect(x, y, w, h, rad) {

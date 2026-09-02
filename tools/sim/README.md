@@ -8,6 +8,8 @@ rendu coupé). Se lancer depuis ce dossier (`cd tools/sim`).
 |---|---|
 | `verify.mjs` | Non-régression des correctifs moteur (cascade, emprise du boss, invariants, déterminisme) — code de sortie 0/1 |
 | `audit.mjs` | Audit physique tous modes (~180 parties) + déterminisme tournoi |
+| `guide.mjs` | La boussole prédit le premier contact comme la physique (centaines de tirs aléatoires) |
+| `lotus.mjs` | Un seul lotus par tour, même quand la Grande marée descend de deux crans |
 | `odyssey-sim.mjs` | Joue les 48 étapes de l'Odyssée (bot correct ×30, naïf ×12) → `ody-results.json` |
 | `ody-calib.mjs` | Courbes de cumul par tir (briser/marquer) et victoire des boss selon la rafale → `ody-calib.json` |
 | `ody-policy.mjs` | Transforme la calibration en objectifs/étoiles → `ody-proposal.json` |

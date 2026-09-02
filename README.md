@@ -48,6 +48,11 @@ illustration.
   grondement tellurique, cris d'aigle… tout en synthèse WebAudio) — et
   si l'un d'eux met fin à ta partie, son masque trône sur l'écran de fin
   et sur la carte de partage (« Terrassé par 🎭 Le Barong »).
+- Le **lotus 🪷** protège tout un tour : si la Grande marée descend de deux
+  crans ou si un séisme suit la marée, un seul lotus s'ouvre.
+- La **boussole 🧭** trace la trajectoire avec la physique exacte du moteur
+  (mêmes sous-pas, mêmes boîtes de collision, toits de temple et pierres
+  rondes compris) jusqu'au premier contact — pierre, portail ou plage.
 - Le **gong 🥁** (bonus rare) résonne dans tout le lagon : toutes les
   pierres perdent 1 PV d'un coup.
 - Tous les 25 crans de manche, une pluie de perles (+10 ◉) célèbre le cap.
