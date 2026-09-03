@@ -232,9 +232,13 @@ un combo ×6, vaincre un Barong…) rapportent des perles — suivi sur
 l'accueil et dans l'écran Progrès, récompense créditée en pleine partie.
 Les **perles ◉** gagnées en jeu s'échangent à la **Boutique** contre des
 peaux de balle (ballon de plage, frangipanier, lampion, durian), des
-décors du lagon (rizières, volcan au sable noir, Uluwatu au couchant) et
-des **sillages** derrière les noix (pétales, braises, poussière
-d'étoiles).
+**décors du lagon** et des **sillages** derrière les noix (pétales,
+braises, poussière d'étoiles). Un décor **repeint vraiment l'eau** :
+rizières vertes, cendre chaude du volcan, rose du récif, violet des
+lampions, indigo de la bioluminescence, gris d'orage de la mousson — la
+teinte vient du décor, les reflets et les rides restent ceux de la
+peinture, et la clarté se recale automatiquement. Chaque décor s'affiche
+en boutique par une **vignette** de l'eau telle qu'elle sera en jeu.
 Le **🕉 Sanctuaire** (dans la Boutique) vend des **offrandes**
 permanentes — canari du matin (+1 noix), boussole du pêcheur (2 tirs
 guidés), piment séché (premier tir ×2), braise de gamelan (fièvre à

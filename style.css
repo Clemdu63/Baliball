@@ -1684,3 +1684,12 @@ body.lefty #btn-book { right: auto; left: 148px; }
 }
 
 body.calm .fx, body.calm .fx i { animation: none !important; }
+
+/* ---- v4.5 : vignette du décor dans la boutique ---- */
+.shop-item .shop-swatch {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}

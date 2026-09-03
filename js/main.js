@@ -9,7 +9,7 @@ import { drawQR } from './qr.js';
 import { ODY_ISLANDS, ODY_STAGES, odysseyGoalText } from './odyssey.js';
 import * as game from './game.js';
 
-const APP_VERSION = '4.4.0';
+const APP_VERSION = '4.5.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-odyssee', 'screen-settings',
@@ -1292,9 +1292,27 @@ function shopItem(id, def, kind) {
       : def.unlock !== undefined ? 'Se débloque à ' + def.unlock + ' pts en une partie'
         : def.bossUnlock !== undefined ? 'Succès « Panthéon du lagon » : vaincre les 9 boss'
           : '◉ ' + def.price;
-  div.innerHTML = '<span class="shop-emoji">' + def.emoji + '</span>'
-    + '<span class="shop-info"><span class="shop-name">' + def.name + '</span>'
-    + '<span class="shop-sub">' + sub + '</span></span>';
+  // les décors se montrent : une vignette de l'eau telle qu'elle sera en jeu
+  if (kind === 'decor') {
+    const cv = document.createElement('canvas');
+    cv.className = 'shop-swatch';
+    cv.width = 108;
+    cv.height = 108;
+    game.drawDecorSwatch(cv, id);
+    div.appendChild(cv);
+  } else {
+    const em = document.createElement('span');
+    em.className = 'shop-emoji';
+    em.textContent = def.emoji;
+    div.appendChild(em);
+  }
+  const info = document.createElement('span');
+  info.className = 'shop-info';
+  // décor : l'émoji passe dans le nom, la vignette a pris sa place
+  info.innerHTML = '<span class="shop-name">'
+    + (kind === 'decor' ? def.emoji + ' ' : '') + def.name + '</span>'
+    + '<span class="shop-sub">' + sub + '</span>';
+  div.appendChild(info);
   const btn = document.createElement('button');
   if (equipped) {
     btn.textContent = '✓ ÉQUIPÉ';

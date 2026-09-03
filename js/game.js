@@ -3296,9 +3296,156 @@ function drawFestival(t) {
 
 /* Les dégradés d'eau sont recréés seulement quand le thème/décor change. */
 const bgCache = { key: '', grad: null, glow: null };
+
+/* Eau du plateau aux couleurs du DÉCOR équipé.
+   La peinture de l'eau est très marquée : un simple voile de couleur à
+   30 % par-dessus (v3.0 → v4.4) ne se voyait quasiment pas, et les décors
+   achetés en boutique ne changeaient rien. On repeint donc l'eau en mode
+   « color » — la teinte vient du décor, la lumière reste celle de la
+   peinture, donc reflets et rides sont préservés —, puis un voile léger
+   ajuste la clarté (volcan sombre, rizières claires…).
+   Résultat mis en cache hors écran : le mélange par pixel ne se refait
+   qu'au changement de décor, de phase ou de taille d'écran. */
+const waterCache = { key: '', canvas: null };
+
+function waterArt(T, art, w, h) {
+  const dec = DECORS[cosmetics.decor];
+  const key = (document.documentElement.dataset.phase || '')
+    + (document.documentElement.dataset.theme || '')
+    + art.naturalWidth + '.' + art.naturalHeight
+    + '|' + cosmetics.decor + '|' + T.waterTop + T.waterBottom
+    + '|' + Math.round(w) + 'x' + Math.round(h);
+  if (waterCache.key === key && waterCache.canvas) return waterCache.canvas;
+  let cv;
+  try {
+    cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(w));
+    cv.height = Math.max(1, Math.round(h));
+    const c = cv.getContext('2d');
+    if (!c) return null;
+    paintWater(c, T, art, cv.width, cv.height, !!(dec && dec.overrides), 0, cv);
+  } catch (e) {
+    return null;   // pas de canvas hors écran : on peint directement
+  }
+  waterCache.key = key;
+  waterCache.canvas = cv;
+  return cv;
+}
+
+/* Peint l'eau (peinture + teinte du décor) dans un contexte quelconque :
+   le plateau, le cache hors écran ou la vignette de la boutique. */
+/* Luminance relative d'une couleur #rgb / #rrggbb (0 = noir, 1 = blanc). */
+function relLum(hex) {
+  const s = String(hex).replace('#', '');
+  const f = s.length === 3
+    ? [0, 1, 2].map((i) => parseInt(s[i] + s[i], 16))
+    : [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16));
+  if (f.some((v) => !isFinite(v))) return 0.6;
+  return (0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]) / 255;
+}
+
+/* Le mélange « color » garde la LUMIÈRE de la peinture, très claire :
+   sans correction, le Volcan restait gris pâle et la Bioluminescence
+   turquoise vif. On mesure la clarté obtenue (sur une réduction 24×40)
+   et on la ramène vers celle du décor avec un voile noir ou blanc. */
+function matchLuminance(c, cv, w, h, target, oy) {
+  let mean;
+  try {
+    const tiny = document.createElement('canvas');
+    tiny.width = 24;
+    tiny.height = 40;
+    const tc = tiny.getContext('2d');
+    tc.drawImage(cv, 0, oy, w, h, 0, 0, 24, 40);
+    const d = tc.getImageData(0, 0, 24, 40).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+    }
+    mean = sum / (d.length / 4);
+  } catch (e) {
+    return;   // canvas illisible (page ouverte en fichier local)
+  }
+  const diff = target - mean;
+  if (Math.abs(diff) < 0.05) return;
+  c.fillStyle = diff < 0 ? '#000000' : '#ffffff';
+  c.globalAlpha = Math.min(0.5, Math.abs(diff) * 0.9);
+  c.fillRect(0, oy, w, h);
+  c.globalAlpha = 1;
+}
+
+function paintWater(c, T, art, w, h, tinted, oy = 0, cv = null) {
+  const s = Math.max(w / art.naturalWidth, h / art.naturalHeight);
+  const sw = w / s, sh = h / s;
+  c.drawImage(art, (art.naturalWidth - sw) / 2, (art.naturalHeight - sh) / 2,
+    sw, sh, 0, oy, w, h);
+  const grad = c.createLinearGradient(0, oy, 0, oy + h);
+  grad.addColorStop(0, T.waterTop);
+  grad.addColorStop(1, T.waterBottom);
+  c.fillStyle = grad;
+  if (tinted) {
+    c.globalCompositeOperation = 'color';
+    c.fillRect(0, oy, w, h);
+    c.globalCompositeOperation = 'source-over';
+    c.globalAlpha = 0.34;   // ajuste la clarté vers celle du décor
+  } else {
+    c.globalAlpha = 0.3;    // Lagon : l'eau d'origine, à peine unifiée
+  }
+  c.fillRect(0, oy, w, h);
+  c.globalAlpha = 1;
+  if (tinted && cv) {
+    matchLuminance(c, cv, w, h, (relLum(T.waterTop) + relLum(T.waterBottom)) / 2, oy);
+  }
+}
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 /* Animations réduites : réglage système OU choix dans les Réglages. */
 const calmMode = () => reduceMotion.matches || settings.calm;
+
+/* Vignette d'un décor pour la boutique : l'eau telle qu'elle sera en jeu,
+   ses reflets et sa plage. */
+export function drawDecorSwatch(cv, id) {
+  const c = cv.getContext('2d');
+  if (!c) return;
+  const w = cv.width, h = cv.height;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, w, h);
+  const d = DECORS[id];
+  const T = d && d.overrides ? Object.assign({}, getTheme(), d.overrides) : getTheme();
+  const wh = Math.round(h * 0.76);
+  const art = boardArtReady();
+  if (art) {
+    paintWater(c, T, art, w, wh, !!(d && d.overrides), 0, cv);
+  } else {
+    const g = c.createLinearGradient(0, 0, 0, wh);
+    g.addColorStop(0, T.waterTop);
+    g.addColorStop(1, T.waterBottom);
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, wh);
+  }
+  // deux reflets et quelques scintillements, comme en jeu
+  c.strokeStyle = T.caustic;
+  c.lineWidth = Math.max(3, w * 0.09);
+  for (let k = 0; k < 2; k++) {
+    c.beginPath();
+    for (let x = -2; x <= w + 2; x += 4) {
+      const y = wh * (0.3 + 0.34 * k) + Math.sin(x * 0.09 + k * 2.1) * h * 0.03;
+      if (x === -2) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.stroke();
+  }
+  c.fillStyle = T.sparkle;
+  for (let i = 0; i < 5; i++) {
+    c.fillRect(((i * 73.7) % 1) * w, wh * (0.15 + ((i * 41.3) % 1) * 0.7), 2, 2);
+  }
+  // plage et écume
+  c.fillStyle = T.sand;
+  c.fillRect(0, wh, w, h - wh);
+  c.strokeStyle = T.foam;
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(0, wh);
+  c.lineTo(w, wh);
+  c.stroke();
+}
 
 /* Décor du lagon : eau, reflets, poissons, palmes, plage. */
 function drawLagoon(rawT, T) {
@@ -3320,17 +3467,15 @@ function drawLagoon(rawT, T) {
   }
   const art = boardArtReady();
   if (art) {
-    // illustration en couverture de la zone d'eau…
+    // illustration en couverture de la zone d'eau, aux couleurs du décor
     const zy = ceilY - 6, zh = floorY - ceilY + 6;
-    const s = Math.max(W / art.naturalWidth, zh / art.naturalHeight);
-    const sw = W / s, sh = zh / s;
-    ctx.drawImage(art, (art.naturalWidth - sw) / 2, (art.naturalHeight - sh) / 2,
-      sw, sh, 0, zy, W, zh);
-    // …unifiée par la teinte du thème et du décor équipé (boutique)
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = bgCache.grad;
-    ctx.fillRect(0, zy, W, zh);
-    ctx.globalAlpha = 1;
+    const cached = waterArt(T, art, W * dpr, zh * dpr);
+    if (cached) {
+      ctx.drawImage(cached, 0, 0, cached.width, cached.height, 0, zy, W, zh);
+    } else {
+      const dec = DECORS[cosmetics.decor];
+      paintWater(ctx, T, art, W, zh, !!(dec && dec.overrides), zy);
+    }
   } else {
     ctx.fillStyle = bgCache.grad;
     ctx.fillRect(0, ceilY - 6, W, floorY - ceilY + 6);

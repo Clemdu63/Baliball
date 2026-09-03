@@ -83,7 +83,8 @@ export const DECORS = {
   volcan: {
     name: 'Volcan', emoji: '🌋', price: 200,
     overrides: {
-      waterTop: '#3a3f4a', waterBottom: '#78818f',
+      // cendre chaude : nettement distinct du bleu d'orage de la Mousson
+      waterTop: '#2f2823', waterBottom: '#7a6152',
       sand: '#454247', sandDark: '#39363b', sandText: '#d8cfc2',
       foam: 'rgba(255,255,255,0.5)', sparkle: 'rgba(255,150,60,0.85)',
       fish: 'rgba(230,240,250,0.14)',
