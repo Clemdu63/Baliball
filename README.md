@@ -233,12 +233,14 @@ l'accueil et dans l'écran Progrès, récompense créditée en pleine partie.
 Les **perles ◉** gagnées en jeu s'échangent à la **Boutique** contre des
 peaux de balle (ballon de plage, frangipanier, lampion, durian), des
 **décors du lagon** et des **sillages** derrière les noix (pétales,
-braises, poussière d'étoiles). Un décor **repeint vraiment l'eau** :
-rizières vertes, cendre chaude du volcan, rose du récif, violet des
-lampions, indigo de la bioluminescence, gris d'orage de la mousson — la
-teinte vient du décor, les reflets et les rides restent ceux de la
-peinture, et la clarté se recale automatiquement. Chaque décor s'affiche
-en boutique par une **vignette** de l'eau telle qu'elle sera en jeu.
+braises, poussière d'étoiles). Chaque décor a sa **propre peinture
+d'eau** — ce n'est pas le lagon reteinté, c'est un autre endroit :
+terrasses de rizières inondées, coulée de lave sur basalte noir, houle
+d'or d'Uluwatu, plancton lumineux, récif corallien rose, lampions
+flottants sur l'eau noire, ronds de pluie de la mousson. L'heure du jour
+se lit encore par-dessus (voile léger, franchement plus sombre la nuit),
+et chaque décor s'affiche en boutique par une **vignette** de l'eau telle
+qu'elle sera en jeu.
 Le **🕉 Sanctuaire** (dans la Boutique) vend des **offrandes**
 permanentes — canari du matin (+1 noix), boussole du pêcheur (2 tirs
 guidés), piment séché (premier tir ×2), braise de gamelan (fièvre à

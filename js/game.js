@@ -3249,6 +3249,36 @@ for (const k of ['day', 'night', 'dawn', 'dusk']) {
 }
 const PHASE_BOARD = { aube: 'dawn', jour: 'day', couchant: 'dusk', nuit: 'night' };
 
+/* Chaque décor de la boutique a sa PROPRE peinture d'eau : ce n'est plus
+   le lagon reteinté, c'est un autre endroit (rizières inondées, lagon
+   volcanique, récif, plancton lumineux…). Chemins littéraux : la démo
+   mono-fichier les remplace par des data URI. */
+const DECOR_ART_SRC = {
+  rizieres: 'art/lagoon-rizieres.webp',
+  volcan: 'art/lagoon-volcan.webp',
+  uluwatu: 'art/lagoon-uluwatu.webp',
+  biolum: 'art/lagoon-biolum.webp',
+  recif: 'art/lagoon-recif.webp',
+  lampions: 'art/lagoon-lampions.webp',
+  mousson: 'art/lagoon-mousson.webp',
+};
+const DECOR_ART = {};
+for (const k of Object.keys(DECOR_ART_SRC)) {
+  const img = new Image();
+  img.src = DECOR_ART_SRC[k];
+  DECOR_ART[k] = img;
+}
+
+/* Peinture du décor demandé, si elle est chargée. */
+function decorArtReady(id) {
+  const img = DECOR_ART[id];
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+/* Voile de l'heure posé sur la peinture d'un décor : le lieu reste
+   reconnaissable, mais on sait s'il fait jour ou nuit. */
+const PHASE_VEIL = { jour: 0.05, aube: 0.16, couchant: 0.22, nuit: 0.36 };
+
 function boardArtReady() {
   const phase = document.documentElement.dataset.phase;
   const k = PHASE_BOARD[phase]
@@ -3310,10 +3340,12 @@ const waterCache = { key: '', canvas: null };
 
 function waterArt(T, art, w, h) {
   const dec = DECORS[cosmetics.decor];
+  const decArt = decorArtReady(cosmetics.decor);
+  if (!art && !decArt) return null;
   const key = (document.documentElement.dataset.phase || '')
     + (document.documentElement.dataset.theme || '')
-    + art.naturalWidth + '.' + art.naturalHeight
-    + '|' + cosmetics.decor + '|' + T.waterTop + T.waterBottom
+    + (art ? art.naturalWidth + '.' + art.naturalHeight : '-')
+    + '|' + cosmetics.decor + (decArt ? '+art' : '') + '|' + T.waterTop + T.waterBottom
     + '|' + Math.round(w) + 'x' + Math.round(h);
   if (waterCache.key === key && waterCache.canvas) return waterCache.canvas;
   let cv;
@@ -3323,7 +3355,7 @@ function waterArt(T, art, w, h) {
     cv.height = Math.max(1, Math.round(h));
     const c = cv.getContext('2d');
     if (!c) return null;
-    paintWater(c, T, art, cv.width, cv.height, !!(dec && dec.overrides), 0, cv);
+    paintWater(c, T, art, cv.width, cv.height, !!(dec && dec.overrides), 0, cv, decArt);
   } catch (e) {
     return null;   // pas de canvas hors écran : on peint directement
   }
@@ -3373,11 +3405,24 @@ function matchLuminance(c, cv, w, h, target, oy) {
   c.globalAlpha = 1;
 }
 
-function paintWater(c, T, art, w, h, tinted, oy = 0, cv = null) {
-  const s = Math.max(w / art.naturalWidth, h / art.naturalHeight);
+function paintWater(c, T, art, w, h, tinted, oy = 0, cv = null, decArt = null) {
+  const base = decArt || art;
+  const s = Math.max(w / base.naturalWidth, h / base.naturalHeight);
   const sw = w / s, sh = h / s;
-  c.drawImage(art, (art.naturalWidth - sw) / 2, (art.naturalHeight - sh) / 2,
+  c.drawImage(base, (base.naturalWidth - sw) / 2, (base.naturalHeight - sh) / 2,
     sw, sh, 0, oy, w, h);
+  if (decArt) {
+    // le décor a sa propre peinture : seul un voile d'heure la nuance
+    const P = getTheme();   // thème de la PHASE, sans les couleurs du décor
+    const veil = c.createLinearGradient(0, oy, 0, oy + h);
+    veil.addColorStop(0, P.waterTop);
+    veil.addColorStop(1, P.waterBottom);
+    c.fillStyle = veil;
+    c.globalAlpha = PHASE_VEIL[getPhase()] || 0.06;
+    c.fillRect(0, oy, w, h);
+    c.globalAlpha = 1;
+    return;
+  }
   const grad = c.createLinearGradient(0, oy, 0, oy + h);
   grad.addColorStop(0, T.waterTop);
   grad.addColorStop(1, T.waterBottom);
@@ -3412,8 +3457,9 @@ export function drawDecorSwatch(cv, id) {
   const T = d && d.overrides ? Object.assign({}, getTheme(), d.overrides) : getTheme();
   const wh = Math.round(h * 0.76);
   const art = boardArtReady();
-  if (art) {
-    paintWater(c, T, art, w, wh, !!(d && d.overrides), 0, cv);
+  const decArt = decorArtReady(id);
+  if (art || decArt) {
+    paintWater(c, T, art, w, wh, !!(d && d.overrides), 0, cv, decArt);
   } else {
     const g = c.createLinearGradient(0, 0, 0, wh);
     g.addColorStop(0, T.waterTop);
@@ -3466,15 +3512,17 @@ function drawLagoon(rawT, T) {
     }
   }
   const art = boardArtReady();
-  if (art) {
-    // illustration en couverture de la zone d'eau, aux couleurs du décor
+  const decArt = decorArtReady(cosmetics.decor);
+  if (art || decArt) {
+    // peinture de l'eau : celle du décor équipé, sinon celle de l'heure
     const zy = ceilY - 6, zh = floorY - ceilY + 6;
     const cached = waterArt(T, art, W * dpr, zh * dpr);
     if (cached) {
       ctx.drawImage(cached, 0, 0, cached.width, cached.height, 0, zy, W, zh);
     } else {
       const dec = DECORS[cosmetics.decor];
-      paintWater(ctx, T, art, W, zh, !!(dec && dec.overrides), zy);
+      paintWater(ctx, T, art, W, zh, !!(dec && dec.overrides), zy, null,
+        decorArtReady(cosmetics.decor));
     }
   } else {
     ctx.fillStyle = bgCache.grad;
@@ -3485,10 +3533,13 @@ function drawLagoon(rawT, T) {
     ctx.fillRect(0, ceilY - 6, W, 126);
   }
 
+  // Reflets de surface : ils appartiennent à l'eau turquoise du lagon.
+  // Sur la peinture propre à un décor (rizières, coulée de lave, lampions)
+  // ils traversaient l'image comme des barres grises — on les saute.
+  const span = floorY - boardTop;
   ctx.strokeStyle = T.caustic;
   ctx.lineWidth = 12;
-  const span = floorY - boardTop;
-  for (let k = 0; k < 3; k++) {
+  for (let k = 0; k < (decArt ? 0 : 3); k++) {
     ctx.beginPath();
     const baseY = boardTop + span * (0.22 + 0.26 * k);
     for (let x = -10; x <= W + 10; x += 14) {
@@ -3500,7 +3551,7 @@ function drawLagoon(rawT, T) {
   }
 
   ctx.fillStyle = T.sparkle;
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < (decArt ? 7 : 14); i++) {
     const sx = ((i * 73.7) % 1) * W;
     const sy = boardTop + (((i * 41.3) % 1) * 0.85 + 0.05) * span;
     const a = 0.5 + 0.5 * Math.sin(t * 1.6 + i * 2.4);

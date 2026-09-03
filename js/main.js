@@ -9,7 +9,7 @@ import { drawQR } from './qr.js';
 import { ODY_ISLANDS, ODY_STAGES, odysseyGoalText } from './odyssey.js';
 import * as game from './game.js';
 
-const APP_VERSION = '4.5.0';
+const APP_VERSION = '4.6.0';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['screen-home', 'screen-welcome', 'screen-crew', 'screen-modes', 'screen-levels', 'screen-odyssee', 'screen-settings',
